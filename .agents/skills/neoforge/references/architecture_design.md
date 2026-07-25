@@ -1,3 +1,9 @@
+﻿---
+status: verified
+pin_minecraft: 1.21.1
+pin_neo: 21.1.x
+last_verified: 2026-07-25
+---
 # 模组通用架构设计蓝图 (Architecture & Design Blueprint)
 
 > [!WARNING]
@@ -51,7 +57,7 @@
 *   **物理隔离原则**：Minecraft 的专用服务器 (Dedicated Server) 物理缺失 `net.minecraft.client` 命名空间下的所有类。
 *   **注册隔离 (Registration Event)**：所有渲染器注册 (BER)、颜色处理器注册、粒子效果配置、客户端 Screen GUI 必须完全隔离在带 `@EventBusSubscriber(value = Dist.CLIENT)` 标记的客户端独立类中。
 *   **通用包禁导客户端**：严禁在 common / server 业务包的类（如 Block, Item, BlockEntity 核心类）中直接 import 或引用 `net.minecraft.client`。
-*   **单点跳转**：对客户端的调用一律包裹在 `OnlyIn` 宏或通过平台 Proxy 进行单点跳转。
+*   **单点跳转**：对客户端的调用必须通过 **物理隔离**（`client` 包 + `@EventBusSubscriber(value = Dist.CLIENT)` / `@Mod(..., dist = Dist.CLIENT)`）或平台 Proxy；**禁止**把 `OnlyIn` 当作主推荐路径（历史 API，易误导；见 anti_patterns / static_gate `onlyin_usage`）。
 
 ### 2. 数据权威性与服务端同步 (Server Authority)
 *   **服务端为唯一数据权威 (Server is King)**：所有的生命值、魔法值、能量、物品栏修改，必须完全在服务端进行逻辑结算。

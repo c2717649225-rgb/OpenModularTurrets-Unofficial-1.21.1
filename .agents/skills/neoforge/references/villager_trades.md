@@ -5,7 +5,7 @@
 > 下方所有示例及 references 中的 `com.tutorial.tutorialmod` 均为占位。写入前必须通过读取 `gradle.properties`（获取真实 Group/MOD ID）并执行 `init_workspace.py` 动态重构为当前项目的真实命名空间，严禁硬编码提交。
 
 
-为了将模组的自定义道具（例如哨子、信物、特殊装备）自然融入生存探索体验中，除了全局掉落修改器（GLM），最常用的方式就是**将物品加入到村民或流浪商人的交易列表**中。
+为了将模组的自定义道具（例如工具、材料、特殊装备）自然融入生存探索体验中，除了全局掉落修改器（GLM），最常用的方式就是**将物品加入到村民或流浪商人的交易列表**中。
 
 在 NeoForge 1.21.1 中，我们需要在游戏事件总线上订阅专用事件，并通过 `MerchantOffer` 动态追加交易。
 
@@ -46,12 +46,12 @@ public class ModVillagerTradeRegistrar {
             List<net.minecraft.world.entity.npc.VillagerTrades.ItemListing> apprenticeTrades = 
                     event.getTrades().get(2);
 
-            // 3. 动态追加一项交易：用 5 个翡翠 + 1 个普通骨头，换取模组的“御兽哨”
+            // 3. 动态追加一项交易：用 5 个绿宝石 + 1 个普通骨头，换取模组示例物品
             // BasicItemListing 是 NeoForge 提供的简易交易实现，封装了买入和卖出 ItemStack
             apprenticeTrades.add(new BasicItemListing(
                     new ItemStack(Items.EMERALD, 5),          // 买入第一槽：5个绿宝石
                     new ItemStack(Items.BONE, 1),             // 买入第二槽：1个骨头 (可选)
-                    new ItemStack(ModItems.LOYAL_WHISTLE.get(), 1), // 卖出槽：模组口哨
+                    new ItemStack(ModItems.EXAMPLE_ITEM.get(), 1), // 卖出槽：模组示例物品
                     12,                                       // 最大交易次数 (超次数锁定)
                     5,                                        // 交易给村民带来的经验值 (XP)
                     0.05F                                     // 价格乘数 (当村民打折或涨价时的比例)

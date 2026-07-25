@@ -1,3 +1,9 @@
+﻿---
+status: verified
+pin_minecraft: 1.21.1
+pin_neo: 21.1.x
+last_verified: 2026-07-25
+---
 # NeoForge 1.21.1 能力系统与数据附加系统 (Capabilities & Data Attachments)
 
 > [!WARNING]

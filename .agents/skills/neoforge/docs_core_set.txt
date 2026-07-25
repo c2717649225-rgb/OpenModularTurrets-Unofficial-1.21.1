@@ -1,0 +1,11 @@
+# Core references that must carry verified + pin_neo metadata.
+# HARD CAP: 5–10 entries. Do not expand casually.
+# Paths relative to skills/neoforge/references/
+anti_patterns.md
+data_components.md
+network_payloads.md
+block_entities.md
+capabilities_attachments.md
+event_system.md
+quick_skeletons.md
+architecture_design.md

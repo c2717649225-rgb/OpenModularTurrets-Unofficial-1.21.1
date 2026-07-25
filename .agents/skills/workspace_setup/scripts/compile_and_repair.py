@@ -15,8 +15,10 @@ def main():
     print("Starting Automated Compilation & Error Diagnostics...")
     print("==================================================")
     
-    # 检查是否包含 --with-data 参数
+    # 检查参数
     with_data = "--with-data" in sys.argv
+    with_static = "--with-static" in sys.argv
+    skip_static = "--skip-static" in sys.argv
     
     script_dir = os.path.dirname(os.path.abspath(__file__))
     # 动态向上解析定位项目根目录 (.agents/skills/workspace_setup/scripts/)
@@ -122,10 +124,38 @@ def main():
         sys.exit(1)
         
     print("Step 1 SUCCESS: Compilation passed 100%! No syntax errors.")
+
+    step = 2
+    # L2 static gate (only when requested; never widens scan beyond src/main/java)
+    if with_static and not skip_static:
+        print(f"\nStep {step}: Running L2 static_gate.py...")
+        static_script = os.path.join(script_dir, "static_gate.py")
+        static_result = subprocess.run(
+            [sys.executable, static_script],
+            cwd=project_dir,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            encoding='utf-8',
+            errors='replace'
+        )
+        # Forward child output
+        if static_result.stdout:
+            print(static_result.stdout.rstrip())
+        if static_result.stderr:
+            print(static_result.stderr.rstrip())
+        if static_result.returncode != 0:
+            print("==================================================")
+            print("FAILURE: L2 static gate failed.")
+            print("==================================================")
+            sys.exit(static_result.returncode)
+        step += 1
+    elif with_static and skip_static:
+        print("\n(Skipping L2 static gate because --skip-static was set)")
     
     # 如果指定了 --with-data，则接着运行 runData
     if with_data:
-        print("\nStep 2: Running gradlew runData (DataGen Update)...")
+        print(f"\nStep {step}: Running gradlew runData (DataGen Update)...")
         data_result = subprocess.run(
             [gradle_path, "runData"],
             cwd=project_dir,
@@ -148,14 +178,17 @@ def main():
             sys.exit(1)
             
         print("==================================================")
-        print("SUCCESS: Compilation and DataGen completed successfully!")
+        print("SUCCESS: Compilation (+ optional L2/DataGen) completed successfully!")
         print("Please verify that the generated resources (JSONs) exist in your output directory")
         print("(typically src/generated/resources/ or the configured assets output folder).")
         print("==================================================")
         sys.exit(0)
     else:
         print("==================================================")
-        print("SUCCESS: Compilation passed 100%! No syntax errors.")
+        if with_static and not skip_static:
+            print("SUCCESS: L1 compile + L2 static gate passed!")
+        else:
+            print("SUCCESS: Compilation passed 100%! No syntax errors.")
         print("==================================================")
         sys.exit(0)
 

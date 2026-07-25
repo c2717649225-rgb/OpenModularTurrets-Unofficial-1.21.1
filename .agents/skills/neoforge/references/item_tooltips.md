@@ -66,12 +66,13 @@ public class MyCustomItem extends Item {
 package com.tutorial.tutorialmod.client;
 
 import net.minecraft.client.gui.screens.Screen;
-import net.neoforged.api.distmarker.Dist;
-import net.neoforged.api.distmarker.OnlyIn;
 
+/**
+ * 放在 client 包（或仅由 Dist.CLIENT 类引用）。
+ * 不要使用 @OnlyIn；包隔离 + 下方 FMLEnvironment 守卫即可。
+ */
 public class ClientTooltipUtil {
 
-    // 只有在客户端时，才能安全地访问 Screen 类
     public static boolean isShiftDown() {
         return Screen.hasShiftDown();
     }
@@ -116,9 +117,9 @@ public class ClientTooltipUtil {
 
 ```json
 {
-  "tooltip.tutorialmod.my_item.desc": "§7这枚神奇的水晶蕴含着狼之魂。",
+  "tooltip.tutorialmod.my_item.desc": "§7A sample item description for tooltips.",
   "tooltip.tutorialmod.my_item.press_shift": "按住 [Shift] 键查看详细描述",
-  "tooltip.tutorialmod.my_item.shift_info": "§6主动技能：§f右键吹响口哨，可以召集周围 16 格范围内的所有已驯服的狼瞬间传送至您的身边并恢复 5 点生命值。"
+  "tooltip.tutorialmod.my_item.shift_info": "§6Extra details:§f hold Shift to reveal advanced stats or lore for this sample item."
 }
 ```
 通过这种**类加载屏障隔离设计**，您可以为模组量身定做出极其炫酷的多功能 Shift/Ctrl 物品信息提示卡片，同时 100% 确保服务端在联机部署时不会发生任何类加载崩溃。

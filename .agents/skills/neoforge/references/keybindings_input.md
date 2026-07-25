@@ -5,7 +5,7 @@
 > 下方所有示例及 references 中的 `com.tutorial.tutorialmod` 均为占位。写入前必须通过读取 `gradle.properties`（获取真实 Group/MOD ID）并执行 `init_workspace.py` 动态重构为当前项目的真实命名空间，严禁硬编码提交。
 
 
-在很多模组中，玩家需要通过特定按键来主动释放技能、吹响口哨或者开启自定义骑乘界面。这需要我们在**物理客户端**注册按键，并在监听到按键事件后，**通过网络包通知服务端执行核心逻辑**。
+在很多模组中，玩家需要通过特定按键来主动释放技能、切换状态或打开自定义界面。这需要我们在**物理客户端**注册按键，并在监听到按键事件后，**通过网络包通知服务端执行核心逻辑**。
 
 ---
 
@@ -32,7 +32,7 @@ public class ClientKeyRegistrar {
 
     // 使用 Lazy 延迟初始化按键实例，防止类加载顺序导致的问题
     public static final Lazy<KeyMapping> WOLF_SKILL_KEY = Lazy.of(() -> new KeyMapping(
-            "key.tutorialmod.wolf_skill",                  // 按键名称的翻译 Key
+            "key.tutorialmod.example_action",              // 按键名称的翻译 Key
             InputConstants.Type.KEYSYM,                     // 按键类型 (键盘按键)
             GLFW.GLFW_KEY_V,                                // 默认键位 (V 键)
             "key.categories.tutorialmod"                    // 键位在“控制设置”菜单中的分类组翻译 Key
@@ -49,8 +49,8 @@ public class ClientKeyRegistrar {
 在语言文件（`zh_cn.json`）中添加本地化名称：
 ```json
 {
-  "key.categories.tutorialmod": "狼之羁绊模组按键",
-  "key.tutorialmod.wolf_skill": "御兽主动技能"
+  "key.categories.tutorialmod": "Example Mod Keys",
+  "key.tutorialmod.example_action": "Example Active Action"
 }
 ```
 
@@ -97,7 +97,7 @@ public class ClientInputHandler {
         // 使用 NeoForge 1.21.1 管道向服务端发送同步包
         // 这里的 ServerboundActionPayload 是我们自定义实现的 CustomPacketPayload
         net.neoforged.neoforge.network.PacketDistributor.sendToServer(
-                new ServerboundActionPayload("trigger_wolf_skill")
+                new ServerboundActionPayload("example_action")
         );
     }
 }
@@ -124,10 +124,10 @@ public class ServerActionPacketHandler {
         context.enqueueWork(() -> {
             ServerPlayer player = (ServerPlayer) context.player();
             
-            if ("trigger_wolf_skill".equals(payload.actionName())) {
-                // 1. 验证玩家状态（如能量是否足够，技能是否在冷却中）
-                // 2. 触发逻辑（例如：让玩家跟随的狼对准星方向发起冲锋）
-                System.out.println("Player " + player.getName().getString() + " triggered active skill on server.");
+            if ("example_action".equals(payload.actionName())) {
+                // 1. Validate player state (cooldown, inventory, etc.)
+                // 2. Apply server-authoritative gameplay effect
+                System.out.println("Player " + player.getName().getString() + " triggered example_action on server.");
             }
         });
     }

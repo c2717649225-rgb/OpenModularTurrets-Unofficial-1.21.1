@@ -17,12 +17,21 @@ description: >
 2. 根据任务在「3. 索引导航」中寻找对应专题：**首先只阅读 1 个** reference 专题文件。
 3. 仅当仍缺失必要 API 或有额外关联逻辑时，再阅读 **第 2 个** 专题文件。
 4. **绝对禁止**一次性打开 3 个及以上的 references 专题文件，严禁为追求“全面”而通读整个目录。
-5. `examples/` 示例目录与 `references/quick_skeletons.md` 骨架文件同样计入「第 1 或第 2 个」限额配额。
+5. `examples/`、`playbooks/` 与 `references/quick_skeletons.md` 同样计入「第 1 或第 2 个」限额配额。  
+6. `playbooks/` **全集固定 5 篇**（见索引表）；禁止为新主题继续堆 playbook。
+
+### 写码前（MCP-first）
+* 涉及原版/NeoForge API 时：先 MCP `search_class` / `list_methods` / `read_file`（或等价读源码）确认签名，再写码。
+* `references/` 与 examples 仅为地图与避坑；**与真源码冲突时以源码为准**。
+* 仅 [docs_core_set.txt](docs_core_set.txt) 内 5～10 篇为 `verified`+`pin_neo`；其余 reference 视为 **draft**，不得当唯一依据。
 
 ### 写码后验证
-* 编写/修改 Java 源码后，向用户汇报前必须运行：`python .agents/skills/workspace_setup/scripts/compile_and_repair.py` (编译通过即为通过)
-* 涉及 DeferredRegister 注册项或 DataGen 更新时，必须加上 `--with-data` 参数同步生成 JSON 资源文件。
-* 项目元数据绝对以项目根目录的 `gradle.properties` 与 `neoforge.mods.toml` 为唯一真事实源，严禁强行硬编码 Mod ID 或包名。
+* 汇报前必须运行 L1：`python .agents/skills/workspace_setup/scripts/compile_and_repair.py`
+* L2 已落地时必须加 `--with-static`（仅扫描宿主 `src/main/java`，见 static_gate 规格）。
+* 涉及 DeferredRegister 或 DataGen 时加 `--with-data`。
+* 修改 references/examples/playbooks 后跑：`python .agents/skills/workspace_setup/scripts/check_doc_index.py`
+* 元数据唯一真源：宿主 `gradle.properties` 与 `neoforge.mods.toml`，禁止硬编码 Mod ID/包名。
+* 宣称完成须附：变更路径 + 门禁通过输出（见 `AGENTS.md` 完成证据协议）。
 
 ---
 
@@ -55,6 +64,7 @@ description: >
 | NBT 替代与自定义数据组件 (Data Components) | [references/data_components.md](references/data_components.md) |
 | BlockEntity 物品栏、能力接口 (Capability) 与 Attachments | [references/capabilities_attachments.md](references/capabilities_attachments.md) |
 | BlockEntity 基础、网络同步与 BlockState 保存 | [references/block_entities.md](references/block_entities.md) |
+| 自定义网络数据包 (Payloads) 与 StreamCodec | [references/network_payloads.md](references/network_payloads.md) |
 | 高维架构设计、模组间解耦与并发安全机制 | [references/architecture_design.md](references/architecture_design.md) |
 | 容器 GUI 菜单、屏幕 (Menus, Screens) | [references/menus_screens.md](references/menus_screens.md) |
 | 配置文件 (Config specs) 与 TOML 重载监听 | [references/configuration.md](references/configuration.md) |
@@ -108,6 +118,17 @@ description: >
 | 掉落物、状态与方块模型 DataGen 案例 | [examples/datagen_example.md](examples/datagen_example.md) |
 | 合成配方、物品 Tags 标签 DataGen 案例 | [examples/recipes_tags_example.md](examples/recipes_tags_example.md) |
 | 多端发布平台解耦架构 (Platform Decoupling) | [examples/platform_decoupling_example.md](examples/platform_decoupling_example.md) |
+
+### 📋 任务剧本 Playbooks（全集仅 5，禁止再增）
+> 优先于通读 references。每个 playbook 计入「1～2 篇」限额。更多主题请查上方 references，**不要**再加第 6 个 playbook。
+
+| 任务类型 | Playbook (READ ONLY) |
+| :--- | :--- |
+| 注册物品/方块/创造页签 | [playbooks/pb_register_item_block.md](playbooks/pb_register_item_block.md) |
+| 自定义 Data Component | [playbooks/pb_data_component.md](playbooks/pb_data_component.md) |
+| 网络 Payload C2S/S2C | [playbooks/pb_network_payload.md](playbooks/pb_network_payload.md) |
+| BlockEntity 保存与同步 | [playbooks/pb_block_entity_sync.md](playbooks/pb_block_entity_sync.md) |
+| Attachment 玩家/实体数据 | [playbooks/pb_attachment_player_data.md](playbooks/pb_attachment_player_data.md) |
 
 ---
 

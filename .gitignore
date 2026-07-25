@@ -42,7 +42,9 @@ repo/
 ### Python, MCP Cache & Environment ###
 **/__pycache__/
 **/*.py[cod]
+*$py.class
 .agents/mcp/mcp_jar_cache.json
+.agents/mcp/mcp_error.log
 *.log
 .env
 

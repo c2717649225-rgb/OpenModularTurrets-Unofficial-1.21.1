@@ -1,3 +1,9 @@
+﻿---
+status: verified
+pin_minecraft: 1.21.1
+pin_neo: 21.1.x
+last_verified: 2026-07-25
+---
 # Minecraft 1.21.1 数据组件 (Data Components) 参考指南
 
 > [!WARNING]

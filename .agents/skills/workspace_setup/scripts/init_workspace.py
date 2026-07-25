@@ -1,36 +1,122 @@
+#!/usr/bin/env python3
+"""
+Host workspace rename / align engine for NeoForge projects.
+
+Usage:
+  python init_workspace.py           # apply changes (requires clean git unless --force)
+  python init_workspace.py --dry-run # print planned actions only
+  python init_workspace.py --force   # apply even if git working tree is dirty
+"""
+from __future__ import annotations
+
+import json
 import os
 import re
-import json
 import shutil
+import subprocess
+import sys
+from pathlib import Path
+from typing import Callable, List, Optional, Tuple
 
-def main():
-    print("==================================================")
-    print("Starting Mod Workspace Auto-Refactoring Engine...")
-    print("==================================================")
+Action = Tuple[str, Callable[[], None]]
 
-    # 1. 获取路径 (自适应深度：.agents/skills/workspace_setup/scripts/)
-    script_dir = os.path.dirname(os.path.abspath(__file__)) # scripts/
-    workspace_setup_dir = os.path.dirname(script_dir)       # workspace_setup/
-    skills_dir = os.path.dirname(workspace_setup_dir)       # skills/
-    agents_dir = os.path.dirname(skills_dir)               # .agents/
-    project_dir = os.path.dirname(agents_dir)             # 项目根目录
 
-    gradle_properties_path = os.path.join(project_dir, "gradle.properties")
-    agents_md_path = os.path.join(agents_dir, "AGENTS.md")
+def _reconfigure_stdio() -> None:
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    if hasattr(sys.stderr, "reconfigure"):
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 
-    if not os.path.exists(gradle_properties_path):
-        print(f"Error: gradle.properties not found at {gradle_properties_path}")
-        return
 
-    # 2. 解析 gradle.properties
+def project_paths() -> Tuple[Path, Path]:
+    script_dir = Path(__file__).resolve().parent
+    project_dir = script_dir.parent.parent.parent.parent
+    agents_dir = project_dir / ".agents"
+    return project_dir, agents_dir
+
+
+def parse_props(path: Path) -> dict:
     props = {}
-    with open(gradle_properties_path, "r", encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            if line and not line.startswith("#") and "=" in line:
-                k, v = line.split("=", 1)
-                props[k.strip()] = v.strip()
+    for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
+        line = line.strip()
+        if line and not line.startswith("#") and "=" in line:
+            k, v = line.split("=", 1)
+            props[k.strip()] = v.strip()
+    return props
 
+
+def git_dirty(project_dir: Path) -> bool:
+    try:
+        r = subprocess.run(
+            ["git", "status", "--porcelain"],
+            cwd=str(project_dir),
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+        if r.returncode != 0:
+            return False
+        return bool(r.stdout.strip())
+    except OSError:
+        return False
+
+
+def merge_or_move(old_path: Path, new_path: Path, label: str, log: List[str], dry_run: bool) -> None:
+    if not old_path.exists():
+        return
+    if new_path.exists():
+        log.append(f"[{label}] merge {old_path.name} -> {new_path.name}")
+        if dry_run:
+            return
+        for root, _, files in os.walk(old_path):
+            for f in files:
+                src_file = Path(root) / f
+                dest_file = new_path / src_file.relative_to(old_path)
+                dest_file.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(src_file, dest_file)
+        shutil.rmtree(old_path)
+    else:
+        log.append(f"[{label}] rename {old_path.name} -> {new_path.name}")
+        if not dry_run:
+            shutil.move(str(old_path), str(new_path))
+
+
+def replace_in_text(content: str, old_ids: List[str], mod_id: str) -> str:
+    out = content
+    for oid in old_ids:
+        if oid and oid != mod_id:
+            out = re.sub(rf"\b{re.escape(oid)}\b", mod_id, out)
+    return out
+
+
+def main(argv: Optional[List[str]] = None) -> int:
+    _reconfigure_stdio()
+    argv = list(sys.argv[1:] if argv is None else argv)
+    dry_run = "--dry-run" in argv
+    force = "--force" in argv
+
+    print("==================================================")
+    print("Mod Workspace Auto-Refactoring Engine")
+    print(f"Mode: {'DRY-RUN (no writes)' if dry_run else 'APPLY'}")
+    print("==================================================")
+
+    project_dir, agents_dir = project_paths()
+    gradle_properties_path = project_dir / "gradle.properties"
+    agents_md_path = agents_dir / "AGENTS.md"
+    log: List[str] = []
+
+    if not gradle_properties_path.is_file():
+        print(f"Error: gradle.properties not found at {gradle_properties_path}")
+        return 1
+
+    if not dry_run and not force and git_dirty(project_dir):
+        print("ERROR: git working tree is not clean.")
+        print("  Refuse to apply renames (data loss risk).")
+        print("  Use --dry-run to preview, or --force to override.")
+        return 2
+
+    props = parse_props(gradle_properties_path)
     mod_id = props.get("mod_id", "tutorialmod")
     mod_name = props.get("mod_name", "Tutorial Mod")
     mod_group_id = props.get("mod_group_id", "com.tutorial.tutorialmod")
@@ -39,217 +125,283 @@ def main():
     print(f"[Properties] Mod Name: {mod_name}")
     print(f"[Properties] Mod Package: {mod_group_id}")
 
-    # 3. 扫描主包目录定位被 @Mod 修饰的入口类
-    base_package_path = os.path.join(project_dir, "src", "main", "java", *mod_group_id.split("."))
-    main_class_file = None
-    main_class_full_path = None
-    main_class_rel_path = f"./src/main/java/{mod_group_id.replace('.', '/')}/TutorialMod.java" # 默认回退相对路径
+    # Collect known stale ids for text replace (template defaults)
+    old_ids = ["examplemod", "tutorialmod"]
+    # Discover other asset/data folder names as stale candidates
+    resources_dir = project_dir / "src" / "main" / "resources"
+    assets_dir = resources_dir / "assets"
+    data_dir = resources_dir / "data"
+    if assets_dir.is_dir():
+        for sub in assets_dir.iterdir():
+            if sub.is_dir() and sub.name not in old_ids and sub.name != mod_id:
+                old_ids.append(sub.name)
+    if data_dir.is_dir():
+        for sub in data_dir.iterdir():
+            if (
+                sub.is_dir()
+                and sub.name not in old_ids
+                and sub.name != mod_id
+                and sub.name not in ("minecraft", "c", "neoforge", "forge")
+            ):
+                old_ids.append(sub.name)
 
-    if os.path.exists(base_package_path):
-        for root, _, files in os.walk(base_package_path):
-            for file in files:
-                if file.endswith(".java"):
-                    full_path = os.path.join(root, file)
-                    with open(full_path, "r", encoding="utf-8", errors="replace") as jf:
-                        content = jf.read()
-                        if "@Mod(" in content:
-                            main_class_file = file
-                            main_class_full_path = full_path
-                            main_class_rel_path = "./" + os.path.relpath(full_path, project_dir).replace("\\", "/")
-                            break
-            if main_class_file:
+    # 3. Locate @Mod main class under expected package (and fallback walk src/main/java)
+    base_package_path = project_dir / "src" / "main" / "java" / Path(*mod_group_id.split("."))
+    main_class_file = None
+    main_class_full_path: Optional[Path] = None
+    main_class_rel_path = f"./src/main/java/{mod_group_id.replace('.', '/')}/TutorialMod.java"
+
+    search_roots = []
+    if base_package_path.is_dir():
+        search_roots.append(base_package_path)
+    java_root = project_dir / "src" / "main" / "java"
+    if java_root.is_dir():
+        search_roots.append(java_root)
+
+    seen = set()
+    for root_dir in search_roots:
+        for full_path in root_dir.rglob("*.java"):
+            key = str(full_path.resolve())
+            if key in seen:
+                continue
+            seen.add(key)
+            try:
+                content = full_path.read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                continue
+            if "@Mod(" in content:
+                main_class_file = full_path.name
+                main_class_full_path = full_path
+                main_class_rel_path = "./" + full_path.relative_to(project_dir).as_posix()
                 break
+        if main_class_full_path:
+            break
 
     print(f"[Java Main Class] Located: {main_class_rel_path}")
 
-    # 4. 【重命名】资源包物理目录并更新本地化 JSON
-    resources_dir = os.path.join(project_dir, "src", "main", "resources")
-    assets_dir = os.path.join(resources_dir, "assets")
-    
-    # 查找 assets/ 下的非法或过期目录名（不等于当前 mod_id 的那个）
-    if os.path.exists(assets_dir):
-        subdirs = [d for d in os.listdir(assets_dir) if os.path.isdir(os.path.join(assets_dir, d))]
-        for sub in subdirs:
-            if sub != mod_id:
-                old_path = os.path.join(assets_dir, sub)
-                new_path = os.path.join(assets_dir, mod_id)
-                if os.path.exists(new_path):
-                    # 如果新文件夹已存在，合并他们或删除旧的
-                    print(f"[Assets] Merging folder {sub} into {mod_id}...")
-                    for root, dirs, files in os.walk(old_path):
-                        for f in files:
-                            src_file = os.path.join(root, f)
-                            rel_to_old = os.path.relpath(src_file, old_path)
-                            dest_file = os.path.join(new_path, rel_to_old)
-                            os.makedirs(os.path.dirname(dest_file), exist_ok=True)
-                            shutil.copy2(src_file, dest_file)
-                    shutil.rmtree(old_path)
-                else:
-                    print(f"[Assets] Renaming folder {sub} -> {mod_id}")
-                    shutil.move(old_path, new_path)
+    # 4. assets rename
+    if assets_dir.is_dir():
+        for sub in list(assets_dir.iterdir()):
+            if sub.is_dir() and sub.name != mod_id:
+                merge_or_move(sub, assets_dir / mod_id, "Assets", log, dry_run)
 
-    # 自动替换语言 JSON 内部的 namespace 前缀键值
-    lang_dir = os.path.join(assets_dir, mod_id, "lang")
-    if os.path.exists(lang_dir):
-        for file in os.listdir(lang_dir):
-            if file.endswith(".json"):
-                json_path = os.path.join(lang_dir, file)
-                try:
-                    with open(json_path, "r", encoding="utf-8") as jf:
-                        lang_data = json.load(jf)
-                    
-                    new_lang_data = {}
-                    for k, v in lang_data.items():
-                        new_k = re.sub(r'\bexamplemod\b', mod_id, k)
-                        new_lang_data[new_k] = v
-                    
-                    with open(json_path, "w", encoding="utf-8") as jf:
-                        json.dump(new_lang_data, jf, indent=2, ensure_ascii=False)
-                    print(f"[Language JSON] Aligned namespaces in {file}")
-                except Exception as e:
-                    print(f"Error processing language json {file}: {e}")
+    lang_dir = assets_dir / mod_id / "lang"
+    if lang_dir.is_dir():
+        for file in lang_dir.iterdir():
+            if file.suffix != ".json":
+                continue
+            try:
+                lang_data = json.loads(file.read_text(encoding="utf-8"))
+            except Exception as e:
+                log.append(f"[Language JSON] skip {file.name}: {e}")
+                continue
+            new_lang_data = {}
+            changed = False
+            for k, v in lang_data.items():
+                new_k = k
+                for oid in old_ids:
+                    if oid != mod_id:
+                        new_k = re.sub(rf"\b{re.escape(oid)}\b", mod_id, new_k)
+                if new_k != k:
+                    changed = True
+                new_lang_data[new_k] = v
+            if changed:
+                log.append(f"[Language JSON] align namespaces in {file.name}")
+                if not dry_run:
+                    file.write_text(
+                        json.dumps(new_lang_data, indent=2, ensure_ascii=False) + "\n",
+                        encoding="utf-8",
+                    )
 
-    # 4b. 【数据命名空间重命名与单数规范修正】
-    data_dir = os.path.join(resources_dir, "data")
-    if os.path.exists(data_dir):
-        # 查找 data/ 下的非法或过期目录名（不等于当前 mod_id 的那个，如 examplemod）
-        subdirs = [d for d in os.listdir(data_dir) if os.path.isdir(os.path.join(data_dir, d))]
-        for sub in subdirs:
-            if sub != mod_id and sub not in ("minecraft", "c"):
-                old_path = os.path.join(data_dir, sub)
-                new_path = os.path.join(data_dir, mod_id)
-                if os.path.exists(new_path):
-                    print(f"[Data] Merging data folder {sub} into {mod_id}...")
-                    for root, _, files in os.walk(old_path):
-                        for f in files:
-                            src_file = os.path.join(root, f)
-                            rel_to_old = os.path.relpath(src_file, old_path)
-                            dest_file = os.path.join(new_path, rel_to_old)
-                            os.makedirs(os.path.dirname(dest_file), exist_ok=True)
-                            shutil.copy2(src_file, dest_file)
-                    shutil.rmtree(old_path)
-                else:
-                    print(f"[Data] Renaming data folder {sub} -> {mod_id}")
-                    shutil.move(old_path, new_path)
+    # 4b. data/ namespace + singular folders
+    if data_dir.is_dir():
+        for sub in list(data_dir.iterdir()):
+            if not sub.is_dir():
+                continue
+            if sub.name in ("minecraft", "c", "neoforge", "forge"):
+                continue
+            if sub.name != mod_id:
+                merge_or_move(sub, data_dir / mod_id, "Data", log, dry_run)
 
-        # 自动修正 1.21.1 命名单数规约 (recipes -> recipe, loot_tables -> loot_table, advancements -> advancement)
-        target_data_ns = os.path.join(data_dir, mod_id)
-        if os.path.exists(target_data_ns):
+        target_data_ns = data_dir / mod_id
+        if target_data_ns.is_dir():
             plural_to_singular = {
                 "recipes": "recipe",
                 "loot_tables": "loot_table",
-                "advancements": "advancement"
+                "advancements": "advancement",
             }
             for plural, singular in plural_to_singular.items():
-                plural_path = os.path.join(target_data_ns, plural)
-                if os.path.exists(plural_path):
-                    singular_path = os.path.join(target_data_ns, singular)
-                    if os.path.exists(singular_path):
-                        for root, _, files in os.walk(plural_path):
-                            for f in files:
-                                src_file = os.path.join(root, f)
-                                dest_file = os.path.join(singular_path, os.path.relpath(src_file, plural_path))
-                                os.makedirs(os.path.dirname(dest_file), exist_ok=True)
-                                shutil.copy2(src_file, dest_file)
-                        shutil.rmtree(plural_path)
-                        print(f"[Singular Rule] Merged and singularized {plural} -> {singular}")
+                plural_path = target_data_ns / plural
+                if not plural_path.exists():
+                    continue
+                singular_path = target_data_ns / singular
+                log.append(f"[Singular Rule] {plural} -> {singular}")
+                if dry_run:
+                    continue
+                if singular_path.exists():
+                    for root, _, files in os.walk(plural_path):
+                        for f in files:
+                            src_file = Path(root) / f
+                            dest_file = singular_path / src_file.relative_to(plural_path)
+                            dest_file.parent.mkdir(parents=True, exist_ok=True)
+                            shutil.copy2(src_file, dest_file)
+                    shutil.rmtree(plural_path)
+                else:
+                    plural_path.rename(singular_path)
+
+    # 4b2. src/generated resources namespaces (if present)
+    for gen_base in (
+        project_dir / "src" / "generated" / "resources",
+        project_dir / "src" / "generated" / "resources" / "assets",
+    ):
+        # handle assets + data under generated
+        pass
+    gen_root = project_dir / "src" / "generated" / "resources"
+    if gen_root.is_dir():
+        for kind in ("assets", "data"):
+            kind_dir = gen_root / kind
+            if not kind_dir.is_dir():
+                continue
+            for sub in list(kind_dir.iterdir()):
+                if not sub.is_dir():
+                    continue
+                if kind == "data" and sub.name in ("minecraft", "c", "neoforge", "forge"):
+                    continue
+                if sub.name != mod_id:
+                    merge_or_move(sub, kind_dir / mod_id, f"Generated/{kind}", log, dry_run)
+
+    # 4c. pack.mcmeta
+    pack_mcmeta_path = resources_dir / "pack.mcmeta"
+    if pack_mcmeta_path.is_file():
+        mcmeta_content = pack_mcmeta_path.read_text(encoding="utf-8", errors="replace")
+        new_mcmeta = replace_in_text(mcmeta_content, old_ids, mod_id)
+        if new_mcmeta != mcmeta_content:
+            log.append("[META] align pack.mcmeta namespaces")
+            if not dry_run:
+                pack_mcmeta_path.write_text(new_mcmeta, encoding="utf-8")
+
+    # 5. mixin json rename + create
+    # Rename *stale*.mixins.json -> {mod_id}.mixins.json
+    if resources_dir.is_dir():
+        for p in list(resources_dir.glob("*.mixins.json")):
+            if p.name != f"{mod_id}.mixins.json":
+                target = resources_dir / f"{mod_id}.mixins.json"
+                log.append(f"[Mixin] rename {p.name} -> {target.name}")
+                if not dry_run:
+                    if target.exists():
+                        p.unlink()
                     else:
-                        os.rename(plural_path, singular_path)
-                        print(f"[Singular Rule] Renamed {plural} -> {singular}")
+                        p.rename(target)
 
-    # 4c. 【元数据残留清理】
-    pack_mcmeta_path = os.path.join(resources_dir, "pack.mcmeta")
-    if os.path.exists(pack_mcmeta_path):
-        try:
-            with open(pack_mcmeta_path, "r", encoding="utf-8") as f:
-                mcmeta_content = f.read()
-            new_mcmeta = re.sub(r'\bexamplemod\b', mod_id, mcmeta_content)
-            if new_mcmeta != mcmeta_content:
-                with open(pack_mcmeta_path, "w", encoding="utf-8") as f:
-                    f.write(new_mcmeta)
-                print("[META-INF] Aligned namespaces in pack.mcmeta")
-        except Exception as e:
-            print(f"Error alignment in pack.mcmeta: {e}")
-
-    # 5. 【解密模板】Uncomment neoforge.mods.toml 的 mixins 占位符
-    mods_toml_template = os.path.join(project_dir, "src", "main", "templates", "META-INF", "neoforge.mods.toml")
-    if os.path.exists(mods_toml_template):
-        with open(mods_toml_template, "r", encoding="utf-8") as tf:
-            toml_content = tf.read()
-        
+    mods_toml_template = (
+        project_dir / "src" / "main" / "templates" / "META-INF" / "neoforge.mods.toml"
+    )
+    if mods_toml_template.is_file():
+        toml_content = mods_toml_template.read_text(encoding="utf-8", errors="replace")
         if "#[[mixins]]" in toml_content:
-            toml_content = toml_content.replace("#[[mixins]]", "[[mixins]]")
-            toml_content = toml_content.replace('#config="${mod_id}.mixins.json"', 'config="${mod_id}.mixins.json"')
-            with open(mods_toml_template, "w", encoding="utf-8") as tf:
-                tf.write(toml_content)
-            print("[META-INF Template] Activated Mixin blocks in neoforge.mods.toml")
+            log.append("[META-INF Template] activate mixin blocks")
+            if not dry_run:
+                toml_content = toml_content.replace("#[[mixins]]", "[[mixins]]")
+                toml_content = toml_content.replace(
+                    '#config="${mod_id}.mixins.json"',
+                    'config="${mod_id}.mixins.json"',
+                )
+                mods_toml_template.write_text(toml_content, encoding="utf-8")
 
-    # 6. 【自动生成】创建对应的 {mod_id}.mixins.json 配置文件
-    mixin_config_path = os.path.join(resources_dir, f"{mod_id}.mixins.json")
-    if not os.path.exists(mixin_config_path):
-        mixin_data = {
-            "required": True,
-            "minVersion": "0.8",
-            "package": f"{mod_group_id}.mixin",
-            "compatibilityLevel": "JAVA_21",
-            "refmap": f"{mod_id}.refmap.json",
-            "mixins": [],
-            "client": [],
-            "injectors": {
-                "defaultRequire": 1
+    mixin_config_path = resources_dir / f"{mod_id}.mixins.json"
+    if not mixin_config_path.exists():
+        log.append(f"[Mixin Config] create {mod_id}.mixins.json")
+        if not dry_run:
+            mixin_data = {
+                "required": True,
+                "minVersion": "0.8",
+                "package": f"{mod_group_id}.mixin",
+                "compatibilityLevel": "JAVA_21",
+                "refmap": f"{mod_id}.refmap.json",
+                "mixins": [],
+                "client": [],
+                "injectors": {"defaultRequire": 1},
             }
-        }
-        with open(mixin_config_path, "w", encoding="utf-8") as mf:
-            json.dump(mixin_data, mf, indent=2, ensure_ascii=False)
-        print(f"[Mixin Config] Created {mod_id}.mixins.json")
+            mixin_config_path.write_text(
+                json.dumps(mixin_data, indent=2, ensure_ascii=False) + "\n",
+                encoding="utf-8",
+            )
+    else:
+        # align package field if present
+        try:
+            mixin_data = json.loads(mixin_config_path.read_text(encoding="utf-8"))
+            desired_pkg = f"{mod_group_id}.mixin"
+            if mixin_data.get("package") != desired_pkg:
+                log.append(f"[Mixin Config] package -> {desired_pkg}")
+                if not dry_run:
+                    mixin_data["package"] = desired_pkg
+                    mixin_data["refmap"] = f"{mod_id}.refmap.json"
+                    mixin_config_path.write_text(
+                        json.dumps(mixin_data, indent=2, ensure_ascii=False) + "\n",
+                        encoding="utf-8",
+                    )
+        except Exception as e:
+            log.append(f"[Mixin Config] skip package align: {e}")
 
-    # 7. 【重写代码】更新入口 Java 主类中的 MODID 常量及旧注释
-    if main_class_full_path and os.path.exists(main_class_full_path):
-        with open(main_class_full_path, "r", encoding="utf-8") as jf:
-            java_content = jf.read()
-        
-        new_java_content = re.sub(
+    # 7. Main class MODID constant
+    if main_class_full_path and main_class_full_path.is_file():
+        java_content = main_class_full_path.read_text(encoding="utf-8", errors="replace")
+        new_java = re.sub(
             r'public static final String MODID = "[^"]*";',
             f'public static final String MODID = "{mod_id}";',
-            java_content
+            java_content,
         )
-        new_java_content = re.sub(r'\bexamplemod\b', mod_id, new_java_content)
-        
-        if new_java_content != java_content:
-            with open(main_class_full_path, "w", encoding="utf-8") as jf:
-                jf.write(new_java_content)
-            print(f"[Java Code] Updated MODID constant & comments in {main_class_file}")
+        new_java = replace_in_text(new_java, old_ids, mod_id)
+        if new_java != java_content:
+            log.append(f"[Java Code] update MODID in {main_class_file}")
+            if not dry_run:
+                main_class_full_path.write_text(new_java, encoding="utf-8")
 
-    # 8. 【对齐规约】更新 AGENTS.md 顶部的动态元数据
-    if os.path.exists(agents_md_path):
-        with open(agents_md_path, "r", encoding="utf-8") as f:
-            agents_content = f.read()
+    # 7b. Optional: other java under package — replace quoted old mod ids only when package path matches group
+    # (kept minimal: only main class + resources to avoid rewriting entire world)
 
-        updated_content = re.sub(
-            r'- \*\*参考 Mod ID\*\*: .*',
-            f'- **参考 Mod ID**: {mod_id} (已由初始化引擎自动对齐)',
-            agents_content
+    # 8. AGENTS.md — only replace lines if old template keys exist; do not invent product-specific lore
+    if agents_md_path.is_file():
+        agents_content = agents_md_path.read_text(encoding="utf-8", errors="replace")
+        updated = agents_content
+        updated2 = re.sub(
+            r"- \*\*参考 Mod ID\*\*: .*",
+            f"- **参考 Mod ID**: {mod_id} (已由初始化引擎自动对齐)",
+            updated,
         )
-        updated_content = re.sub(
-            r'- \*\*参考 Mod Name\*\*: .*',
-            f'- **参考 Mod Name**: {mod_name} (已由初始化引擎自动对齐)',
-            updated_content
+        updated2 = re.sub(
+            r"- \*\*参考 Mod Name\*\*: .*",
+            f"- **参考 Mod Name**: {mod_name} (已由初始化引擎自动对齐)",
+            updated2,
         )
-        
-        main_class_name = os.path.basename(main_class_rel_path) if main_class_file else "TutorialMod.java"
-        updated_content = re.sub(
-            r'- \*\*参考基类路径\*\*: .*',
-            f'- **参考基类路径**: [{main_class_name}]({main_class_rel_path})',
-            updated_content
+        main_class_name = (
+            os.path.basename(main_class_rel_path) if main_class_file else "TutorialMod.java"
         )
+        updated2 = re.sub(
+            r"- \*\*参考基类路径\*\*: .*",
+            f"- **参考基类路径**: [{main_class_name}]({main_class_rel_path})",
+            updated2,
+        )
+        if updated2 != agents_content:
+            log.append("[AGENTS.md] align metadata lines if present")
+            if not dry_run:
+                agents_md_path.write_text(updated2, encoding="utf-8")
 
-        with open(agents_md_path, "w", encoding="utf-8") as f:
-            f.write(updated_content)
-        print("[AGENTS.md] Rules specification metadata aligned.")
+    print("\n--- Planned / Applied actions ---")
+    if not log:
+        print("(no file changes needed; already aligned)")
+    else:
+        for line in log:
+            print(line)
 
     print("==================================================")
-    print("Refactoring Complete! Mod Workspace is ready.")
+    if dry_run:
+        print("DRY-RUN complete. Re-run without --dry-run to apply.")
+    else:
+        print("Refactoring complete.")
     print("==================================================")
+    return 0
+
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

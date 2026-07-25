@@ -1,3 +1,9 @@
+﻿---
+status: verified
+pin_minecraft: 1.21.1
+pin_neo: 21.1.x
+last_verified: 2026-07-25
+---
 # NeoForge 1.21.1 常见开发地雷与反例对照表 (Anti-Patterns)
 
 > [!WARNING]

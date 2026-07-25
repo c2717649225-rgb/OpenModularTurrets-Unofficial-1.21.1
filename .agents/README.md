@@ -1,16 +1,18 @@
-# .agents AI 辅助开发增强包 (Developer Guide)
+# .agents — 通用 NeoForge 1.21.1 AI 工具包
 
-这是一个专门为 Minecraft 1.21.1 + NeoForge 模组开发定制的通用 AI 辅助套件。
+面向 **Minecraft Java 1.21.1 + NeoForge 21.1.x** 的可复用 AI 辅助开发套件。  
+可拷贝到**任意**同版本 NeoForge 工程使用；**不绑定**某一具体玩法模组。
+
+当前 monorepo 若带有 starter 示例源码，仅作可编译宿主；产品边界是 **`.agents/` 目录本身**。
 
 ---
 
-## 🚀 ⏱️ 5 分钟 Onboarding Checklist (核心接入)
+## 5 分钟接入
 
-1. **步骤一：挂载项目规则**
-   将 [`.agents/AGENTS.md`](./AGENTS.md) 的内容注册为您当前使用的 AI 客户端的常驻项目规则 / 系统提示词（System Prompt）。
+1. **挂载项目规则**  
+   将 [AGENTS.md](./AGENTS.md) 注册为 AI 客户端的项目规则 / 系统提示。
 
-2. **步骤二：激活 MCP 源码探针**
-   在 AI 客户端的 MCP 配置中注册探针（以提供游戏及依赖的源码检索能力）：
+2. **激活 MCP 源码探针**  
    ```json
    {
      "mcpServers": {
@@ -23,23 +25,76 @@
      }
    }
    ```
-   *(请将 `args` 改为本机项目 `minecraft_mcp.py` 的绝对路径。)*
+   将 `args` 换成**本机**该文件的绝对路径。首次使用会在 `mcp/` 下生成本机缓存（已 gitignore，勿提交）。
 
-3. **步骤三：一键工作区初始化**
-   向 AI 助手发送：`“帮我初始化一下这个工作区”`，AI 将自动调用 `init_workspace.py` 重构物理包命名空间。
+3. **（可选）工作区改名**  
+   编辑宿主工程 `gradle.properties` 中的 `mod_id` / `mod_group_id` / `mod_name` 后，让 AI 执行初始化，或手动：  
+   `python .agents/init_workspace.py`  
+   （底层调用 `skills/workspace_setup/scripts/init_workspace.py`。）
 
-4. **步骤四：跑通一次本地编译**
-   在终端中运行 `python .agents/skills/workspace_setup/scripts/compile_and_repair.py`，验证本地编译通过。
+4. **编译门禁**  
+   ```bash
+   python .agents/skills/workspace_setup/scripts/compile_and_repair.py
+   ```
+   L2 静态门禁落地后：追加 `--with-static`。
 
 ---
 
-## 📂 目录结构说明
+## 目录说明
 
-*   [`AGENTS.md`](./AGENTS.md)：**面向 AI 的唯一硬红线规约**。
-*   [`mcp/`](./mcp/)：包含 MCP 探针代码 `minecraft_mcp.py` 以及快速缓存。
-*   [`skills/`](./skills/)：
-    *   `neoforge/`：**一等领域知识库**。包含 NeoForge API 示例、高维架构设计（SOLID）以及配置/网络 Payload 模板。
-    *   `workspace_setup/`：一键重构引擎 `init_workspace.py` 和 `compile_and_repair.py` 自测试。
-    *   `systematic-debugging/`：错误排障与防御设计指引。
-    *   `task_monitor/`：可选后台编译防超时监控。
-*   [`_archive/`](./_archive/)：不用的过程型辅助技能（superpowers-optional）与 HTML 噪音（superpowers-noise）的归档备份目录。
+| 路径 | 用途 |
+| --- | --- |
+| [AGENTS.md](./AGENTS.md) | 面向 AI 的硬红线（常驻） |
+| [mcp/](./mcp/) | 源码探针 `minecraft_mcp.py`（缓存/日志不入库） |
+| [skills/neoforge/](./skills/neoforge/) | 领域知识：SKILL 索引、references、examples、playbooks |
+| [skills/workspace_setup/](./skills/workspace_setup/) | 初始化与编译/静态门禁脚本 |
+| [skills/systematic-debugging/](./skills/systematic-debugging/) | 按需：排障 |
+| [skills/task_monitor/](./skills/task_monitor/) | 按需：长任务监控 |
+| [_archive/](./_archive/) | **禁读归档**（见其 README）；非默认 skill |
+
+---
+
+## 卫生与可移植性
+
+- **勿提交**：`mcp/mcp_jar_cache.json`、`mcp/mcp_error.log`、任意 `__pycache__` / `.env`。  
+- **勿写本机绝对路径**进工具包文档（MCP 配置示例用占位符）。  
+- **勿加载** `_archive/` 内 skill，除非用户明确要求。  
+- 拷贝到其他工程时：复制整个 `.agents/` 即可；MCP 会按新工程根目录重扫依赖。
+
+---
+
+## 默认 skill 白名单
+
+日常仅允许：
+
+1. `neoforge`  
+2. `workspace_setup`  
+3. `systematic-debugging`（按需）  
+4. `task_monitor`（按需）
+
+过程型 superpowers 等已归档，不在默认路径。
+
+---
+
+## 拷贝到其他工程
+
+1. 复制整个 `.agents/` 目录到目标 NeoForge 1.21.1 工程根目录。  
+2. 挂载 `AGENTS.md`，配置 MCP 指向**目标工程**内的 `minecraft_mcp.py`。  
+3. 运行 L1（建议 L2）：  
+   `python .agents/skills/workspace_setup/scripts/compile_and_repair.py --with-static`  
+4. 不要复制某个玩法模组的设计文档进 `.agents`；工具包保持平台通用。
+
+## 质量自检（维护工具包时）
+
+```bash
+python .agents/skills/workspace_setup/scripts/check_doc_index.py
+python .agents/skills/workspace_setup/scripts/check_doc_meta.py
+python .agents/skills/workspace_setup/scripts/static_gate.py
+```
+
+人工任务评测见 [eval/](./eval/)。
+
+## 版本
+
+见 [VERSION](./VERSION)。  
+`docs_core_set` 限制 verified 文档 5～10 篇；API 真源以宿主依赖 + MCP 源码为准。
