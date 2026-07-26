@@ -345,6 +345,52 @@ def check_lang_quality(
     return findings
 
 
+def check_mods_toml(project_root: Path) -> List[Finding]:
+    """
+    Template-default metadata that would ship as-is (release-quality warnings).
+    Line-scan on purpose: zero deps (tomllib is 3.11+; CI runs 3.10) and the
+    file may contain ${gradle} placeholders that no TOML parser accepts.
+    """
+    findings: List[Finding] = []
+    toml_path = None
+    for rel in ("src/main/templates/META-INF/neoforge.mods.toml",
+                "src/main/resources/META-INF/neoforge.mods.toml"):
+        p = project_root / rel
+        if p.is_file():
+            toml_path = p
+            break
+    if toml_path is None:
+        findings.append(Finding(
+            "modstoml_missing", "warning", "META-INF/neoforge.mods.toml",
+            "neoforge.mods.toml not found under templates/ or resources/.",
+        ))
+        return findings
+
+    text = toml_path.read_text(encoding="utf-8", errors="replace")
+    subject = str(toml_path.relative_to(project_root)).replace("\\", "/")
+    active = [ln.strip() for ln in text.splitlines()
+              if ln.strip() and not ln.strip().startswith("#")]
+
+    if "Example mod description" in text:
+        findings.append(Finding(
+            "modstoml_template_default", "warning", subject,
+            "description is still the template placeholder ('Example mod "
+            "description') — this ships verbatim into the released jar.",
+        ))
+    if not any(re.match(r'authors\s*=\s*["\'].+["\']', ln) for ln in active):
+        findings.append(Finding(
+            "modstoml_template_default", "warning", subject,
+            "no active authors=\"...\" entry — mod UI will show no author.",
+        ))
+    for ln in active:
+        if re.search(r"(change\.me|example\.invalid)", ln):
+            findings.append(Finding(
+                "modstoml_template_default", "warning", subject,
+                f"active line still points at a placeholder URL: {ln[:70]}",
+            ))
+    return findings
+
+
 # ----------------------------------------------------------------- entry point
 
 def print_report(
@@ -408,6 +454,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     findings += check_entries(view, ns, items, blocks, blockitems)
     findings += check_model_references(view, ns)
     findings += check_lang_quality(view, ns, translatables)
+    findings += check_mods_toml(project_root)
 
     return print_report(
         project_root, ns,

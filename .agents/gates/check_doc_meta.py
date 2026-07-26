@@ -89,6 +89,20 @@ def main() -> int:
                 )
                 failed = True
 
+    # Size visibility (informational only — never affects PASS/FAIL).
+    # References are load-on-demand encyclopedia pages, so no hard cap;
+    # this exists so silent bloat is at least visible to maintainers.
+    if REFS.is_dir():
+        sizes = sorted(
+            ((len(p.read_text(encoding="utf-8", errors="replace").splitlines()), p.name)
+             for p in REFS.glob("*.md")),
+            reverse=True,
+        )
+        total = sum(n for n, _ in sizes)
+        print(f"\n[info] reference sizes: {len(sizes)} files, {total} lines total; largest:")
+        for n, name in sizes[:5]:
+            print(f"[info]   {n:>5} lines  {name}")
+
     if failed:
         print("\nRESULT: FAIL")
         return 1
