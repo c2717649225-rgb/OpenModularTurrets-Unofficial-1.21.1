@@ -3,7 +3,102 @@ import sys
 import subprocess
 import re
 import json
+import threading
+import time
 from typing import List, Dict, Any
+
+
+def run_server_smoke(gradle_path: str, project_dir: str, timeout_s: int = 600) -> bool:
+    """L3 smoke: boot the dedicated server headless, assert it reaches 'Done',
+    then shut it down. Catches client-class leaks and boot-time crashes that
+    static scanning cannot see. Returns True on PASS."""
+    print("--------------------------------------------------")
+    print(f"L3 server smoke: gradlew runServer (timeout {timeout_s}s)")
+
+    # Dedicated servers refuse to boot without an accepted EULA. Running with
+    # --with-server implies acceptance of the Mojang EULA for this test run.
+    run_dir = os.path.join(project_dir, "run")
+    eula_path = os.path.join(run_dir, "eula.txt")
+    try:
+        os.makedirs(run_dir, exist_ok=True)
+        needs_eula = True
+        if os.path.exists(eula_path):
+            with open(eula_path, "r", encoding="utf-8", errors="replace") as f:
+                needs_eula = "eula=true" not in f.read()
+        if needs_eula:
+            with open(eula_path, "w", encoding="utf-8") as f:
+                f.write("# Auto-accepted for --with-server smoke test (implies Mojang EULA consent)\n")
+                f.write("eula=true\n")
+            print(f"NOTE: wrote eula=true to {eula_path} (--with-server implies EULA consent).")
+    except OSError as e:
+        print(f"WARNING: could not prepare eula.txt: {e}")
+
+    proc = subprocess.Popen(
+        [gradle_path, "runServer"],
+        cwd=project_dir,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+    watchdog = threading.Timer(timeout_s, proc.kill)
+    watchdog.start()
+
+    done_seen = False
+    fatal_seen = False
+    error_lines: List[str] = []
+    tail: List[str] = []
+    stop_deadline = None
+    try:
+        for line in proc.stdout:
+            line = line.rstrip()
+            tail.append(line)
+            if len(tail) > 60:
+                tail.pop(0)
+            if "/FATAL]" in line or "Exception in server" in line:
+                fatal_seen = True
+            if "/ERROR]" in line and len(error_lines) < 30:
+                error_lines.append(line)
+            if not done_seen and re.search(r"\bDone \(", line):
+                done_seen = True
+                print("Server reached 'Done' — issuing graceful stop...")
+                try:
+                    proc.stdin.write("stop\n")
+                    proc.stdin.flush()
+                except OSError:
+                    pass
+                # If stdin isn't wired through Gradle, fall back to kill shortly.
+                stop_deadline = time.time() + 45
+            if stop_deadline and time.time() > stop_deadline:
+                print("Graceful stop not honored (stdin not forwarded) — killing process.")
+                proc.kill()
+                stop_deadline = None
+    finally:
+        watchdog.cancel()
+        try:
+            proc.stdin.close()
+        except OSError:
+            pass
+        proc.wait()
+
+    # Verdict: booting to 'Done' without FATAL is the hard assertion. Exit code
+    # is ignored when we had to kill a server that would not stop via stdin.
+    if done_seen and not fatal_seen:
+        print(f"L3 PASS: dedicated server booted to 'Done'. ({len(error_lines)} ERROR line(s) observed)")
+        for el in error_lines:
+            print(f"  [server-error] {el}")
+        if error_lines:
+            print("  ^ Review these ERROR lines — not all are fatal, but none should ship unexplained.")
+        return True
+
+    print("L3 FAIL: server never reached 'Done' (crash, hang past timeout, or FATAL).")
+    print("Last output lines:")
+    for line in tail[-40:]:
+        print(f"  {line}")
+    return False
+
 
 def main():
     if hasattr(sys.stdout, "reconfigure"):
@@ -19,6 +114,8 @@ def main():
     with_data = "--with-data" in sys.argv
     with_static = "--with-static" in sys.argv
     skip_static = "--skip-static" in sys.argv
+    with_assets = "--with-assets" in sys.argv
+    with_server = "--with-server" in sys.argv
     
     script_dir = os.path.dirname(os.path.abspath(__file__))
     # 动态向上解析定位项目根目录 (.agents/skills/workspace_setup/scripts/)
@@ -165,7 +262,7 @@ def main():
             encoding='utf-8',
             errors='replace'
         )
-        
+
         if data_result.returncode != 0:
             print("==================================================")
             print("FAILURE: DataGen runData execution failed!")
@@ -176,21 +273,56 @@ def main():
             for line in lines[-40:]:
                 print(line)
             sys.exit(1)
-            
-        print("==================================================")
-        print("SUCCESS: Compilation (+ optional L2/DataGen) completed successfully!")
-        print("Please verify that the generated resources (JSONs) exist in your output directory")
-        print("(typically src/generated/resources/ or the configured assets output folder).")
-        print("==================================================")
-        sys.exit(0)
-    else:
-        print("==================================================")
-        if with_static and not skip_static:
-            print("SUCCESS: L1 compile + L2 static gate passed!")
-        else:
-            print("SUCCESS: Compilation passed 100%! No syntax errors.")
-        print("==================================================")
-        sys.exit(0)
+        print("DataGen OK — generated resources written (typically src/generated/resources/).")
+        step += 1
+
+    # L2.5 asset gate AFTER DataGen so freshly generated resources count.
+    if with_assets:
+        print(f"\nStep {step}: Running L2.5 asset_gate.py (registry <-> resource reconciliation)...")
+        asset_script = os.path.join(script_dir, "asset_gate.py")
+        asset_result = subprocess.run(
+            [sys.executable, asset_script],
+            cwd=project_dir,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            encoding='utf-8',
+            errors='replace'
+        )
+        if asset_result.stdout:
+            print(asset_result.stdout.rstrip())
+        if asset_result.stderr:
+            print(asset_result.stderr.rstrip())
+        if asset_result.returncode != 0:
+            print("==================================================")
+            print("FAILURE: L2.5 asset gate failed (missing/dangling resources).")
+            print("==================================================")
+            sys.exit(asset_result.returncode)
+        step += 1
+
+    # L3 dedicated-server smoke boot, the last and slowest gate.
+    if with_server:
+        print(f"\nStep {step}: Running L3 dedicated server smoke test...")
+        if not run_server_smoke(gradle_path, project_dir):
+            print("==================================================")
+            print("FAILURE: L3 server smoke test failed.")
+            print("==================================================")
+            sys.exit(1)
+        step += 1
+
+    print("==================================================")
+    passed = ["L1 compile"]
+    if with_static and not skip_static:
+        passed.append("L2 static")
+    if with_data:
+        passed.append("DataGen")
+    if with_assets:
+        passed.append("L2.5 assets")
+    if with_server:
+        passed.append("L3 server smoke")
+    print(f"SUCCESS: {' + '.join(passed)} passed!")
+    print("==================================================")
+    sys.exit(0)
 
 if __name__ == "__main__":
     main()

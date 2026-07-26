@@ -166,6 +166,127 @@ def find_matching_brace(text: str, open_idx: int) -> int:
     return -1
 
 
+def find_matching_paren(text: str, open_idx: int) -> int:
+    """open_idx points at '('. Returns index of matching ')' or -1.
+    Tracks (), [], {} depth together; strings/comments are skipped."""
+    depth = 0
+    i = open_idx
+    n = len(text)
+    in_sl = in_ml = in_str = False
+    str_ch = ""
+    while i < n:
+        ch = text[i]
+        nxt = text[i + 1] if i + 1 < n else ""
+        if in_sl:
+            if ch == "\n":
+                in_sl = False
+            i += 1
+            continue
+        if in_ml:
+            if ch == "*" and nxt == "/":
+                in_ml = False
+                i += 2
+                continue
+            i += 1
+            continue
+        if in_str:
+            if ch == "\\":
+                i += 2
+                continue
+            if ch == str_ch:
+                in_str = False
+            i += 1
+            continue
+        if ch == "/" and nxt == "/":
+            in_sl = True
+            i += 2
+            continue
+        if ch == "/" and nxt == "*":
+            in_ml = True
+            i += 2
+            continue
+        if ch in ('"', "'"):
+            in_str = True
+            str_ch = ch
+            i += 1
+            continue
+        if ch in "([{":
+            depth += 1
+        elif ch in ")]}":
+            depth -= 1
+            if depth == 0:
+                return i
+        i += 1
+    return -1
+
+
+def count_top_level_commas(text: str, open_idx: int, close_idx: int) -> int:
+    """Commas at depth 1 between matching parens (nested calls/lambdas excluded)."""
+    depth = 0
+    commas = 0
+    in_str = False
+    str_ch = ""
+    i = open_idx
+    while i <= close_idx:
+        ch = text[i]
+        if in_str:
+            if ch == "\\":
+                i += 2
+                continue
+            if ch == str_ch:
+                in_str = False
+            i += 1
+            continue
+        if ch in ('"', "'"):
+            in_str = True
+            str_ch = ch
+        elif ch in "([{":
+            depth += 1
+        elif ch in ")]}":
+            depth -= 1
+        elif ch == "," and depth == 1:
+            commas += 1
+        i += 1
+    return commas
+
+
+def split_top_level(params: str) -> List[str]:
+    """Split a parameter list on commas outside <>, (), [] nesting."""
+    parts: List[str] = []
+    depth = 0
+    cur = []
+    for ch in params:
+        if ch in "<([{":
+            depth += 1
+        elif ch in ">)]}":
+            depth -= 1
+        if ch == "," and depth == 0:
+            parts.append("".join(cur))
+            cur = []
+        else:
+            cur.append(ch)
+    if cur:
+        parts.append("".join(cur))
+    return [p.strip() for p in parts if p.strip()]
+
+
+def record_param_names(text: str) -> dict:
+    """Map record name -> ordered constructor parameter names."""
+    out = {}
+    for m in re.finditer(r"\brecord\s+([A-Za-z_]\w*)\s*\(", text):
+        close = find_matching_paren(text, m.end() - 1)
+        if close < 0:
+            continue
+        params = text[m.end() : close]
+        names = []
+        for p in split_top_level(params):
+            tokens = p.split()
+            if tokens:
+                names.append(tokens[-1])
+        out[m.group(1)] = names
+    return out
+
+
 def eventbus_subscriber_ranges(text: str) -> List[Tuple[int, int]]:
     """
     Return (start, end) character ranges for class bodies that carry
@@ -270,11 +391,141 @@ def scan_file(
             findings.append(
                 Finding(
                     "eventbus_nonstatic",
-                    "warning",
+                    "error",
                     rel,
                     line_of(text, abs_idx),
-                    "@EventBusSubscriber handler must be static. "
+                    "@EventBusSubscriber handler must be static — non-static handlers "
+                    "silently never fire (P0). "
                     "(Instance methods via addListener / EVENT_BUS.register(this) are OK outside this annotation.)",
+                )
+            )
+
+    # --- static_registry_get: P0-5, eager .get() in static initializers ---
+    # Single-line heuristic: a `static` field assignment whose initializer calls
+    # ALL_CAPS.get() with no lambda/method-ref on the line (those defer the call).
+    for i, line in enumerate(text.splitlines(), start=1):
+        if "->" in line or "::" in line:
+            continue
+        stripped = line.lstrip()
+        if stripped.startswith(("//", "*", "/*")):
+            continue
+        if re.search(
+            r"^\s*(?:public\s+|protected\s+|private\s+)?(?:static\s+final|final\s+static|static)\s+"
+            r"[^=;]*=\s*[^;]*\b[A-Z][A-Z0-9_]{2,}\.get\(\)",
+            line,
+        ):
+            findings.append(
+                Finding(
+                    "static_registry_get",
+                    "error",
+                    rel,
+                    i,
+                    "Eager `.get()` on a registry/config constant in a static initializer "
+                    "— crashes with 'Registry not present' before registration runs (P0). "
+                    "Defer to runtime (method body, lambda, or event handler).",
+                )
+            )
+    for m in re.finditer(r"\bstatic\s*\{", text):
+        close = find_matching_brace(text, text.find("{", m.start()))
+        if close < 0:
+            continue
+        body = text[m.start() : close]
+        for gm in re.finditer(r"\b[A-Z][A-Z0-9_]{2,}\.get\(\)", body):
+            seg_start = body.rfind("\n", 0, gm.start()) + 1
+            seg = body[seg_start : gm.end()]
+            if "->" in seg or "::" in seg:
+                continue
+            findings.append(
+                Finding(
+                    "static_registry_get",
+                    "error",
+                    rel,
+                    line_of(text, m.start() + gm.start()),
+                    "Eager `.get()` inside a static block — runs at class load, "
+                    "before registries exist (P0). Defer to runtime.",
+                )
+            )
+
+    # --- codec_field_order: P0-2, only certain mismatches are reported ---
+    # Report ONLY when the codec's fieldOf(...) names and the record's constructor
+    # parameter names are the same SET in a different ORDER — that is a guaranteed
+    # save-corrupting bug. Different sets (custom json names) are skipped entirely.
+    records = record_param_names(text)
+    for m in re.finditer(r"RecordCodecBuilder\s*\.\s*(?:create|mapCodec)\s*\(", text):
+        apply_m = re.search(
+            r"\.apply\s*\(\s*\w+\s*,\s*([A-Za-z_]\w*)(?:::new)?", text[m.start() :]
+        )
+        if not apply_m:
+            continue
+        window = text[m.start() : m.start() + apply_m.end()]
+        codec_names = re.findall(r"\.(?:optionalFieldOf|fieldOf)\s*\(\s*\"(\w+)\"", window)
+        target = apply_m.group(1)
+        rec_names = records.get(target)
+        if (
+            rec_names
+            and len(codec_names) == len(rec_names)
+            and set(codec_names) == set(rec_names)
+            and codec_names != rec_names
+        ):
+            findings.append(
+                Finding(
+                    "codec_field_order",
+                    "error",
+                    rel,
+                    line_of(text, m.start()),
+                    f"Codec field order {codec_names} != record `{target}` constructor "
+                    f"order {rec_names} — deserialization corrupts saves (P0). "
+                    "Reorder the .group(...) entries to match the record exactly.",
+                )
+            )
+
+    # --- streamcodec_composite_overflow: composite supports at most 6 fields ---
+    for m in re.finditer(r"StreamCodec\s*\.\s*composite\s*\(", text):
+        open_idx = text.find("(", m.start())
+        close_idx = find_matching_paren(text, open_idx)
+        if close_idx < 0:
+            continue
+        n_args = count_top_level_commas(text, open_idx, close_idx) + 1
+        if n_args > 13:  # 6 codec/getter pairs + constructor = 13 args max
+            findings.append(
+                Finding(
+                    "streamcodec_composite_overflow",
+                    "error",
+                    rel,
+                    line_of(text, m.start()),
+                    f"StreamCodec.composite with {n_args} args (> 13 = more than 6 fields) "
+                    "— no such overload. Use StreamCodec.of(encoder, decoder) for 7+ fields.",
+                )
+            )
+
+    # --- payload_thread_safety: P0-4 heuristic, warning ---
+    # A method taking IPayloadContext whose body mutates game state without any
+    # enqueueWork(...) is very likely running on the network thread.
+    for m in re.finditer(
+        r"[\w<>\[\],\s.]+\s+\w+\s*\(([^)]*\bIPayloadContext\b[^)]*)\)\s*\{", text
+    ):
+        open_idx = text.find("{", m.end() - 1)
+        close_idx = find_matching_brace(text, open_idx)
+        if close_idx < 0:
+            continue
+        body = text[open_idx : close_idx + 1]
+        if "enqueueWork" in body:
+            continue
+        mut = re.search(
+            r"\.(setBlock|setData|set[A-Z]\w*|addItem|removeItem|hurt|heal|kill|"
+            r"teleportTo|addEffect|removeEffect|drop|playSound|spawn[A-Z]\w*)\s*\(",
+            body,
+        )
+        if mut:
+            findings.append(
+                Finding(
+                    "payload_thread_safety",
+                    "warning",
+                    rel,
+                    line_of(text, open_idx + mut.start()),
+                    f"Payload handler mutates state (`.{mut.group(1)}(...)`) with no "
+                    "context.enqueueWork(...) in the method — handlers run on the "
+                    "network thread (P0-4). Wrap world/player mutations in enqueueWork.",
                 )
             )
 
