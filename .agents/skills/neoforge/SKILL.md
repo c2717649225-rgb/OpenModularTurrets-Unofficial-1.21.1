@@ -70,6 +70,7 @@ description: >
 | 配置文件 (Config specs) 与 TOML 重载监听 | [references/configuration.md](references/configuration.md) |
 | 模组访问转换器 (Access Transformers) 配置 | [references/access_transformers.md](references/access_transformers.md) |
 | 常见模组开发反模式与规避指南 (Anti-Patterns) | [references/anti_patterns.md](references/anti_patterns.md) |
+| 发布质量线与交付检查单 (Quality Bar) | [references/quality_bar.md](references/quality_bar.md) |
 
 ### 🧱 方块、物品与掉落物定制
 | 任务类型 | 目标专题路径 (READ ONLY) |

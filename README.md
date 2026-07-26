@@ -42,16 +42,17 @@ neoforge-1.21.1-ai-starter/
 
 ---
 
-## 核心 Skills（开发时优先加载）
+## 核心 Skills（白名单仅 4 个）
 
 | Skill | 用途 |
 |-------|------|
-| `neoforge_modding` | 1.21.1 写法、references、MCP 检索剧本、编译门禁 |
-| `workspace_setup` | 改名/初始化（`python .agents/init_workspace.py`） |
-| `verification-before-completion` | 交付前必须有 compile 等证据 |
+| `neoforge_modding` | 1.21.1 写法、references、playbooks、MCP 检索剧本、编译门禁 |
+| `workspace_setup` | 改名/初始化与门禁脚本（`python .agents/init_workspace.py`） |
+| `systematic-debugging` | 按需：崩溃与诡异 bug 的根因排障 |
+| `task_monitor` | 按需：长 Gradle/Git 任务防假死监控 |
 
 > [!NOTE]
-> 其余 skills（`brainstorming`、`test-driven-development`、多代理等）为可选过程技能；Minor 任务不必强开。
+> 过程型 skills（`brainstorming`、`test-driven-development`、多代理等）已移入 `.agents/_archive/`，**非默认路径、默认禁止加载**（口径见 [`.agents/AGENTS.md`](.agents/AGENTS.md) 部分三）。交付前的编译/静态证据要求已并入 `AGENTS.md` 的「完成证据协议」。
 
 ---
 
@@ -97,11 +98,17 @@ python .agents/init_workspace.py
 ### 4. 编译自检
 
 ```bash
-# 默认：仅 compileJava
+# 默认：仅 compileJava（L1）
 python .agents/skills/workspace_setup/scripts/compile_and_repair.py
 
-# 改了注册项或 DataGen Provider 时，再跑 runData
-python .agents/skills/workspace_setup/scripts/compile_and_repair.py --with-data
+# 推荐：编译 + 静态扫描（L1+L2）
+python .agents/skills/workspace_setup/scripts/compile_and_repair.py --with-static
+
+# 改了注册项或 DataGen Provider 时：DataGen + 资源对账（L2.5）
+python .agents/skills/workspace_setup/scripts/compile_and_repair.py --with-data --with-assets
+
+# 发布前：追加专用服务器无头冒烟（L3，较慢）
+python .agents/skills/workspace_setup/scripts/compile_and_repair.py --with-static --with-assets --with-server
 ```
 
 可选：`./gradlew runClient`
@@ -118,17 +125,20 @@ python .agents/skills/workspace_setup/scripts/compile_and_repair.py --with-data
 ├── AGENTS.md           # AI 红线（请加载到客户端）
 ├── README.md           # 接入说明（MCP 等）
 ├── VERSION             # 工具包版本与目标平台
-├── agent_workflow.md   # Implementer / Reviewer 流程说明
+├── agent_workflow.md   # 可选：外部多智能体协作指针（非默认路径）
 ├── init_workspace.py   # 一键初始化入口
 ├── mcp/
 │   └── minecraft_mcp.py
+├── eval/               # 人工任务评测（T01–T05 + 记分卡）
+├── _archive/           # 禁读归档（过程型 superpowers 等）
 └── skills/
-    ├── neoforge/         # ★ 1.21.1 写法与 references
-    ├── workspace_setup/  # 改名 / 编译脚本
-    └── …                 # 计划、调试、评审等流程 skills
+    ├── neoforge/             # ★ 1.21.1 写法与 references
+    ├── workspace_setup/      # 改名 / 编译与静态门禁脚本
+    ├── systematic-debugging/ # 按需：排障
+    └── task_monitor/         # 按需：长任务监控
 ```
 
-本机生成、不入库：`mcp/mcp_jar_cache.json`、`**/__pycache__/`（见根 `.gitignore`）。
+本机生成、不入库：`mcp/mcp_jar_cache.json`、`mcp/mcp_error.log`、`**/__pycache__/`（见根与 `mcp/` 下的 `.gitignore`）。
 
 </details>
 
@@ -139,8 +149,8 @@ python .agents/skills/workspace_setup/scripts/compile_and_repair.py --with-data
 |------|------|
 | [`AGENTS.md`](.agents/AGENTS.md) | 全局红线：Data Components、客户端隔离、网络线程、DataGen 例外、MCP 门禁、编译分级等 |
 | [`README.md`](.agents/README.md) | 5 分钟接入与 MCP 注册说明 |
-| [`VERSION`](.agents/VERSION) | 版本与平台锚定（如 1.0.0 / MC 1.21.1 / Neo 21.1.x） |
-| [`agent_workflow.md`](.agents/agent_workflow.md) | 实现 / 审查角色与「先编译再评审」流程（不绑定具体模型品牌） |
+| [`VERSION`](.agents/VERSION) | 版本与平台锚定（如 1.1.0 / MC 1.21.1 / Neo 21.1.x） |
+| [`agent_workflow.md`](.agents/agent_workflow.md) | 可选的外部多智能体协作指针；默认单 Agent 路径与证据协议见其正文 |
 | [`init_workspace.py`](.agents/init_workspace.py) | 初始化入口（转发到 `workspace_setup` 下真实脚本） |
 
 </details>
@@ -159,33 +169,16 @@ python .agents/skills/workspace_setup/scripts/compile_and_repair.py --with-data
 <details>
 <summary><strong>skills/ 一览</strong></summary>
 
-每个子目录通常有一份 `SKILL.md`，供 AI 按任务选用。
-
-**模组相关（优先）**
+每个子目录有一份 `SKILL.md`，供 AI 按任务选用。**白名单仅以下 4 个：**
 
 | 目录 | 作用 |
 |------|------|
-| **neoforge** | 核心：1.21.1 约束、代码骨架、`references/` 专题、`examples/`；约定 compile / `--with-data` |
-| **workspace_setup** | 改名与初始化流程；内含 `init_workspace.py`、`compile_and_repair.py` |
+| **neoforge** | 核心：1.21.1 约束、代码骨架、`references/` 专题、`examples/`、`playbooks/`；约定 compile / `--with-static` / `--with-data` |
+| **workspace_setup** | 改名与初始化流程；内含 `init_workspace.py`、`compile_and_repair.py`、`static_gate.py`、`asset_gate.py` 与文档自检脚本 |
+| systematic-debugging | 按需：根因优先的系统化排错（含崩溃报告分析） |
+| task_monitor | 按需：长 Gradle/Git 后台任务防假死监控 |
 
-**工程流程（通用）**
-
-| 目录 | 作用 |
-|------|------|
-| using-superpowers | 有适用 skill 时先读再做 |
-| brainstorming | 需求与方案澄清 |
-| writing-plans | 写可执行实现计划 |
-| executing-plans | 按计划实现（Implementer / Reviewer） |
-| subagent-driven-development | 多子代理实现与任务审查 |
-| dispatching-parallel-agents | 独立任务并行派发 |
-| test-driven-development | 先测后写 |
-| systematic-debugging | 系统化排错 |
-| verification-before-completion | 完成前必须有验证证据 |
-| requesting-code-review / receiving-code-review | 发起 / 处理代码审查 |
-| finishing-a-development-branch | 功能收尾（合并 / PR 等） |
-| using-git-worktrees | worktree 隔离开发 |
-| task_monitor | 长任务监控思路 |
-| writing-skills | 维护/编写 skill 本身 |
+过程型 skills（brainstorming、writing-plans、test-driven-development、code-review 系列等）已整体移入 [`_archive/`](.agents/_archive/)，非默认路径、默认禁止加载；说明见 [`_archive/README.md`](.agents/_archive/README.md)。
 
 </details>
 
@@ -196,9 +189,11 @@ python .agents/skills/workspace_setup/scripts/compile_and_repair.py --with-data
 
 | 内容 | 作用 |
 |------|------|
-| `SKILL.md` | 总入口与骨架、reference 索引 |
-| `references/*.md` | 按主题的写法（组件、网络、实体、Mixin、DataGen 等，约 40 篇） |
-| `examples/*.md` | 注册、创造栏、DataGen、配方标签等示例 |
+| `SKILL.md` | 总入口：红线、reference 索引（一次最多读 1～2 篇专题） |
+| `references/*.md` | 按主题的写法（组件、网络、实体、Mixin、DataGen 等 40+ 篇） |
+| `examples/*.md` | 注册、创造栏、DataGen、配方标签等完整案例（5 篇） |
+| `playbooks/*.md` | 高频任务剧本（全集固定 5 篇，禁止再增） |
+| `docs_core_set.txt` | verified 核心文档清单（5～10 篇，锚定 Neo 21.1.x） |
 
 文档中的包名可能是占位符或 `tutorialmod`；写入工程前须按当前 `gradle.properties` 替换。
 
@@ -206,8 +201,11 @@ python .agents/skills/workspace_setup/scripts/compile_and_repair.py --with-data
 
 | 脚本 | 作用 |
 |------|------|
-| `init_workspace.py` | 对齐命名空间、MODID、mixins、AGENTS 顶部元数据等 |
-| `compile_and_repair.py` | 默认 `compileJava`；`--with-data` 再跑 `runData`；失败时尽量给出报错上下文 |
+| `init_workspace.py` | 对齐 `assets/`/`data/` 命名空间、mixin json、主类 MODID（先 `--dry-run` 预览） |
+| `compile_and_repair.py` | 统一入口：L1 `compileJava`；`--with-static`（L2）→ `--with-data`（DataGen）→ `--with-assets`（L2.5）→ `--with-server`（L3）；失败时给出报错上下文 |
+| `static_gate.py` | L2 静态门禁：P0 崩溃写法扫描（仅扫宿主 `src/main/java`） |
+| `asset_gate.py` | L2.5 资源对账：注册项 ↔ 模型/blockstate/loot/lang/贴图引用闭环 |
+| `check_doc_index.py` / `check_doc_meta.py` | 文档索引完整性与核心集元数据自检 |
 
 </details>
 

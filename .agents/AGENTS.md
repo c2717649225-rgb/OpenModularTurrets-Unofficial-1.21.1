@@ -26,14 +26,14 @@
    - 变更文件路径列表  
    - L1 编译门禁通过输出（见下方命令）  
    - L2 静态门禁通过输出（`--with-static` 已落地时强制）  
-   - 涉及注册/DataGen 时：是否执行 `--with-data` 及生成物说明  
+   - 涉及注册/DataGen 时：是否执行 `--with-data` 及生成物说明，并附 L2.5 `--with-assets` 对账输出  
    无上述证据禁止使用完成表述。
 
 ---
 
 ## 🛠️ 部分二：P1 级别 - 工程开发规范 (Guidelines)
 
-1. **资源生成与 DataGen**：配方、掉落表、模型、标签等 JSON 须经 `DataProvider` + 门禁更新；禁止手写（`zh_cn.json` 与 metadata 除外）。目录名单数（`loot_table`、`recipe` 等）。
+1. **资源生成与 DataGen**：配方、掉落表、模型、标签等 JSON 须经 `DataProvider` + 门禁更新；禁止手写（`zh_cn.json` 与 metadata 除外）。目录名单数（`loot_table`、`recipe` 等）。交付/发布线标准见 [quality_bar.md](skills/neoforge/references/quality_bar.md)。
 2. **命名空间与标签**：跨模组通用标签用 `c:`（如 `c:gems/ruby`），禁用 `forge:` / `neoforge:` 作通用标签前缀。
 3. **自测纠错优先**：改码后以编译器与门禁脚本输出为准，禁止空口断言。
 4. **精确最小编辑**：只做最小补丁；改 Mod ID/包名须走 `init_workspace` 脚本，禁止手工碎片化重构。
@@ -54,6 +54,6 @@
    - 索引自检: `python .agents/skills/workspace_setup/scripts/check_doc_index.py`
    - 文档元数据: `python .agents/skills/workspace_setup/scripts/check_doc_meta.py`
    - 编译 L1: `python .agents/skills/workspace_setup/scripts/compile_and_repair.py`（`--with-data` 生成 JSON）
-   - 编译+静态 L1+L2: 同上加 `--with-static`
-   - 仅 L2: `python .agents/skills/workspace_setup/scripts/static_gate.py`
+   - 编译+静态 L1+L2: 同上加 `--with-static`；资源对账 L2.5 加 `--with-assets`；专服冒烟 L3 加 `--with-server`
+   - 仅 L2 / L2.5: `python .agents/skills/workspace_setup/scripts/static_gate.py` / `asset_gate.py`
    - 初始化预览/应用: `python .agents/init_workspace.py --dry-run` / `python .agents/init_workspace.py`

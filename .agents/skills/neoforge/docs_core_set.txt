@@ -9,3 +9,4 @@ capabilities_attachments.md
 event_system.md
 quick_skeletons.md
 architecture_design.md
+quality_bar.md

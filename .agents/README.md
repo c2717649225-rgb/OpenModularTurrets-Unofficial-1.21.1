@@ -34,9 +34,9 @@
 
 4. **编译门禁**  
    ```bash
-   python .agents/skills/workspace_setup/scripts/compile_and_repair.py
+   python .agents/skills/workspace_setup/scripts/compile_and_repair.py --with-static
    ```
-   L2 静态门禁落地后：追加 `--with-static`。
+   分级：`--with-static`（L2 静态红线扫描）→ `--with-data`（DataGen）→ `--with-assets`（L2.5 注册项↔资源对账，DataGen 后执行）→ `--with-server`（L3 专服无头冒烟，发布前）。
 
 ---
 
@@ -90,6 +90,7 @@
 python .agents/skills/workspace_setup/scripts/check_doc_index.py
 python .agents/skills/workspace_setup/scripts/check_doc_meta.py
 python .agents/skills/workspace_setup/scripts/static_gate.py
+python .agents/skills/workspace_setup/scripts/asset_gate.py
 ```
 
 人工任务评测见 [eval/](./eval/)。

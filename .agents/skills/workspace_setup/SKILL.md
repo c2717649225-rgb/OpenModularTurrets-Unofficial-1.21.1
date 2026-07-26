@@ -25,6 +25,8 @@ description: 适用于用户请求项目初始化、工作区配置、修改模�
    ```
    - L1：`compileJava`  
    - L2：`static_gate.py`（**仅**扫描宿主 `src/main/java/**/*.java`；不扫 `build/`、`.agents/`、依赖）  
+   - L2.5：`asset_gate.py` 注册项↔资源对账（加 `--with-assets`；在 DataGen 之后执行）  
+   - L3：专服无头冒烟（加 `--with-server`；发布前）  
    - 紧急跳过 L2：`--skip-static`（须说明原因）  
    - DataGen：再加 `--with-data`
 4. **【并行重构红线】Worktree 共享冲突防御**：
