@@ -3,7 +3,8 @@
 ## Prompt（给 Agent）
 
 实现一个简单的 C2S Payload（例如发送一个 action 字符串），服务端 handler 打印或安全处理。  
-必须 `enqueueWork`。客户端入口隔离。L1+L2 证据。
+必须 `enqueueWork`。客户端入口隔离。L1+L2 证据，  
+并运行 `python .agents/eval/grade.py T03` 自检、附其输出。
 
 ## 允许阅读
 

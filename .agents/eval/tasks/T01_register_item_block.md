@@ -3,7 +3,8 @@
 ## Prompt（给 Agent）
 
 在本 NeoForge 1.21.1 工程中新增一个示例方块与对应物品，并加入创造模式物品栏。  
-遵守 `.agents/AGENTS.md`。写码前读 `gradle.properties`。完成后跑 L1+L2 门禁并给出证据。
+遵守 `.agents/AGENTS.md`。写码前读 `gradle.properties`。完成后跑 L1+L2 门禁并给出证据，  
+最后运行 `python .agents/eval/grade.py T01` 自检，将其输出一并附上。
 
 ## 允许阅读
 

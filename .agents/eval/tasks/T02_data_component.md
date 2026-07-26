@@ -3,7 +3,8 @@
 ## Prompt（给 Agent）
 
 为物品增加一个自定义 Data Component（例如整数 `example_charge`），支持读写。  
-禁止 ItemStack NBT API。遵守 AGENTS.md，MCP-first，完成后 L1+L2 证据。
+禁止 ItemStack NBT API。遵守 AGENTS.md，MCP-first，完成后 L1+L2 证据，  
+并运行 `python .agents/eval/grade.py T02` 自检、附其输出。
 
 ## 允许阅读
 

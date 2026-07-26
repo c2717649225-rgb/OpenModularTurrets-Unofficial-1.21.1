@@ -57,3 +57,4 @@
    - 编译+静态 L1+L2: 同上加 `--with-static`；资源对账 L2.5 加 `--with-assets`；专服冒烟 L3 加 `--with-server`
    - 仅 L2 / L2.5: `python .agents/skills/workspace_setup/scripts/static_gate.py` / `asset_gate.py`
    - 初始化预览/应用: `python .agents/init_workspace.py --dry-run` / `python .agents/init_workspace.py`
+   - 评测批卷（仅执行 `eval/tasks/` 任务时）: `python .agents/eval/grade.py T01..T05|all`，输出计入完成证据

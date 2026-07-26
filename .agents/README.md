@@ -93,7 +93,7 @@ python .agents/skills/workspace_setup/scripts/static_gate.py
 python .agents/skills/workspace_setup/scripts/asset_gate.py
 ```
 
-人工任务评测见 [eval/](./eval/)。
+任务评测见 [eval/](./eval/)：Prompt 交给 Agent，`python .agents/eval/grade.py T0x` 一键批卷（PASS/PARTIAL/FAIL），主观项人工复核。
 
 ## 版本
 
