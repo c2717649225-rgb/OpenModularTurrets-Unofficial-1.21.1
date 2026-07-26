@@ -62,7 +62,11 @@ You MUST complete each phase before proceeding to the next.
    - They often contain the exact solution
    - Read stack traces completely
    - Note line numbers, file paths, error codes
-   - **Minecraft/NeoForge 启动或运行时崩溃**：优先查看根目录 `run/logs/latest.log` 或读取 `.minecraft/crash-reports/` 中的最新崩溃报告。使用 `read_latest_crash_report` 工具分析 Mixin 织入故障或 ASM 字节码冲突，绝对不要盲猜底层 root cause。
+   - **Minecraft/NeoForge 启动或运行时崩溃**：第一步先跑分诊器
+     `python .agents/gates/crash_triage.py`（自动定位最新崩溃报告，80% 的模组崩溃签名
+     固定，命中即直接给出对应 P0 红线与该读的唯一文档）。未命中或需深挖时，再读
+     `run/logs/latest.log` / 最新崩溃报告原文，配合 MCP `read_latest_crash_report`
+     分析 Mixin 织入故障或 ASM 字节码冲突。绝对不要盲猜底层 root cause。
 
 2. **Reproduce Consistently**
    - Can you trigger it reliably?
