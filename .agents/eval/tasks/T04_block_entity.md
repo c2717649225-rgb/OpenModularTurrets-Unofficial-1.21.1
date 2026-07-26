@@ -15,3 +15,5 @@
 - [ ] BlockEntityType 注册  
 - [ ] HolderLookup 相关签名正确（以 MCP 为准）  
 - [ ] L1+L2 通过  
+
+**机器批卷**：`python .agents/eval/grade.py T04`（PARTIAL=缺 loadAdditional 或同步路径）

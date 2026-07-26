@@ -15,3 +15,5 @@
 - [ ] AttachmentType 注册  
 - [ ] 服务端读写  
 - [ ] L1+L2 通过  
+
+**机器批卷**：`python .agents/eval/grade.py T05`

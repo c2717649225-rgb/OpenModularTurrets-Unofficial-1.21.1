@@ -13,5 +13,7 @@
 ## 评分要点
 
 - [ ] 使用 DataComponentType，无 getOrCreateTag  
-- [ ] Codec 与 record 字段顺序一致  
+- [ ] Codec 与 record 字段顺序一致（static_gate `codec_field_order` 规则自动查）  
 - [ ] L1+L2 通过  
+
+**机器批卷**：`python .agents/eval/grade.py T02`

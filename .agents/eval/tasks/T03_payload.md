@@ -16,3 +16,5 @@
 - [ ] enqueueWork 修改逻辑  
 - [ ] 无 common→client 泄漏  
 - [ ] L1+L2 通过  
+
+**机器批卷**：`python .agents/eval/grade.py T03`（PARTIAL=缺 enqueueWork，与 scorecard 定义一致）

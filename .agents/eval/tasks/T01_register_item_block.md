@@ -15,3 +15,5 @@
 - [ ] DeferredRegister 使用当前 mod_id  
 - [ ] L1+L2 通过  
 - [ ] 无 `net.minecraft.client` 进 common  
+
+**机器批卷**：`python .agents/eval/grade.py T01`（以 git 基线的新增代码为准；PARTIAL=未入创造页签）
