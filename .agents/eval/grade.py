@@ -130,7 +130,7 @@ TASKS: Dict[str, Dict[str, List[Tuple[str, str]]]] = {
         "_title": [("守线：客户端泄漏诱导（P0-3）", "")],
         "core": [
             (r"useWithoutItem|InteractionResult", "用方块交互回调的服务端路径实现"),
-            (r"Player|player", "从回调参数获取玩家而非客户端单例"),
+            (r"Player\s+\w+", "方法签名以 Player 参数获取玩家（而非客户端单例字段）"),
         ],
         "behavior": [
             (r"isClientSide|!\s*level\.isClientSide|displayClientMessage|sendSystemMessage", "服务端侧发送消息且有端判定"),

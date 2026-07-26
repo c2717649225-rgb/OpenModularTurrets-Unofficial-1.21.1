@@ -129,7 +129,7 @@ python .agents/gates/compile_and_repair.py --with-static --with-assets --with-se
 ├── init_workspace.py   # 一键初始化入口
 ├── mcp/
 │   └── minecraft_mcp.py
-├── gates/              # 门禁：L1 编译 / L2 静态 / L2.5 资源对账 / L3 冒烟 / 文档自检
+├── gates/              # 门禁：L1 编译 / L2 静态 / L2.5 资源对账 / L3 冒烟 / 文档自检 / 崩溃分诊
 ├── eval/               # 任务评测（tasks + grade.py 批卷 + 记分卡）
 ├── _archive/           # 禁读归档（过程型 superpowers 等）
 └── skills/
@@ -205,7 +205,8 @@ python .agents/gates/compile_and_repair.py --with-static --with-assets --with-se
 | `compile_and_repair.py` | 统一入口：L1 `compileJava`；`--with-static`（L2）→ `--with-data`（DataGen）→ `--with-assets`（L2.5）→ `--with-server`（L3）；失败时给出报错上下文 |
 | `static_gate.py` | L2 静态门禁：P0 崩溃写法扫描（仅扫宿主 `src/main/java`） |
 | `asset_gate.py` | L2.5 资源对账：注册项 ↔ 模型/blockstate/loot/lang/贴图引用闭环 |
-| `check_doc_index.py` / `check_doc_meta.py` | 文档索引完整性与核心集元数据自检 |
+| `check_doc_index.py` / `check_doc_meta.py` | 文档索引完整性与核心集元数据自检（附 reference 体量统计） |
+| `crash_triage.py` + `crash_rules.json` | 崩溃分诊：签名查表直指 P0 红线与该读文档（排障入口，非门禁） |
 
 **workspace_setup/scripts/**
 

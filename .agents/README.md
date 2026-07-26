@@ -46,7 +46,7 @@
 | --- | --- |
 | [AGENTS.md](./AGENTS.md) | 面向 AI 的硬红线（常驻） |
 | [mcp/](./mcp/) | 源码探针 `minecraft_mcp.py`（缓存/日志不入库） |
-| [gates/](./gates/) | 门禁脚本：编译 L1、静态 L2、资源对账 L2.5、专服冒烟 L3、文档自检 |
+| [gates/](./gates/) | 门禁脚本：编译 L1、静态 L2、资源对账 L2.5、专服冒烟 L3、文档自检；附崩溃分诊 `crash_triage.py`（排障入口，非门禁） |
 | [skills/neoforge/](./skills/neoforge/) | 领域知识：SKILL 索引、references、examples、playbooks |
 | [skills/workspace_setup/](./skills/workspace_setup/) | 初始化与改名（`init_workspace.py` 确定性重构引擎） |
 | [skills/systematic-debugging/](./skills/systematic-debugging/) | 按需：排障 |
