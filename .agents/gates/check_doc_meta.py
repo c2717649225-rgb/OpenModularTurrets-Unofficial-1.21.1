@@ -15,7 +15,7 @@ import sys
 from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-NEOFORGE = SCRIPT_DIR.parent.parent / "neoforge"
+NEOFORGE = SCRIPT_DIR.parent / "skills" / "neoforge"
 REFS = NEOFORGE / "references"
 CORE_LIST = NEOFORGE / "docs_core_set.txt"
 MIN_CORE, MAX_CORE = 5, 10

@@ -28,7 +28,7 @@
 
 ## 门禁
 ```bash
-python .agents/skills/workspace_setup/scripts/compile_and_repair.py --with-static
+python .agents/gates/compile_and_repair.py --with-static
 ```
 
 ## 完成证据

@@ -47,7 +47,7 @@ neoforge-1.21.1-ai-starter/
 | Skill | 用途 |
 |-------|------|
 | `neoforge_modding` | 1.21.1 写法、references、playbooks、MCP 检索剧本、编译门禁 |
-| `workspace_setup` | 改名/初始化与门禁脚本（`python .agents/init_workspace.py`） |
+| `workspace_setup` | 改名/初始化（`python .agents/init_workspace.py`；门禁脚本在 `.agents/gates/`） |
 | `systematic-debugging` | 按需：崩溃与诡异 bug 的根因排障 |
 | `task_monitor` | 按需：长 Gradle/Git 任务防假死监控 |
 
@@ -99,16 +99,16 @@ python .agents/init_workspace.py
 
 ```bash
 # 默认：仅 compileJava（L1）
-python .agents/skills/workspace_setup/scripts/compile_and_repair.py
+python .agents/gates/compile_and_repair.py
 
 # 推荐：编译 + 静态扫描（L1+L2）
-python .agents/skills/workspace_setup/scripts/compile_and_repair.py --with-static
+python .agents/gates/compile_and_repair.py --with-static
 
 # 改了注册项或 DataGen Provider 时：DataGen + 资源对账（L2.5）
-python .agents/skills/workspace_setup/scripts/compile_and_repair.py --with-data --with-assets
+python .agents/gates/compile_and_repair.py --with-data --with-assets
 
 # 发布前：追加专用服务器无头冒烟（L3，较慢）
-python .agents/skills/workspace_setup/scripts/compile_and_repair.py --with-static --with-assets --with-server
+python .agents/gates/compile_and_repair.py --with-static --with-assets --with-server
 ```
 
 可选：`./gradlew runClient`
@@ -129,11 +129,12 @@ python .agents/skills/workspace_setup/scripts/compile_and_repair.py --with-stati
 ├── init_workspace.py   # 一键初始化入口
 ├── mcp/
 │   └── minecraft_mcp.py
-├── eval/               # 人工任务评测（T01–T05 + 记分卡）
+├── gates/              # 门禁：L1 编译 / L2 静态 / L2.5 资源对账 / L3 冒烟 / 文档自检
+├── eval/               # 任务评测（tasks + grade.py 批卷 + 记分卡）
 ├── _archive/           # 禁读归档（过程型 superpowers 等）
 └── skills/
     ├── neoforge/             # ★ 1.21.1 写法与 references
-    ├── workspace_setup/      # 改名 / 编译与静态门禁脚本
+    ├── workspace_setup/      # 初始化与改名引擎
     ├── systematic-debugging/ # 按需：排障
     └── task_monitor/         # 按需：长任务监控
 ```
@@ -174,7 +175,7 @@ python .agents/skills/workspace_setup/scripts/compile_and_repair.py --with-stati
 | 目录 | 作用 |
 |------|------|
 | **neoforge** | 核心：1.21.1 约束、代码骨架、`references/` 专题、`examples/`、`playbooks/`；约定 compile / `--with-static` / `--with-data` |
-| **workspace_setup** | 改名与初始化流程；内含 `init_workspace.py`、`compile_and_repair.py`、`static_gate.py`、`asset_gate.py` 与文档自检脚本 |
+| **workspace_setup** | 改名与初始化流程；内含 `init_workspace.py`（门禁脚本已上收至顶层 `gates/`） |
 | systematic-debugging | 按需：根因优先的系统化排错（含崩溃报告分析） |
 | task_monitor | 按需：长 Gradle/Git 后台任务防假死监控 |
 
@@ -197,15 +198,20 @@ python .agents/skills/workspace_setup/scripts/compile_and_repair.py --with-stati
 
 文档中的包名可能是占位符或 `tutorialmod`；写入工程前须按当前 `gradle.properties` 替换。
 
+**gates/（门禁，顶层设施）**
+
+| 脚本 | 作用 |
+|------|------|
+| `compile_and_repair.py` | 统一入口：L1 `compileJava`；`--with-static`（L2）→ `--with-data`（DataGen）→ `--with-assets`（L2.5）→ `--with-server`（L3）；失败时给出报错上下文 |
+| `static_gate.py` | L2 静态门禁：P0 崩溃写法扫描（仅扫宿主 `src/main/java`） |
+| `asset_gate.py` | L2.5 资源对账：注册项 ↔ 模型/blockstate/loot/lang/贴图引用闭环 |
+| `check_doc_index.py` / `check_doc_meta.py` | 文档索引完整性与核心集元数据自检 |
+
 **workspace_setup/scripts/**
 
 | 脚本 | 作用 |
 |------|------|
 | `init_workspace.py` | 对齐 `assets/`/`data/` 命名空间、mixin json、主类 MODID（先 `--dry-run` 预览） |
-| `compile_and_repair.py` | 统一入口：L1 `compileJava`；`--with-static`（L2）→ `--with-data`（DataGen）→ `--with-assets`（L2.5）→ `--with-server`（L3）；失败时给出报错上下文 |
-| `static_gate.py` | L2 静态门禁：P0 崩溃写法扫描（仅扫宿主 `src/main/java`） |
-| `asset_gate.py` | L2.5 资源对账：注册项 ↔ 模型/blockstate/loot/lang/贴图引用闭环 |
-| `check_doc_index.py` / `check_doc_meta.py` | 文档索引完整性与核心集元数据自检 |
 
 </details>
 
@@ -232,6 +238,6 @@ python .agents/skills/workspace_setup/scripts/compile_and_repair.py --with-stati
 1. Set `mod_id` / `mod_name` / `mod_group_id` in `gradle.properties`  
 2. `python .agents/init_workspace.py`  
 3. Register `.agents/mcp/minecraft_mcp.py` as MCP ([guide](.agents/README.md))  
-4. `python .agents/skills/workspace_setup/scripts/compile_and_repair.py`  
+4. `python .agents/gates/compile_and_repair.py`  
 
 Requires **JDK 21** and **Python 3**. Folder details: expandable section **「.agents 目录说明」** above.

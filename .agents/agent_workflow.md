@@ -8,7 +8,7 @@
 1. 挂载 [AGENTS.md](./AGENTS.md) 红线。  
 2. 按需加载 `skills/neoforge` 等白名单 skill。  
 3. 写码后跑门禁：  
-   `python .agents/skills/workspace_setup/scripts/compile_and_repair.py`  
+   `python .agents/gates/compile_and_repair.py`  
    （L2 落地后加 `--with-static`）。  
 4. 宣称完成时提供**物理证据**（路径、diff、门禁输出），禁止空口完成。
 

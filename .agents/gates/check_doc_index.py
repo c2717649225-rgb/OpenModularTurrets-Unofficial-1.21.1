@@ -16,7 +16,7 @@ from pathlib import Path
 
 # scripts/ -> workspace_setup/ -> skills/ -> .agents/ -> project root
 SCRIPT_DIR = Path(__file__).resolve().parent
-NEOFORGE_DIR = SCRIPT_DIR.parent.parent / "neoforge"
+NEOFORGE_DIR = SCRIPT_DIR.parent / "skills" / "neoforge"
 SKILL_MD = NEOFORGE_DIR / "SKILL.md"
 MAX_PLAYBOOKS = 5
 

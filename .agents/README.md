@@ -34,7 +34,7 @@
 
 4. **编译门禁**  
    ```bash
-   python .agents/skills/workspace_setup/scripts/compile_and_repair.py --with-static
+   python .agents/gates/compile_and_repair.py --with-static
    ```
    分级：`--with-static`（L2 静态红线扫描）→ `--with-data`（DataGen）→ `--with-assets`（L2.5 注册项↔资源对账，DataGen 后执行）→ `--with-server`（L3 专服无头冒烟，发布前）。
 
@@ -46,8 +46,9 @@
 | --- | --- |
 | [AGENTS.md](./AGENTS.md) | 面向 AI 的硬红线（常驻） |
 | [mcp/](./mcp/) | 源码探针 `minecraft_mcp.py`（缓存/日志不入库） |
+| [gates/](./gates/) | 门禁脚本：编译 L1、静态 L2、资源对账 L2.5、专服冒烟 L3、文档自检 |
 | [skills/neoforge/](./skills/neoforge/) | 领域知识：SKILL 索引、references、examples、playbooks |
-| [skills/workspace_setup/](./skills/workspace_setup/) | 初始化与编译/静态门禁脚本 |
+| [skills/workspace_setup/](./skills/workspace_setup/) | 初始化与改名（`init_workspace.py` 确定性重构引擎） |
 | [skills/systematic-debugging/](./skills/systematic-debugging/) | 按需：排障 |
 | [skills/task_monitor/](./skills/task_monitor/) | 按需：长任务监控 |
 | [_archive/](./_archive/) | **禁读归档**（见其 README）；非默认 skill |
@@ -81,16 +82,16 @@
 1. 复制整个 `.agents/` 目录到目标 NeoForge 1.21.1 工程根目录。  
 2. 挂载 `AGENTS.md`，配置 MCP 指向**目标工程**内的 `minecraft_mcp.py`。  
 3. 运行 L1（建议 L2）：  
-   `python .agents/skills/workspace_setup/scripts/compile_and_repair.py --with-static`  
+   `python .agents/gates/compile_and_repair.py --with-static`  
 4. 不要复制某个玩法模组的设计文档进 `.agents`；工具包保持平台通用。
 
 ## 质量自检（维护工具包时）
 
 ```bash
-python .agents/skills/workspace_setup/scripts/check_doc_index.py
-python .agents/skills/workspace_setup/scripts/check_doc_meta.py
-python .agents/skills/workspace_setup/scripts/static_gate.py
-python .agents/skills/workspace_setup/scripts/asset_gate.py
+python .agents/gates/check_doc_index.py
+python .agents/gates/check_doc_meta.py
+python .agents/gates/static_gate.py
+python .agents/gates/asset_gate.py
 ```
 
 任务评测见 [eval/](./eval/)：Prompt 交给 Agent，`python .agents/eval/grade.py T0x` 一键批卷（PASS/PARTIAL/FAIL），主观项人工复核。

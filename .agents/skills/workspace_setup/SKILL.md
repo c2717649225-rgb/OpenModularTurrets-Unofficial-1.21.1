@@ -21,8 +21,9 @@ description: 适用于用户请求项目初始化、工作区配置、修改模�
    覆盖：`assets/`、`data/`、mixin json、可选 `src/generated`、主类 MODID；不扫描 `.agents` 文档当宿主资源。
 3. **编译自检**：重构完成后，必须在向用户汇报前运行门禁，验证编译与静态扫描：
    ```bash
-   python .agents/skills/workspace_setup/scripts/compile_and_repair.py --with-static
+   python .agents/gates/compile_and_repair.py --with-static
    ```
+   （门禁脚本统一位于顶层 [`.agents/gates/`](../../gates/)；本 skill 只保留初始化/改名引擎。）
    - L1：`compileJava`  
    - L2：`static_gate.py`（**仅**扫描宿主 `src/main/java/**/*.java`；不扫 `build/`、`.agents/`、依赖）  
    - L2.5：`asset_gate.py` 注册项↔资源对账（加 `--with-assets`；在 DataGen 之后执行）  
@@ -36,8 +37,8 @@ description: 适用于用户请求项目初始化、工作区配置、修改模�
 ## 文档索引 / 元数据自检（改 neoforge 文档后）
 
 ```bash
-python .agents/skills/workspace_setup/scripts/check_doc_index.py
-python .agents/skills/workspace_setup/scripts/check_doc_meta.py
+python .agents/gates/check_doc_index.py
+python .agents/gates/check_doc_meta.py
 ```
 
 - 每个 `references/*.md`、`examples/*.md`、`playbooks/*.md` 必须被 `skills/neoforge/SKILL.md` 引用。  

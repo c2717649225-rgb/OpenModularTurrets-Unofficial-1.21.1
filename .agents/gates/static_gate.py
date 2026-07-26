@@ -18,8 +18,8 @@ from pathlib import Path
 from typing import Iterable, List, Optional, Tuple
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-# scripts/ -> workspace_setup/ -> skills/ -> .agents/ -> project root
-DEFAULT_PROJECT_ROOT = SCRIPT_DIR.parent.parent.parent.parent
+# gates/ -> .agents/ -> project root
+DEFAULT_PROJECT_ROOT = SCRIPT_DIR.parent.parent
 
 
 @dataclass

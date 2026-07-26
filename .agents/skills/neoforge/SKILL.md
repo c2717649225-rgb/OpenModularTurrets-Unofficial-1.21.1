@@ -26,10 +26,10 @@ description: >
 * 仅 [docs_core_set.txt](docs_core_set.txt) 内 5～10 篇为 `verified`+`pin_neo`；其余 reference 视为 **draft**，不得当唯一依据。
 
 ### 写码后验证
-* 汇报前必须运行 L1：`python .agents/skills/workspace_setup/scripts/compile_and_repair.py`
+* 汇报前必须运行 L1：`python .agents/gates/compile_and_repair.py`
 * L2 已落地时必须加 `--with-static`（仅扫描宿主 `src/main/java`，见 static_gate 规格）。
 * 涉及 DeferredRegister 或 DataGen 时加 `--with-data`。
-* 修改 references/examples/playbooks 后跑：`python .agents/skills/workspace_setup/scripts/check_doc_index.py`
+* 修改 references/examples/playbooks 后跑：`python .agents/gates/check_doc_index.py`
 * 元数据唯一真源：宿主 `gradle.properties` 与 `neoforge.mods.toml`，禁止硬编码 Mod ID/包名。
 * 宣称完成须附：变更路径 + 门禁通过输出（见 `AGENTS.md` 完成证据协议）。
 

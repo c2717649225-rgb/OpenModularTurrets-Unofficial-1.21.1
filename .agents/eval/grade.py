@@ -37,7 +37,7 @@ from typing import Dict, List, Tuple
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = SCRIPT_DIR.parent.parent
-GATE = PROJECT_ROOT / ".agents" / "skills" / "workspace_setup" / "scripts" / "compile_and_repair.py"
+GATE = PROJECT_ROOT / ".agents" / "gates" / "compile_and_repair.py"
 
 # assertion = (kind, regex, human label)
 #   core      -> missing = FAIL

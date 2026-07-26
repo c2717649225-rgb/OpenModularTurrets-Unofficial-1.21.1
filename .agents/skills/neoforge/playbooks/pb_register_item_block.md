@@ -29,9 +29,9 @@
 
 ## 门禁
 ```bash
-python .agents/skills/workspace_setup/scripts/compile_and_repair.py --with-static
+python .agents/gates/compile_and_repair.py --with-static
 # 若新增需生成的 JSON：
-python .agents/skills/workspace_setup/scripts/compile_and_repair.py --with-static --with-data
+python .agents/gates/compile_and_repair.py --with-static --with-data
 ```
 
 ## 完成证据

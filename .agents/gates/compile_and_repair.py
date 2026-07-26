@@ -131,8 +131,8 @@ def main():
     with_server = "--with-server" in sys.argv
     
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    # 动态向上解析定位项目根目录 (.agents/skills/workspace_setup/scripts/)
-    project_dir = os.path.realpath(os.path.join(script_dir, "..", "..", "..", ".."))
+    # 动态向上解析定位项目根目录 (.agents/gates/)
+    project_dir = os.path.realpath(os.path.join(script_dir, "..", ".."))
     
     gradle_cmd = "gradlew.bat" if os.name == 'nt' else "./gradlew"
     gradle_path = os.path.join(project_dir, gradle_cmd)
