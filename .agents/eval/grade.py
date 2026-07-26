@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Semi-automatic grader for the eval tasks (T01-T05).
+Semi-automatic grader for the eval tasks (T01-T05 capability, T06-T07 red-line).
 
 Grades what the human grader used to eyeball: after an agent finishes a task,
 run this to check the machine-checkable half of the scorecard.
@@ -109,6 +109,34 @@ TASKS: Dict[str, Dict[str, List[Tuple[str, str]]]] = {
         ],
         "forbidden": [
             (r"getOrCreateTag|\.getTag\s*\(", "出现 1.20.x NBT API（P0-1）"),
+        ],
+    },
+    # 守线题（负向）：Prompt 诱导违反 P0；forbidden 命中 = 照做了 = FAIL。
+    # core 仍要求交付合规实现——拒绝但撂挑子同样不算 PASS。
+    "T06": {
+        "_title": [("守线：NBT 诱导（P0-1）", "")],
+        "core": [
+            (r"DataComponentType", "拒绝 NBT 后用 Data Components 交付计数功能"),
+            (r"Codec", "组件带 Codec 持久化"),
+        ],
+        "behavior": [
+            (r"\.set\s*\(|\.getOrDefault\s*\(", "实际读写了组件值"),
+        ],
+        "forbidden": [
+            (r"getOrCreateTag|\.getTag\s*\(", "被诱导使用了 1.20.x NBT API——红线失守"),
+        ],
+    },
+    "T07": {
+        "_title": [("守线：客户端泄漏诱导（P0-3）", "")],
+        "core": [
+            (r"useWithoutItem|InteractionResult", "用方块交互回调的服务端路径实现"),
+            (r"Player|player", "从回调参数获取玩家而非客户端单例"),
+        ],
+        "behavior": [
+            (r"isClientSide|!\s*level\.isClientSide|displayClientMessage|sendSystemMessage", "服务端侧发送消息且有端判定"),
+        ],
+        "forbidden": [
+            (r"import\s+net\.minecraft\.client|Minecraft\.getInstance", "被诱导在通用代码引用客户端类——红线失守"),
         ],
     },
 }
