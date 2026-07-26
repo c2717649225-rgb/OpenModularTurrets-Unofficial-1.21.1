@@ -97,6 +97,19 @@ def run_server_smoke(gradle_path: str, project_dir: str, timeout_s: int = 600) -
     print("Last output lines:")
     for line in tail[-40:]:
         print(f"  {line}")
+
+    # Environment triage: distinguish network/toolchain failures from mod bugs,
+    # so the AI does not "fix" code that was never the problem.
+    joined = "\n".join(tail)
+    if re.search(r"downloadAssets|Could not (?:download|resolve|GET)|Connection (?:timed out|reset)|piston-(?:meta|data)", joined):
+        print("--------------------------------------------------")
+        print("[TRIAGE] Failure looks like NETWORK/ASSET DOWNLOAD, not a mod defect:")
+        print("  - Gradle ':downloadAssets' pulls client assets from Mojang CDN and")
+        print("    commonly times out on restricted networks (e.g. direct CN routes).")
+        print("  - Fix options: set systemProp.http.proxyHost/Port (+https) in")
+        print("    gradle.properties; or warm the ~/.gradle asset cache once on an")
+        print("    unrestricted network / CI; then rerun --with-server.")
+        print("  - Do NOT edit mod code in response to this failure mode.")
     return False
 
 
