@@ -1,0 +1,54 @@
+# Toolkit self-checks — keeps .agents/ from silently rotting on any push.
+# Cheap by design: pure-Python gates only, no Gradle/JDK, finishes in seconds.
+# NOT here on purpose:
+#   - compile/L3 gates need Gradle+network (build.yml owns the mod build)
+#   - asset_gate: starter currently has known asset gaps; add the step once
+#     the starter is green (tracked as the DataGen backlog task)
+name: Toolkit Gates
+
+on:
+  push:
+    paths: ['.agents/**', '.github/workflows/agents.yml']
+  pull_request:
+    paths: ['.agents/**', '.github/workflows/agents.yml']
+
+jobs:
+  toolkit-gates:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Syntax-check all toolkit scripts
+        run: python -m compileall -q .agents/gates .agents/eval .agents/mcp .agents/skills/workspace_setup/scripts .agents/init_workspace.py
+
+      - name: Doc index gate
+        run: python .agents/gates/check_doc_index.py
+
+      - name: Doc metadata gate
+        run: python .agents/gates/check_doc_meta.py
+
+      - name: Static gate on starter sources
+        run: python .agents/gates/static_gate.py
+
+      - name: Crash-rules table loads and regexes compile
+        run: |
+          python - <<'EOF'
+          import json, re
+          d = json.load(open('.agents/gates/crash_rules.json', encoding='utf-8'))
+          for r in d['rules']:
+              for p in r['patterns']:
+                  re.compile(p)
+          print(f"{len(d['rules'])} crash rules OK")
+          EOF
+
+      - name: Repair-rules table loads
+        run: |
+          python - <<'EOF'
+          import json
+          d = json.load(open('.agents/gates/repair_rules.json', encoding='utf-8'))
+          print(f"{len(d.get('rules', []))} repair rules OK")
+          EOF
