@@ -138,3 +138,14 @@ last_verified: 2026-07-26
 | ```java<br>@Mixin(Player.class)<br>public class PlayerMixin {<br>  // ❌ 整体替换方法：与其他模组物理冲突且版本脆弱<br>  @Overwrite<br>  public void jumpFromGround() {<br>    /* 自定义跳跃 */<br>  }<br>}<br>``` | ```java<br>// 🟢 第一优先：事件已覆盖绝大多数需求<br>@SubscribeEvent<br>public static void onJump(LivingEvent.LivingJumpEvent e) { /* ... */ }<br><br>// 🟢 确需 Mixin 时：@Inject 最小注入点 + cancellable，<br>// 字段/方法可见性问题优先用 Access Transformer 而非 Mixin<br>@Inject(method = "jumpFromGround", at = @At("HEAD"), cancellable = true)<br>private void myJump(CallbackInfo ci) { /* ... */ }<br>``` |
 
 > **修改原版行为的手段优先级**：NeoForge 事件 > Access Transformer（改可见性）> Mixin `@Inject` 最小注入 > `@Redirect`（须评估共存）。**`@Overwrite` 在本工具包内视为禁手**，除非用户明确要求并知晓兼容性代价。
+---
+
+## 📋 事故回流登记 (Incident Backflow Registry)
+
+> 维护规约（与 `AGENTS.md` P1-3 对齐）：**AI 实际犯错而门禁未拦住的，必须在此登记并
+> 沉淀为 `static_gate`/`asset_gate` 规则或本文件新条目，否则事故不算关闭。**
+> 「模板预防」条目（§1–11）不登记；只登记真实发生过的失守。
+
+| 日期 | 事故现象（一句话） | 根因 | 回流产物 |
+| :--- | :--- | :--- | :--- |
+| 2026-07-26 | L3 专服冒烟在受限网络误报模组缺陷（`:downloadAssets` 超时被 watchdog 终止） | 环境失败与代码缺陷未区分，AI 可能误改无辜代码 | `compile_and_repair.py` FAIL 路径网络特征 triage + 「禁改模组代码」指令 |
