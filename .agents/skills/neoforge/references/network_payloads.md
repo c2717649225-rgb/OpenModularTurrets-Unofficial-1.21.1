@@ -61,8 +61,9 @@ public class NetworkRegistry {
     
     @SubscribeEvent
     public static void registerPackets(final RegisterPayloadHandlersEvent event) {
-        final PayloadRegistrar registrar = event.registrar(MyMod.MODID)
-            .versioned("1.0.0"); // Declare network protocol version
+        // ⚠️ registrar(String) 的参数是【网络协议版本】，不是 mod id
+        //（真源 javadoc: "The network version. May not be empty"）
+        final PayloadRegistrar registrar = event.registrar("1.0.0");
             
         // Registering a payload sent from Client to Server
         registrar.playToServer(

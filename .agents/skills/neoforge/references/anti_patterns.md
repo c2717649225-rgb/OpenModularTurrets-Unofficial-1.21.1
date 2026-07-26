@@ -149,3 +149,4 @@ last_verified: 2026-07-26
 | 日期 | 事故现象（一句话） | 根因 | 回流产物 |
 | :--- | :--- | :--- | :--- |
 | 2026-07-26 | L3 专服冒烟在受限网络误报模组缺陷（`:downloadAssets` 超时被 watchdog 终止） | 环境失败与代码缺陷未区分，AI 可能误改无辜代码 | `compile_and_repair.py` FAIL 路径网络特征 triage + 「禁改模组代码」指令 |
+| 2026-07-27 | 首轮 eval T03 考生经 MCP 核源发现：verified 文档 `network_payloads.md` 把 `event.registrar(String)` 参数写成 mod id（真源为网络协议版本；示例因链式 `.versioned()` 覆盖而碰巧能跑） | 文档代码块未经真源逐参核验；「能跑」掩盖了语义错误 | 修正示例并加真源 javadoc 警示注释；印证 P0-7 MCP-first 为必要防线（考生按源码写出了正确代码） |
