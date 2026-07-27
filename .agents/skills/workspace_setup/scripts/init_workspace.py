@@ -16,9 +16,9 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
-from typing import Callable, List, Optional, Tuple
+from typing import Callable, List, Optional, Set, Tuple
 
-Action = Tuple[str, Callable[[], None]]
+SYSTEM_NAMESPACES = {"minecraft", "c", "neoforge", "forge"}
 
 
 def _reconfigure_stdio() -> None:
@@ -65,8 +65,10 @@ def git_dirty(project_dir: Path) -> bool:
 def merge_or_move(old_path: Path, new_path: Path, label: str, log: List[str], dry_run: bool) -> None:
     if not old_path.exists():
         return
+    if old_path.resolve() == new_path.resolve():
+        return
     if new_path.exists():
-        log.append(f"[{label}] merge {old_path.name} -> {new_path.name}")
+        log.append(f"[{label}] merge {old_path.relative_to(old_path.parents[2])} -> {new_path.relative_to(new_path.parents[2])}")
         if dry_run:
             return
         for root, _, files in os.walk(old_path):
@@ -79,6 +81,7 @@ def merge_or_move(old_path: Path, new_path: Path, label: str, log: List[str], dr
     else:
         log.append(f"[{label}] rename {old_path.name} -> {new_path.name}")
         if not dry_run:
+            new_path.parent.mkdir(parents=True, exist_ok=True)
             shutil.move(str(old_path), str(new_path))
 
 
@@ -127,13 +130,14 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     # Collect known stale ids for text replace (template defaults)
     old_ids = ["examplemod", "tutorialmod"]
-    # Discover other asset/data folder names as stale candidates
     resources_dir = project_dir / "src" / "main" / "resources"
     assets_dir = resources_dir / "assets"
     data_dir = resources_dir / "data"
+    java_root = project_dir / "src" / "main" / "java"
+
     if assets_dir.is_dir():
         for sub in assets_dir.iterdir():
-            if sub.is_dir() and sub.name not in old_ids and sub.name != mod_id:
+            if sub.is_dir() and sub.name not in old_ids and sub.name != mod_id and sub.name not in SYSTEM_NAMESPACES:
                 old_ids.append(sub.name)
     if data_dir.is_dir():
         for sub in data_dir.iterdir():
@@ -141,30 +145,17 @@ def main(argv: Optional[List[str]] = None) -> int:
                 sub.is_dir()
                 and sub.name not in old_ids
                 and sub.name != mod_id
-                and sub.name not in ("minecraft", "c", "neoforge", "forge")
+                and sub.name not in SYSTEM_NAMESPACES
             ):
                 old_ids.append(sub.name)
 
-    # 3. Locate @Mod main class under expected package (and fallback walk src/main/java)
-    base_package_path = project_dir / "src" / "main" / "java" / Path(*mod_group_id.split("."))
+    # 1. Detect Main Class & Old Java Package
     main_class_file = None
     main_class_full_path: Optional[Path] = None
-    main_class_rel_path = f"./src/main/java/{mod_group_id.replace('.', '/')}/TutorialMod.java"
+    old_package: Optional[str] = None
 
-    search_roots = []
-    if base_package_path.is_dir():
-        search_roots.append(base_package_path)
-    java_root = project_dir / "src" / "main" / "java"
     if java_root.is_dir():
-        search_roots.append(java_root)
-
-    seen = set()
-    for root_dir in search_roots:
-        for full_path in root_dir.rglob("*.java"):
-            key = str(full_path.resolve())
-            if key in seen:
-                continue
-            seen.add(key)
+        for full_path in java_root.rglob("*.java"):
             try:
                 content = full_path.read_text(encoding="utf-8", errors="replace")
             except OSError:
@@ -172,17 +163,68 @@ def main(argv: Optional[List[str]] = None) -> int:
             if "@Mod(" in content:
                 main_class_file = full_path.name
                 main_class_full_path = full_path
-                main_class_rel_path = "./" + full_path.relative_to(project_dir).as_posix()
+                pkg_match = re.search(r"^\s*package\s+([\w.]+)\s*;", content, re.MULTILINE)
+                if pkg_match:
+                    old_package = pkg_match.group(1)
                 break
-        if main_class_full_path:
-            break
 
-    print(f"[Java Main Class] Located: {main_class_rel_path}")
+    main_class_rel = (
+        "./" + main_class_full_path.relative_to(project_dir).as_posix()
+        if main_class_full_path
+        else f"./src/main/java/{mod_group_id.replace('.', '/')}/TutorialMod.java"
+    )
+    print(f"[Java Main Class] Located: {main_class_rel}")
+    if old_package:
+        print(f"[Java Old Package] Detected: {old_package}")
 
-    # 4. assets rename
+    # 2. Refactor Java package statements, imports, and directory structure
+    if old_package and old_package != mod_group_id and java_root.is_dir():
+        log.append(f"[Java Refactor] package {old_package} -> {mod_group_id}")
+        
+        # Refactor Java source files text (packages + imports)
+        for jf in java_root.rglob("*.java"):
+            try:
+                jcontent = jf.read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                continue
+            new_jcontent = re.sub(
+                rf"\bpackage\s+{re.escape(old_package)}\b",
+                f"package {mod_group_id}",
+                jcontent,
+            )
+            new_jcontent = re.sub(
+                rf"\bimport\s+{re.escape(old_package)}\b",
+                f"import {mod_group_id}",
+                new_jcontent,
+            )
+            if new_jcontent != jcontent:
+                if not dry_run:
+                    jf.write_text(new_jcontent, encoding="utf-8")
+
+        # Physical move of Java source directory
+        old_pkg_dir = java_root / Path(*old_package.split("."))
+        new_pkg_dir = java_root / Path(*mod_group_id.split("."))
+
+        if old_pkg_dir.is_dir() and old_pkg_dir.resolve() != new_pkg_dir.resolve():
+            merge_or_move(old_pkg_dir, new_pkg_dir, "Java Sources Package", log, dry_run)
+            
+            # Clean up empty parent directories of old package
+            curr = old_pkg_dir.parent
+            while curr != java_root and curr.is_dir():
+                try:
+                    if not any(curr.iterdir()):
+                        if not dry_run:
+                            curr.rmdir()
+                        curr = curr.parent
+                    else:
+                        break
+                except OSError:
+                    break
+
+    # 3. Assets rename (protected by SYSTEM_NAMESPACES)
     if assets_dir.is_dir():
         for sub in list(assets_dir.iterdir()):
-            if sub.is_dir() and sub.name != mod_id:
+            if sub.is_dir() and sub.name not in SYSTEM_NAMESPACES and sub.name != mod_id:
                 merge_or_move(sub, assets_dir / mod_id, "Assets", log, dry_run)
 
     lang_dir = assets_dir / mod_id / "lang"
@@ -213,12 +255,12 @@ def main(argv: Optional[List[str]] = None) -> int:
                         encoding="utf-8",
                     )
 
-    # 4b. data/ namespace + singular folders
+    # 4. Data namespace + singular folders (protected by SYSTEM_NAMESPACES)
     if data_dir.is_dir():
         for sub in list(data_dir.iterdir()):
             if not sub.is_dir():
                 continue
-            if sub.name in ("minecraft", "c", "neoforge", "forge"):
+            if sub.name in SYSTEM_NAMESPACES:
                 continue
             if sub.name != mod_id:
                 merge_or_move(sub, data_dir / mod_id, "Data", log, dry_run)
@@ -249,13 +291,7 @@ def main(argv: Optional[List[str]] = None) -> int:
                 else:
                     plural_path.rename(singular_path)
 
-    # 4b2. src/generated resources namespaces (if present)
-    for gen_base in (
-        project_dir / "src" / "generated" / "resources",
-        project_dir / "src" / "generated" / "resources" / "assets",
-    ):
-        # handle assets + data under generated
-        pass
+    # 5. Generated resources namespaces
     gen_root = project_dir / "src" / "generated" / "resources"
     if gen_root.is_dir():
         for kind in ("assets", "data"):
@@ -265,12 +301,12 @@ def main(argv: Optional[List[str]] = None) -> int:
             for sub in list(kind_dir.iterdir()):
                 if not sub.is_dir():
                     continue
-                if kind == "data" and sub.name in ("minecraft", "c", "neoforge", "forge"):
+                if sub.name in SYSTEM_NAMESPACES:
                     continue
                 if sub.name != mod_id:
                     merge_or_move(sub, kind_dir / mod_id, f"Generated/{kind}", log, dry_run)
 
-    # 4c. pack.mcmeta
+    # 6. pack.mcmeta
     pack_mcmeta_path = resources_dir / "pack.mcmeta"
     if pack_mcmeta_path.is_file():
         mcmeta_content = pack_mcmeta_path.read_text(encoding="utf-8", errors="replace")
@@ -280,8 +316,7 @@ def main(argv: Optional[List[str]] = None) -> int:
             if not dry_run:
                 pack_mcmeta_path.write_text(new_mcmeta, encoding="utf-8")
 
-    # 5. mixin json rename + create
-    # Rename *stale*.mixins.json -> {mod_id}.mixins.json
+    # 7. Mixin json rename + create
     if resources_dir.is_dir():
         for p in list(resources_dir.glob("*.mixins.json")):
             if p.name != f"{mod_id}.mixins.json":
@@ -327,7 +362,6 @@ def main(argv: Optional[List[str]] = None) -> int:
                 encoding="utf-8",
             )
     else:
-        # align package field if present
         try:
             mixin_data = json.loads(mixin_config_path.read_text(encoding="utf-8"))
             desired_pkg = f"{mod_group_id}.mixin"
@@ -343,43 +377,44 @@ def main(argv: Optional[List[str]] = None) -> int:
         except Exception as e:
             log.append(f"[Mixin Config] skip package align: {e}")
 
-    # 7. Main class MODID constant
+    # 8. Update MODID in main class
     if main_class_full_path and main_class_full_path.is_file():
-        java_content = main_class_full_path.read_text(encoding="utf-8", errors="replace")
-        new_java = re.sub(
-            r'public static final String MODID = "[^"]*";',
-            f'public static final String MODID = "{mod_id}";',
-            java_content,
+        # Compute updated location if package moved
+        target_main_path = (
+            java_root / Path(*mod_group_id.split(".")) / main_class_file
+            if old_package and old_package != mod_group_id
+            else main_class_full_path
         )
-        new_java = replace_in_text(new_java, old_ids, mod_id)
-        if new_java != java_content:
-            log.append(f"[Java Code] update MODID in {main_class_file}")
-            if not dry_run:
-                main_class_full_path.write_text(new_java, encoding="utf-8")
+        if target_main_path.is_file():
+            java_content = target_main_path.read_text(encoding="utf-8", errors="replace")
+            new_java = re.sub(
+                r'public static final String MODID = "[^"]*";',
+                f'public static final String MODID = "{mod_id}";',
+                java_content,
+            )
+            new_java = replace_in_text(new_java, old_ids, mod_id)
+            if new_java != java_content:
+                log.append(f"[Java Code] update MODID in {main_class_file}")
+                if not dry_run:
+                    target_main_path.write_text(new_java, encoding="utf-8")
 
-    # 7b. Optional: other java under package — replace quoted old mod ids only when package path matches group
-    # (kept minimal: only main class + resources to avoid rewriting entire world)
-
-    # 8. AGENTS.md — only replace lines if old template keys exist; do not invent product-specific lore
+    # 9. Update AGENTS.md metadata lines
     if agents_md_path.is_file():
         agents_content = agents_md_path.read_text(encoding="utf-8", errors="replace")
-        updated = agents_content
         updated2 = re.sub(
             r"- \*\*参考 Mod ID\*\*: .*",
             f"- **参考 Mod ID**: {mod_id} (已由初始化引擎自动对齐)",
-            updated,
+            agents_content,
         )
         updated2 = re.sub(
             r"- \*\*参考 Mod Name\*\*: .*",
             f"- **参考 Mod Name**: {mod_name} (已由初始化引擎自动对齐)",
             updated2,
         )
-        main_class_name = (
-            os.path.basename(main_class_rel_path) if main_class_file else "TutorialMod.java"
-        )
+        main_class_name = main_class_file or "TutorialMod.java"
         updated2 = re.sub(
             r"- \*\*参考基类路径\*\*: .*",
-            f"- **参考基类路径**: [{main_class_name}]({main_class_rel_path})",
+            f"- **参考基类路径**: [{main_class_name}]({main_class_rel})",
             updated2,
         )
         if updated2 != agents_content:

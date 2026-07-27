@@ -55,10 +55,12 @@ DECL_PATTERNS = [
     (re.compile(r"(\w+)\s*=\s*DeferredRegister\.create\(\s*Registries\.BLOCK\b"), "block"),
 ]
 
-# Direct helper calls carry their own kind regardless of receiver variable.
-HELPER_CALL_RE = re.compile(
-    r"\.(registerSimpleBlockItem|registerSimpleBlock|registerBlock|"
-    r"registerSimpleItem|registerItem|register)\s*\(\s*\"([a-z0-9_./-]+)\""
+# Registration calls on a receiver (helper calls carry inherent kind; register checks receiver var kind).
+REGISTER_CALL_RE = re.compile(
+    r"\b(\w+)\s*\.\s*"
+    r"(registerSimpleBlockItem|registerSimpleBlock|registerBlock|"
+    r"registerSimpleItem|registerItem|register)"
+    r"\s*\(\s*\"([a-z0-9_./-]+)\""
 )
 HELPER_KIND = {
     "registerSimpleBlockItem": "blockitem",
@@ -68,7 +70,6 @@ HELPER_KIND = {
     "registerItem": "item",
 }
 
-RECEIVER_RE = re.compile(r"(\w+)\s*\.\s*register\s*\(\s*\"")
 TRANSLATABLE_RE = re.compile(r"Component\.translatable\(\s*\"([\w.\-]+)\"\s*[),]")
 # Entry registration with a non-literal name: identifier first arg followed by a
 # comma. Single-identifier calls like BLOCKS.register(modEventBus) are bus
@@ -117,12 +118,11 @@ def parse_registrations(
             for m in pat.finditer(text):
                 var_kinds[m.group(1)] = kind
 
-        for m in HELPER_CALL_RE.finditer(text):
-            method, name = m.group(1), m.group(2)
+        for m in REGISTER_CALL_RE.finditer(text):
+            var_name, method, name = m.group(1), m.group(2), m.group(3)
             kind = HELPER_KIND.get(method)
-            if kind is None:  # plain .register("name", ...) -> resolve receiver
-                recv_m = RECEIVER_RE.match(text, m.start())
-                kind = var_kinds.get(recv_m.group(1)) if recv_m else None
+            if kind is None:  # plain .register("name", ...) -> check receiver var kind
+                kind = var_kinds.get(var_name)
             if kind == "item":
                 items.add(name)
             elif kind == "block":

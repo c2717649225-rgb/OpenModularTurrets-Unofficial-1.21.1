@@ -69,12 +69,10 @@ def run_server_smoke(gradle_path: str, project_dir: str, timeout_s: int = 600) -
                     proc.stdin.flush()
                 except OSError:
                     pass
-                # If stdin isn't wired through Gradle, fall back to kill shortly.
-                stop_deadline = time.time() + 45
-            if stop_deadline and time.time() > stop_deadline:
-                print("Graceful stop not honored (stdin not forwarded) — killing process.")
-                proc.kill()
-                stop_deadline = None
+                # Active timer: kill process after 45s if graceful stop is not honored or no new logs arrive
+                graceful_timer = threading.Timer(45.0, proc.kill)
+                graceful_timer.daemon = True
+                graceful_timer.start()
     finally:
         watchdog.cancel()
         try:

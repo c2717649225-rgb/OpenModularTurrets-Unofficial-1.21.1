@@ -33,7 +33,10 @@ jobs:
         run: python .agents/gates/static_gate.py
 
       - name: Asset gate on starter resources
-        run: python .agents/gates/asset_gate.py
+        run: python .agents/gates/asset_gate.py --warnings-as-errors
+
+      - name: Unit tests for gates and workspace
+        run: python .agents/gates/test_gates.py
 
       - name: Crash-rules table loads and regexes compile
         run: |
