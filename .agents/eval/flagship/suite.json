@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "suite_id": "neoforge-1.21.1-flagship-v1",
+  "minimum_independent_runs": 5,
+  "release_thresholds": {
+    "maximum_p0_escapes": 0,
+    "minimum_post_repair_pass_rate": 0.9,
+    "minimum_regression_retention_rate": 0.95,
+    "maximum_repair_loops_per_run": 2
+  },
+  "scenarios": [
+    {
+      "id": "I01",
+      "name": "Machine vertical slice",
+      "spec": "scenarios/I01_machine_vertical_slice.md",
+      "required_gates": ["contract", "L1", "L2", "L2.5", "L4"]
+    },
+    {
+      "id": "I02",
+      "name": "Server-authoritative boss state machine",
+      "spec": "scenarios/I02_boss_state_machine.md",
+      "required_gates": ["contract", "L1", "L2", "L3", "L4", "multiplayer"]
+    },
+    {
+      "id": "I03",
+      "name": "Deterministic structure and world generation",
+      "spec": "scenarios/I03_structure_worldgen.md",
+      "required_gates": ["contract", "L1", "L2.5", "L3", "L4", "performance"]
+    },
+    {
+      "id": "I04",
+      "name": "Persistent schema migration",
+      "spec": "scenarios/I04_save_migration.md",
+      "required_gates": ["contract", "L1", "L3", "L4", "migration"]
+    },
+    {
+      "id": "I05",
+      "name": "Optional dependency compatibility",
+      "spec": "scenarios/I05_optional_compatibility.md",
+      "required_gates": ["contract", "L1", "L2", "L3", "compatibility"]
+    },
+    {
+      "id": "I06",
+      "name": "Long-horizon regression sequence",
+      "spec": "scenarios/I06_long_horizon_regression.md",
+      "required_gates": ["contract", "L1", "L2", "L2.5", "L3", "L4", "regression"]
+    }
+  ]
+}

@@ -16,9 +16,11 @@ HARD CONSTRAINTS (do not relax):
 
 Severity policy:
   error   -> guaranteed-visible defect (missing model/blockstate/en_us key,
-             dangling model/blockstate reference)
+             dangling model/blockstate reference), plus strict DataGen layout
+             violations when --strict-datagen-layout is enabled
   warning -> quality gap that may be intentional or art-pending (missing
-             loot table, mineable tag, texture PNG, zh_cn.json, translatable keys)
+             loot table, mineable tag, texture PNG, zh_cn.json, translatable
+             keys, en_us/zh_cn key-set drift)
 """
 from __future__ import annotations
 
@@ -192,6 +194,53 @@ def split_ref(ref: str, default_ns: str) -> Tuple[str, str]:
 
 # ------------------------------------------------------------------ the checks
 
+DATAGEN_ASSET_DIRS = {"blockstates", "models"}
+DATAGEN_DATA_DIRS = {"advancement", "loot_table", "recipe"}
+MANUALLY_MAINTAINED_LANG_FILES = {"zh_cn.json"}
+
+
+def check_datagen_layout(project_root: Path, ns: str) -> List[Finding]:
+    """Reject DataGen-managed JSON checked into src/main/resources.
+
+    This is opt-in because existing host projects may still be migrating
+    handwritten resources. The scan is intentionally narrow: it only covers
+    well-known provider outputs, leaving metadata, textures, sounds, and other
+    manually authored assets alone. Tags are checked across namespaces because
+    a host mod commonly contributes generated entries to ``minecraft:``/``c:``.
+    """
+    main_root = project_root / "src" / "main" / "resources"
+    if not main_root.is_dir():
+        return []
+
+    findings: List[Finding] = []
+    for path in sorted(main_root.rglob("*.json")):
+        if not path.is_file():
+            continue
+        rel = path.relative_to(main_root)
+        parts = rel.parts
+        managed = False
+
+        if len(parts) >= 3 and parts[0] == "assets" and parts[1] == ns:
+            managed = parts[2] in DATAGEN_ASSET_DIRS
+            if parts[2] == "lang" and path.name not in MANUALLY_MAINTAINED_LANG_FILES:
+                managed = True
+        elif len(parts) >= 3 and parts[0] == "data":
+            managed = parts[2] == "tags"
+            if parts[1] == ns and parts[2] in DATAGEN_DATA_DIRS:
+                managed = True
+
+        if managed:
+            subject = str(
+                Path("src") / "main" / "resources" / rel
+            ).replace("\\", "/")
+            findings.append(Finding(
+                "datagen_resource_in_main", "error", subject,
+                "DataGen-managed JSON is under src/main/resources. Generate it "
+                "with a DataProvider into src/generated/resources instead "
+                "(zh_cn.json, metadata, textures, and other manual assets remain allowed).",
+            ))
+    return findings
+
 def check_entries(
     view: ResourceView,
     ns: str,
@@ -329,11 +378,40 @@ def check_lang_quality(
             "en_us.json missing entirely — every name shows as a raw key.",
         ))
         en_us = {}
-    if load_lang(view, ns, "zh_cn") is None:
+    zh_cn = load_lang(view, ns, "zh_cn")
+    if zh_cn is None:
         findings.append(Finding(
             "missing_lang_file", "warning", f"assets/{ns}/lang/zh_cn.json",
             "zh_cn.json missing — quality bar expects bilingual coverage.",
         ))
+    else:
+        en_keys = {key for key in en_us if isinstance(key, str)}
+        zh_keys = {key for key in zh_cn if isinstance(key, str)}
+
+        def summarize(keys: Set[str]) -> str:
+            ordered = sorted(keys)
+            shown = ", ".join(f"`{key}`" for key in ordered[:8])
+            if len(ordered) > 8:
+                shown += f", ... (+{len(ordered) - 8} more)"
+            return shown
+
+        missing_zh = en_keys - zh_keys
+        if missing_zh:
+            findings.append(Finding(
+                "lang_key_missing_zh_cn", "warning",
+                f"assets/{ns}/lang/zh_cn.json",
+                f"{len(missing_zh)} key(s) exist in en_us.json but not zh_cn.json: "
+                f"{summarize(missing_zh)}.",
+            ))
+
+        missing_en = zh_keys - en_keys
+        if missing_en:
+            findings.append(Finding(
+                "lang_key_missing_en_us", "warning",
+                f"assets/{ns}/lang/en_us.json",
+                f"{len(missing_en)} key(s) exist in zh_cn.json but not en_us.json: "
+                f"{summarize(missing_en)}.",
+            ))
     for key in sorted(translatables):
         # Only vouch for keys that look owned by this mod; vanilla keys skipped.
         if (ns in key or key.startswith(("itemGroup.", "tooltip.", "gui.", "message."))) \
@@ -400,6 +478,7 @@ def print_report(
     findings: List[Finding],
     *,
     treat_warnings_as_errors: bool = False,
+    strict_datagen_layout: bool = False,
 ) -> int:
     n_items, n_blocks, n_blockitems, unresolved = counts
     print("==================================================")
@@ -412,6 +491,7 @@ def print_report(
         print(f"NOTE: {unresolved} dynamic register call(s) could not be statically "
               "resolved and were NOT checked.")
     print("Resource roots: src/main/resources + src/generated/resources")
+    print(f"Strict DataGen layout: {'enabled' if strict_datagen_layout else 'disabled'}")
 
     errors = [f for f in findings if f.severity == "error"]
     warnings = [f for f in findings if f.severity == "warning"]
@@ -444,6 +524,7 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     argv = list(sys.argv[1:] if argv is None else argv)
     treat_w = "--warnings-as-errors" in argv
+    strict_layout = "--strict-datagen-layout" in argv
 
     project_root = find_project_root()
     ns = read_mod_id(project_root)
@@ -455,12 +536,15 @@ def main(argv: Optional[List[str]] = None) -> int:
     findings += check_model_references(view, ns)
     findings += check_lang_quality(view, ns, translatables)
     findings += check_mods_toml(project_root)
+    if strict_layout:
+        findings += check_datagen_layout(project_root, ns)
 
     return print_report(
         project_root, ns,
         (len(items), len(blocks), len(blockitems), unresolved),
         findings,
         treat_warnings_as_errors=treat_w,
+        strict_datagen_layout=strict_layout,
     )
 
 

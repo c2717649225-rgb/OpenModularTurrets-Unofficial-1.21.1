@@ -2,7 +2,7 @@
 status: verified
 pin_minecraft: 1.21.1
 pin_neo: 21.1.x
-last_verified: 2026-07-25
+last_verified: 2026-07-27
 ---
 # NeoForge 1.21.1 Event System Guidelines
 
@@ -63,12 +63,30 @@ public class GameEventHandler {
 }
 ```
 
-In NeoForge 1.21.1+, `@EventBusSubscriber` 注解中一律省略 `bus` 参数（不要声明 `bus = Bus.MOD` 或 `bus = Bus.GAME`）。MOD 与 GAME 事件总线的分流路由，将完全由事件类本身是否实现了 `IModBusEvent` 接口自动识别与动态派发。
+`@EventBusSubscriber` 在 NeoForge 21.1.x 内存在明确的小版本分界，不能只按 Minecraft 1.21.1 判断。写注解前先读取宿主 `gradle.properties` 的精确 `neo_version`：
 
-因此，您应当完全省略 `bus` 参数属性：
+| NeoForge 版本 | 注解订阅语义 |
+| :--- | :--- |
+| **21.1.0～21.1.180** | 默认 `Bus.GAME`。监听 `IModBusEvent` 时必须显式 `bus = Bus.MOD`；Game 事件可省略或显式写 `Bus.GAME`。 |
+| **21.1.181+** | 自动同时注册到正确总线，并由事件类型分流；应省略 `bus` 参数。 |
+
+两条分支中，`@EventBusSubscriber` 下的 `@SubscribeEvent` 方法都必须是 `static`。下面是 Mod Bus 生命周期事件的两种对应写法：
 
 ```java
-// Mod Bus events are automatically discovered because FMLClientSetupEvent implements IModBusEvent
+// NeoForge 21.1.0～21.1.180
+import net.neoforged.fml.common.EventBusSubscriber.Bus;
+
+@EventBusSubscriber(modid = MyMod.MODID, bus = Bus.MOD)
+public class LegacyModLifecycleHandler {
+    @SubscribeEvent
+    public static void onClientSetup(FMLClientSetupEvent event) {
+        // Client-side initialization code
+    }
+}
+```
+
+```java
+// NeoForge 21.1.181+：按 IModBusEvent 自动分流
 @EventBusSubscriber(modid = MyMod.MODID)
 public class ModLifecycleHandler {
     @SubscribeEvent
@@ -78,6 +96,11 @@ public class ModLifecycleHandler {
 }
 ```
 
+物理客户端隔离仍由 `value = Dist.CLIENT` 表达；旧分支若监听 Mod Bus 事件，还要同时指定 `bus = Bus.MOD`：
+
+```java
+// 21.1.0～21.1.180 的客户端 Mod Bus 类：再加 bus = Bus.MOD
+// 21.1.181+：保持下方写法，省略 bus
 @EventBusSubscriber(modid = MyMod.MODID, value = Dist.CLIENT)
 public class ClientOnlyHandler {
     // Methods here will only load on the physical client
@@ -107,9 +130,9 @@ public class ClientOnlyHandler {
   - ❌ 错误：试图使用 `LivingHurtEvent` 拦截伤害前属性。
   - ✅ 修正：1.21.1 废除了生物受伤事件，拦截受到伤害前属性一律使用 **`LivingIncomingDamageEvent`**。
 
-### 3.2 玩家与实体获取 API 统一
-- ❌ 错误：在事件中使用 `event.getPlayer()` 获取触发玩家。
-- ✅ 修正：1.21.1 中 `getPlayer()` 被彻底废除。大部分事件统一为继承 `EntityEvent`，获取当前实体一律使用 **`event.getEntity()`** 并转型。如 `BlockEvent.BreakEvent` 中使用 `event.getPlayer()` 的旧写法已废弃，直接改为 `event.getEntity()`。
+### 3.2 玩家与实体获取 API 不可一刀切
+- ❌ 错误：假设所有事件都统一使用 `getPlayer()`，或反过来假设所有事件都统一使用 `getEntity()`。
+- ✅ 修正：读取具体事件类真源码确认 getter。以 NeoForge 21.1.234 为例，`BlockEvent.BreakEvent#getPlayer()` 仍然存在并返回触发玩家；许多继承 `EntityEvent` / `PlayerEvent` 的事件则通过 `getEntity()` 暴露实体。不要做全局机械替换。
 
 ### 3.3 伤害源属性检测 (DamageSource Tags)
 - ❌ 错误：使用 `source.isBypassInvul()`、`source.isMagic()`、`source.isFire()`、`source.isExplosion()` 等 boolean 判断伤害类型属性。
@@ -136,5 +159,3 @@ public class ClientOnlyHandler {
       }
   }
   ```
-
-```

@@ -1,0 +1,327 @@
+{
+  "$schema": "../../.agents/contracts/major-feature-v2.schema.json",
+  "schema_version": 2,
+  "design_source": {
+    "path": "docs/design/{{VERSIONED_DESIGN_FILE}}",
+    "revision": "{{DESIGN_REVISION}}",
+    "sha256": "{{LOWERCASE_SHA256}}"
+  },
+  "review_required": [],
+  "id": "{{MODID}}.{{FEATURE_ID}}",
+  "version": 1,
+  "status": "draft",
+  "summary": "{{ONE_SENTENCE_PLAYABLE_OUTCOME}}",
+  "server_authority": {
+    "owner": "logical_server",
+    "authoritative_state": [
+      "{{SERVER_OWNED_STATE_AND_INVARIANT}}"
+    ],
+    "client_input_policy": "intent_only",
+    "invalid_input_policy": "reject_and_log"
+  },
+  "persistence": {
+    "required": true,
+    "scope": "level",
+    "schema": {
+      "version": 1,
+      "format": "codec",
+      "owner": "{{PERSISTENCE_OWNER_CLASS_OR_BOUNDARY}}",
+      "fields": [
+        "{{FIELD_NAME_TYPE_DEFAULT_AND_INVARIANT}}"
+      ]
+    },
+    "migration": {
+      "strategy": "versioned_codec",
+      "supported_from": [
+        0
+      ],
+      "fallback": "backup_and_reset",
+      "test_ids": [
+        "migration_v0_to_v1"
+      ]
+    }
+  },
+  "network": {
+    "required": true,
+    "flows": [
+      {
+        "id": "client_intent",
+        "direction": "c2s",
+        "purpose": "{{CLIENT_INTENT_NOT_CLIENT_AUTHORITY}}",
+        "validation": [
+          "{{SENDER_STATE_AND_PERMISSION_CHECK}}",
+          "{{RANGE_OR_OWNERSHIP_CHECK}}",
+          "{{PAYLOAD_BOUND_CHECK}}"
+        ],
+        "rate_limit": {
+          "strategy": "token_bucket",
+          "max_per_second": 10,
+          "burst": 20,
+          "key": "player"
+        },
+        "max_payload_bytes": 1024,
+        "test_ids": [
+          "network_contract"
+        ]
+      },
+      {
+        "id": "state_sync",
+        "direction": "s2c",
+        "purpose": "{{MINIMAL_RENDER_OR_UI_STATE}}",
+        "validation": [
+          "{{CLIENT_CONTEXT_OR_ENTITY_EXISTENCE_CHECK}}"
+        ],
+        "rate_limit": {
+          "strategy": "coalesced",
+          "max_per_second": 20,
+          "burst": 1,
+          "key": "player"
+        },
+        "max_payload_bytes": 4096,
+        "test_ids": [
+          "network_contract"
+        ]
+      }
+    ]
+  },
+  "client_boundary": {
+    "common_code_client_imports": "forbidden",
+    "client_only_packages": [
+      "{{MOD_GROUP}}.client"
+    ],
+    "visual_state": "synced_server_state",
+    "dedicated_server_fallback": "{{BEHAVIOR_WHEN_NO_CLIENT_CLASSES_OR_RENDERER_EXIST}}",
+    "dedicated_server_test_id": "dedicated_server_boot"
+  },
+  "registries": {
+    "entries": [
+      {
+        "registry": "{{REGISTRY_NAME}}",
+        "ids": [
+          "{{MODID}}:{{REGISTRY_PATH}}"
+        ],
+        "lifecycle": "static"
+      }
+    ],
+    "tags": [
+      "c:{{SHARED_TAG_PATH}}"
+    ]
+  },
+  "assets": {
+    "generated": [
+      "{{DATAGEN_OUTPUT_OR_NONE}}"
+    ],
+    "manual": [
+      "{{TEXTURE_MODEL_ANIMATION_OR_SOUND_SOURCE}}"
+    ],
+    "locales": [
+      "en_us",
+      "zh_cn"
+    ],
+    "license_review": "pending",
+    "validation_test_ids": [
+      "asset_contract"
+    ]
+  },
+  "performance": {
+    "budgets": [
+      {
+        "id": "steady_state_budget",
+        "metric": "server_tick_time",
+        "scope": "{{REPRESENTATIVE_FEATURE_LOAD}}",
+        "limit": 0.25,
+        "unit": "ms_per_tick",
+        "measurement": "{{WARMUP_SAMPLE_COUNT_AND_PROFILER_METHOD}}",
+        "test_id": "performance_contract"
+      }
+    ],
+    "hot_paths": [
+      "{{TICK_EVENT_RENDER_NETWORK_OR_WORLDGEN_HOT_PATH}}"
+    ],
+    "measurement_environment": "{{JAVA_HEAP_CPU_WORLD_SEED_AND_ENTITY_COUNT}}"
+  },
+  "dependencies": {
+    "features": [],
+    "mods": [
+      {
+        "id": "neoforge",
+        "requirement": "required",
+        "version_range": "[21.1,21.2)",
+        "fallback": "Feature is unavailable outside the pinned NeoForge line."
+      }
+    ]
+  },
+  "acceptance": {
+    "criteria": [
+      {
+        "id": "migration.preserves_state",
+        "risk": "P0",
+        "required": true,
+        "statement": "Every supported persistent-state version migrates without silent data loss.",
+        "observation": "The migration fixture semantic summary is unchanged except for the declared version transition.",
+        "test_ids": [
+          "migration_v0_to_v1"
+        ]
+      },
+      {
+        "id": "network.server_authority",
+        "risk": "P0",
+        "required": true,
+        "statement": "Client input cannot directly author authoritative feature state.",
+        "observation": "Valid intents converge through the logical server; invalid, oversized and rate-limited payloads are rejected.",
+        "test_ids": [
+          "network_contract"
+        ]
+      },
+      {
+        "id": "runtime.dedicated_server",
+        "risk": "P0",
+        "required": true,
+        "statement": "Common code loads without resolving client-only classes.",
+        "observation": "A dedicated server reaches Done without client classloading errors.",
+        "test_ids": [
+          "dedicated_server_boot"
+        ]
+      },
+      {
+        "id": "behavior.playable_loop",
+        "risk": "P0",
+        "required": true,
+        "statement": "{{ATOMIC_PLAYER_VISIBLE_BEHAVIOR}}",
+        "observation": "{{GAME_TEST_ASSERTION_AND_OBSERVABLE_STATE}}",
+        "test_ids": [
+          "playable_behavior"
+        ]
+      },
+      {
+        "id": "assets.reconcile",
+        "risk": "P1",
+        "required": true,
+        "statement": "Declared registry entries, tags, generated assets and locales reconcile.",
+        "observation": "DataGen is deterministic and the static and asset gates report no errors.",
+        "test_ids": [
+          "asset_contract"
+        ]
+      },
+      {
+        "id": "performance.steady_state",
+        "risk": "P1",
+        "required": true,
+        "statement": "Representative steady-state load stays below every declared budget.",
+        "observation": "The measured upper bound is no greater than the contract limit.",
+        "test_ids": [
+          "performance_contract"
+        ]
+      }
+    ],
+    "tests": [
+      {
+        "id": "migration_v0_to_v1",
+        "kind": "migration",
+        "command": [
+          "python",
+          "{{MIGRATION_TEST_PATH}}"
+        ],
+        "covers": [
+          "Persistence schema v0 fixture loads as v1 without silent data loss."
+        ],
+        "required": true,
+        "expected": "All migration fixtures pass and the original fixture remains unchanged.",
+        "timeout_seconds": 120
+      },
+      {
+        "id": "network_contract",
+        "kind": "integration",
+        "command": [
+          "python",
+          "{{NETWORK_TEST_PATH}}"
+        ],
+        "covers": [
+          "Valid C2S intent changes only logical-server-owned state.",
+          "Invalid, oversized and rate-limited C2S intents are rejected.",
+          "S2C synchronization exposes only the declared client view."
+        ],
+        "required": true,
+        "expected": "All payload round-trip, validation and abuse cases pass.",
+        "timeout_seconds": 180
+      },
+      {
+        "id": "dedicated_server_boot",
+        "kind": "dedicated_server",
+        "command": [
+          "python",
+          ".agents/gates/compile_and_repair.py",
+          "--with-server"
+        ],
+        "covers": [
+          "Common code loads without resolving net.minecraft.client classes."
+        ],
+        "required": true,
+        "expected": "Dedicated server reaches Done with no client classloading errors.",
+        "timeout_seconds": 900
+      },
+      {
+        "id": "playable_behavior",
+        "kind": "gametest",
+        "command": [
+          "python",
+          ".agents/gates/gametest_gate.py",
+          "--require-tests",
+          "--run"
+        ],
+        "test_ref": "{{MOD_GROUP}}.gametest.{{GAME_TEST_CLASS}}#{{GAME_TEST_METHOD}}",
+        "covers": [
+          "{{ATOMIC_PLAYER_VISIBLE_BEHAVIOR}}"
+        ],
+        "required": true,
+        "expected": "{{GAME_TEST_ASSERTION_AND_OBSERVABLE_STATE}}",
+        "timeout_seconds": 900
+      },
+      {
+        "id": "asset_contract",
+        "kind": "datagen",
+        "command": [
+          "python",
+          ".agents/gates/compile_and_repair.py",
+          "--with-data",
+          "--with-static",
+          "--with-assets"
+        ],
+        "covers": [
+          "Declared registry entries, tags, generated assets and locales reconcile."
+        ],
+        "required": true,
+        "expected": "DataGen is deterministic and L2/L2.5 report no errors.",
+        "timeout_seconds": 900
+      },
+      {
+        "id": "performance_contract",
+        "kind": "performance",
+        "command": [
+          "python",
+          "{{PERFORMANCE_TEST_PATH}}"
+        ],
+        "covers": [
+          "The representative steady-state load stays below every declared budget."
+        ],
+        "required": true,
+        "expected": "Measured upper bound is no greater than the contract limit.",
+        "timeout_seconds": 600
+      }
+    ],
+    "manual_checks": [
+      {
+        "id": "playable_loop",
+        "steps": [
+          "{{PLAYER_ACTION_1}}",
+          "{{PLAYER_ACTION_2}}",
+          "{{SAVE_RELOAD_OR_RECONNECT_STEP}}"
+        ],
+        "expected": "{{PLAYER_VISIBLE_RESULT_AND_FAILURE_FEEDBACK}}"
+      }
+    ],
+    "non_goals": [
+      "{{EXPLICITLY_EXCLUDED_SCOPE_FOR_THIS_VERSION}}"
+    ]
+  }
+}

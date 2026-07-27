@@ -95,21 +95,21 @@ python .agents/init_workspace.py
 在 AI 客户端的 MCP 配置中注册；步骤见 [`.agents/README.md`](.agents/README.md)。  
 未接入时 AI 不应凭记忆编造原版 / NeoForge API。
 
-### 4. 编译自检
+### 4. 分档质量门禁
 
 ```bash
-# 默认：仅 compileJava（L1）
-python .agents/gates/compile_and_repair.py
+# 日常：文档信任链 + 编译 L1 + 静态 L2
+python .agents/gates/pipeline.py --profile fast
 
-# 推荐：编译 + 静态扫描（L1+L2）
-python .agents/gates/compile_and_repair.py --with-static
+# Major：再强制合同 L0、DataGen/资源 L2.5、真实 GameTest L4
+python .agents/gates/pipeline.py --profile major
 
-# 改了注册项或 DataGen Provider 时：DataGen + 资源对账（L2.5）
-python .agents/gates/compile_and_repair.py --with-data --with-assets
-
-# 发布前：追加专用服务器无头冒烟（L3，较慢）
-python .agents/gates/compile_and_repair.py --with-static --with-assets --with-server
+# 发布：再强制生成物零漂移、专服 L3 与旗舰评测协议完整性
+python .agents/gates/pipeline.py --profile release
 ```
+
+`major` / `release` 会在缺少 `docs/features/*.json` 或真实 `@GameTest` 时失败，这是防止“无测试假全绿”的设计。脚手架见 `.agents/scaffolds/`。
+L4 不会自动判断测试是否覆盖本次变更；Major 交付还须人工列出“变更/合同验收项 → `GameTestClass#method`”映射。
 
 可选：`./gradlew runClient`
 
@@ -129,8 +129,10 @@ python .agents/gates/compile_and_repair.py --with-static --with-assets --with-se
 ├── init_workspace.py   # 一键初始化入口
 ├── mcp/
 │   └── minecraft_mcp.py
-├── gates/              # 门禁：L1 编译 / L2 静态 / L2.5 资源对账 / L3 冒烟 / 文档自检 / 崩溃分诊
-├── eval/               # 任务评测（tasks + grade.py 批卷 + 记分卡）
+├── contracts/          # Major 功能合同通用 Schema（实际合同放宿主 docs/features）
+├── scaffolds/          # Major 合同 / GameTest 防假绿脚手架
+├── gates/              # pipeline + L0/L1/L2/L2.5/L4/L3 门禁
+├── eval/               # 微能力批卷 + 六场景旗舰生产评测
 ├── _archive/           # 禁读归档（过程型 superpowers 等）
 └── skills/
     ├── neoforge/             # ★ 1.21.1 写法与 references
@@ -150,7 +152,7 @@ python .agents/gates/compile_and_repair.py --with-static --with-assets --with-se
 |------|------|
 | [`AGENTS.md`](.agents/AGENTS.md) | 全局红线：Data Components、客户端隔离、网络线程、DataGen 例外、MCP 门禁、编译分级等 |
 | [`README.md`](.agents/README.md) | 5 分钟接入与 MCP 注册说明 |
-| [`VERSION`](.agents/VERSION) | 版本与平台锚定（如 1.1.0 / MC 1.21.1 / Neo 21.1.x） |
+| [`VERSION`](.agents/VERSION) | 版本与平台锚定（当前 1.2.0 / MC 1.21.1 / Neo 21.1.x） |
 | [`agent_workflow.md`](.agents/agent_workflow.md) | 可选的外部多智能体协作指针；默认单 Agent 路径与证据协议见其正文 |
 | [`init_workspace.py`](.agents/init_workspace.py) | 初始化入口（转发到 `workspace_setup` 下真实脚本） |
 
@@ -194,7 +196,8 @@ python .agents/gates/compile_and_repair.py --with-static --with-assets --with-se
 | `references/*.md` | 按主题的写法（组件、网络、实体、Mixin、DataGen 等 40+ 篇） |
 | `examples/*.md` | 注册、创造栏、DataGen、配方标签等完整案例（5 篇） |
 | `playbooks/*.md` | 高频任务剧本（全集固定 5 篇，禁止再增） |
-| `docs_core_set.txt` | verified 核心文档清单（5～10 篇，锚定 Neo 21.1.x） |
+| `docs_verified_set.txt` | 已经源码核验、允许声明 verified 的信任边界 |
+| `docs_core_set.txt` | 默认候选的 verified 子集（5～10 篇，仍按任务读取 1～2 篇），不是自动装载项或可信文档总上限 |
 
 文档中的包名可能是占位符或 `tutorialmod`；写入工程前须按当前 `gradle.properties` 替换。
 
@@ -202,9 +205,12 @@ python .agents/gates/compile_and_repair.py --with-static --with-assets --with-se
 
 | 脚本 | 作用 |
 |------|------|
-| `compile_and_repair.py` | 统一入口：L1 `compileJava`；`--with-static`（L2）→ `--with-data`（DataGen）→ `--with-assets`（L2.5）→ `--with-server`（L3）；失败时给出报错上下文 |
+| `pipeline.py` | 一键 `fast` / `major` / `release` 档位；按固定顺序运行并可输出 JSON 证据 |
+| `contract_gate.py` | L0 Major 合同：Schema、跨端、存档迁移、网络验证、性能预算、依赖图与验收命令 |
+| `compile_and_repair.py` | 执行 L1/L2/DataGen/L2.5/L4/L3；失败时给出报错上下文 |
 | `static_gate.py` | L2 静态门禁：P0 崩溃写法扫描（仅扫宿主 `src/main/java`） |
 | `asset_gate.py` | L2.5 资源对账：注册项 ↔ 模型/blockstate/loot/lang/贴图引用闭环 |
+| `gametest_gate.py` | L4：发现并执行真实 NeoForge GameTest；零测试、模糊日志和任意失败均可 fail-closed |
 | `check_doc_index.py` / `check_doc_meta.py` | 文档索引完整性与核心集元数据自检（附 reference 体量统计） |
 | `crash_triage.py` + `crash_rules.json` | 崩溃分诊：签名查表直指 P0 红线与该读文档（排障入口，非门禁） |
 
@@ -239,6 +245,6 @@ python .agents/gates/compile_and_repair.py --with-static --with-assets --with-se
 1. Set `mod_id` / `mod_name` / `mod_group_id` in `gradle.properties`  
 2. `python .agents/init_workspace.py`  
 3. Register `.agents/mcp/minecraft_mcp.py` as MCP ([guide](.agents/README.md))  
-4. `python .agents/gates/compile_and_repair.py`  
+4. `python .agents/gates/pipeline.py --profile fast`
 
 Requires **JDK 21** and **Python 3**. Folder details: expandable section **「.agents 目录说明」** above.

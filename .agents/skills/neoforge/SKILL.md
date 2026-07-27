@@ -14,7 +14,7 @@ description: >
 
 ### 阅读规则
 1. 先阅读并严格遵守本文件「2. 🚨 1.21.1 物理硬红线与 Pre-emptive 避坑指南」与第 1 节「写码后验证」两部分内容。
-2. 根据任务在「3. 索引导航」中寻找对应专题：**首先只阅读 1 个** reference 专题文件。
+2. 根据任务在「4. 导航索引」中寻找对应专题：**首先只阅读 1 个** reference 专题文件。
 3. 仅当仍缺失必要 API 或有额外关联逻辑时，再阅读 **第 2 个** 专题文件。
 4. **绝对禁止**一次性打开 3 个及以上的 references 专题文件，严禁为追求“全面”而通读整个目录。
 5. `examples/`、`playbooks/` 与 `references/quick_skeletons.md` 同样计入「第 1 或第 2 个」限额配额。  
@@ -24,13 +24,16 @@ description: >
 ### 写码前（MCP-first）
 * 涉及原版/NeoForge API 时：先 MCP `search_class` / `list_methods` / `read_file`（或等价读源码）确认签名，再写码。
 * `references/` 与 examples 仅为地图与避坑；**与真源码冲突时以源码为准**。
-* 仅 [docs_core_set.txt](docs_core_set.txt) 内 5～10 篇为 `verified`+`pin_neo`；其余 reference 视为 **draft**，不得当唯一依据。
+* [docs_verified_set.txt](docs_verified_set.txt) 是可信文档清单；只有其中条目可声明 `verified`+`pin_neo`。
+  [docs_core_set.txt](docs_core_set.txt) 只是 5～10 篇 verified 文档组成的**默认候选集**，不代表会自动装载，也不豁免本节的 1～2 篇按需阅读额度；未进入 verified 清单的 reference 一律视为 **draft**，不得当唯一依据。
 
 ### 写码后验证
 * 汇报前必须运行 L1：`python .agents/gates/compile_and_repair.py`
 * L2 已落地时必须加 `--with-static`（仅扫描宿主 `src/main/java`，见 static_gate 规格）。
 * 涉及 DeferredRegister 或 DataGen 时加 `--with-data`。
-* 修改 references/examples/playbooks 后跑：`python .agents/gates/check_doc_index.py`
+* 修改 references/examples/playbooks 后跑：`python .agents/gates/check_doc_index.py` 与 `python .agents/gates/check_doc_meta.py`。
+* Major 功能须先落 `docs/features/*.json` 合同并通过 L0；实现后须有真实 `@GameTest` 并通过 L4，还须人工列出“变更/合同验收项 → `GameTestClass#method`”映射，因为 L4 不能自动判断测试相关性。可直接运行 `python .agents/gates/pipeline.py --profile major`。
+* 发布声明须运行非 dry-run 的 `python .agents/gates/pipeline.py --profile release` 全绿，或提供与其等价的 DataGen 零漂移、L3 与旗舰评测协议完整性证据。
 * 元数据唯一真源：宿主 `gradle.properties` 与 `neoforge.mods.toml`，禁止硬编码 Mod ID/包名。
 * 宣称完成须附：变更路径 + 门禁通过输出（见 `AGENTS.md` 完成证据协议）。
 
@@ -39,11 +42,11 @@ description: >
 ## 🚨 2. 1.21.1 物理硬红线与 Pre-emptive 避坑指南
 
 *   **ItemStack NBT 物理禁用**：绝对禁止混用 1.20.x 的 NBT 读写（如 `getOrCreateTag()`）。必须 100% 使用类型安全的 Data Components 框架。
-*   **Record Codec 顺序绝对对齐**：在 `RecordCodecBuilder.create` 中字段声明顺序必须与 Java Record 主构造器中的参数顺序 **100% 绝对一致**，否则会导致 ClassCastException 游戏崩档。
+*   **Record Codec 工厂参数对齐**：`RecordCodecBuilder.group(...)` 的字段顺序必须匹配 `.apply(...)` 工厂函数的入参顺序。使用 `MyRecord::new` 时才等同于 record component / 主构造器顺序；显式适配 lambda 可以合法重排。错配可能表现为编译失败、类型异常或值被静默映射到错误字段。
 *   **物理客户端隔离**：所有 Renderer、Model、Screen 等 client 类必须隔离在专属包名下。通用逻辑绝对禁止直接引用 client 包。
-*   **网络 Payload 线程安全**：Handler 默认运行在网络线程，任何涉及修改世界、玩家状态的操作必须包裹在 `context.enqueueWork(...)` 中提交给主线程。
+*   **网络 Payload 线程安全**：`PayloadRegistrar` 的 Handler **默认运行在接收端主线程**，默认模式下无需重复 `enqueueWork`。仅当注册链显式调用 `.executesOn(HandlerThread.NETWORK)` 时 Handler 才在网络线程运行；该阶段只能处理不接触游戏状态的计算，任何 `Level` / `Entity` / 玩家状态回写必须通过 `context.enqueueWork(...)` 切回主线程，并处理返回的 `CompletableFuture` 异常。
 *   **延迟解包安全**：类静态成员或静态初始化块（static block）中，**绝对禁止直接对注册项调用 `.get()`**（必须延迟在运行期或事件监听中访问）。
-*   **事件总线订阅口径对齐**：使用 `@EventBusSubscriber` 订阅时**一律省略 bus 属性**（由 IModBusEvent 等事件类基类自动路由），且监听方法必须是 **static** 方法。细节规范请按需阅读 [references/event_system.md](references/event_system.md)。
+*   **事件总线订阅口径对齐**：`@EventBusSubscriber` 的监听方法必须是 **static**。先读取宿主精确 `neo_version`：**21.1.0～21.1.180** 默认只订阅 `Bus.GAME`，监听 `IModBusEvent` 须显式 `bus = Bus.MOD`；**21.1.181+** 自动订阅并分流到正确总线，应省略 `bus`。细节规范请按需阅读 [references/event_system.md](references/event_system.md)。
 *   **StreamCodec 字段及容量限制**：`StreamCodec.composite` 最多只支持 6 个字段。当字段达到 7 个及以上时，必须手动使用 `StreamCodec.of(encoder, decoder)` 进行声明。在网络同步中传输 `ItemStack` 时，StreamCodec 的泛型必须声明为 `net.minecraft.network.RegistryFriendlyByteBuf` 而非 `ByteBuf`。
 
 ### 💡 占位符自适应规则

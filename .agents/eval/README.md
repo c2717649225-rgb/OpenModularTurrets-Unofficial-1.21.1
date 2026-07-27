@@ -1,7 +1,22 @@
-# Eval harness v1（机器批卷 + 人工复核）
+# Eval harness（微能力守线 + 旗舰生产评测）
 
 用于度量「通用工具包」是否帮助 Agent 正确完成 **平台能力** 任务。  
 **不是**某一玩法模组的验收。
+
+## 两层评测
+
+- `tasks/T01–T07`：快速微能力与 P0 诱导题。适合每次工具包改动后的低成本回归。
+- [`flagship/`](./flagship/)：六个跨系统生产场景，要求真实行为测试、Major
+  功能合同和每个模型至少五次独立运行。它不调用特定 AI 客户端，只保存场景、
+  结果协议、阈值和聚合器。
+
+微能力全过只能证明基础 API 护栏有效，**不能**推导出大型模组自治能力。
+旗舰结论必须来自固定模型版本的重复实测：
+
+```bash
+python .agents/eval/flagship/benchmark.py validate-suite
+python .agents/eval/flagship/benchmark.py report path/to/results.json
+```
 
 ## 范围
 

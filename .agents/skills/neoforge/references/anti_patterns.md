@@ -2,7 +2,7 @@
 status: verified
 pin_minecraft: 1.21.1
 pin_neo: 21.1.x
-last_verified: 2026-07-26
+last_verified: 2026-07-27
 ---
 # NeoForge 1.21.1 常见开发地雷与反例对照表 (Anti-Patterns)
 
@@ -26,14 +26,16 @@ last_verified: 2026-07-26
 
 ---
 
-## 2. Codec 字段声明顺序与 Record 构造器匹配
+## 2. Codec 字段顺序与 `.apply(...)` 构造工厂不匹配
 
-*   **痛点**：在编写 `RecordCodecBuilder` 时，Codec 内部的字段顺序与 Record 构造器的字段顺序不匹配。
-*   **影响**：游戏启动正常，但读档反序列化时发生 ClassCastException，存档彻底损坏不可逆。
+*   **痛点**：在编写 `RecordCodecBuilder` 时，`group(...)` 字段值的顺序与 `.apply(...)` 工厂函数的入参映射不一致。
+*   **影响**：不同类型通常会在编译期或运行期暴露；相同类型字段更危险，可能静默交换值并污染持久化语义。
 
-| ❌ 错误写法 (Bad - 顺序错位) | 复合/正确写法 (Good - 完美一致) |
+| ❌ 错误写法 (Bad - 工厂映射错位) | 复合/正确写法 (Good - 工厂参数对齐) |
 | :--- | :--- |
-| ```java<br>public record MyData(int mana, String name) {}<br>// Codec 声明中先 name 后 mana<br>RecordCodecBuilder.create(inst -> inst.group(<br>  Codec.STRING.fieldOf("name").forGetter(MyData::name),<br>  Codec.INT.fieldOf("mana").forGetter(MyData::mana)<br>).apply(inst, MyData::new));<br>``` | ```java<br>public record MyData(int mana, String name) {}<br>// Codec 声明顺序与 Record 构造器完全一致 (mana, name)<br>RecordCodecBuilder.create(inst -> inst.group(<br>  Codec.INT.fieldOf("mana").forGetter(MyData::mana),<br>  Codec.STRING.fieldOf("name").forGetter(MyData::name)<br>).apply(inst, MyData::new));<br>``` |
+| ```java<br>public record MyData(String owner, String title) {}<br>// group 产生 (title, owner)，却直接交给 (owner, title) 主构造器<br>RecordCodecBuilder.create(inst -> inst.group(<br>  Codec.STRING.fieldOf("title").forGetter(MyData::title),<br>  Codec.STRING.fieldOf("owner").forGetter(MyData::owner)<br>).apply(inst, MyData::new));<br>``` | ```java<br>public record MyData(String owner, String title) {}<br>// MyData::new 要求 group 顺序为 (owner, title)<br>RecordCodecBuilder.create(inst -> inst.group(<br>  Codec.STRING.fieldOf("owner").forGetter(MyData::owner),<br>  Codec.STRING.fieldOf("title").forGetter(MyData::title)<br>).apply(inst, MyData::new));<br>``` |
+
+显式适配 lambda 可以合法重排，例如 `apply(inst, (title, owner) -> new MyData(owner, title))`；审查对象是 group 值到工厂入参的映射，而不是 JSON 对象中的文本字段顺序。
 
 ---
 
@@ -59,14 +61,16 @@ last_verified: 2026-07-26
 
 ---
 
-## 5. 网络数据包 Handler 线程安全 (Thread Safety)
+## 5. 显式 NETWORK Payload Handler 直接写游戏状态 (Thread Safety)
 
-*   **痛点**：网络 Payload 的 Handler 默认在网络异步线程运行，直接修改游戏世界状态。
+*   **痛点**：注册链显式 `.executesOn(HandlerThread.NETWORK)` 后，Handler 仍直接访问或修改世界/实体状态。
 *   **影响**：引发异步线程冲突，导致游戏随机卡死、实体同步发生致命空指针。
 
 | ❌ 错误写法 (Bad - 异步修改状态) | 复合/正确写法 (Good - 提交主线程) |
 | :--- | :--- |
-| ```java<br>public static void handle(SyncDataPayload payload, IPayloadContext context) {<br>  // ❌ 错误：在网络异步线程上直接操作世界和实体数据<br>  context.player().level().setBlock(pos, state, 3);<br>}<br>``` | ```java<br>public static void handle(SyncDataPayload payload, IPayloadContext context) {<br>  // 🟢 正确：使用 context.enqueueWork 将任务提交给游戏主线程<br>  context.enqueueWork(() -> {<br>    context.player().level().setBlock(pos, state, 3);<br>  });<br>}<br>``` |
+| ```java<br>// 此 Handler 由显式 NETWORK registrar 注册<br>public static void handleOnNetwork(SyncDataPayload payload, IPayloadContext context) {<br>  context.player().level().setBlock(pos, state, 3);<br>}<br>``` | ```java<br>public static void handleOnNetwork(SyncDataPayload payload, IPayloadContext context) {<br>  context.enqueueWork(() -><br>    context.player().level().setBlock(pos, state, 3)<br>  ).exceptionally(error -> {<br>    LOGGER.error("Payload apply failed", error);<br>    return null;<br>  });<br>}<br>``` |
+
+`PayloadRegistrar` 默认使用 `HandlerThread.MAIN`；默认 Handler 已在接收端主线程，不要求机械地重复 `enqueueWork`。
 
 ---
 
@@ -79,8 +83,8 @@ last_verified: 2026-07-26
 | :--- | :--- |
 | ```java<br>// ❌ 监听方法非 static，系统将无法自动注册其订阅监听<br>@EventBusSubscriber(modid = MODID)<br>public class CapabilityRegistrar {<br>  @SubscribeEvent<br>  public void registerCaps(RegisterCapabilitiesEvent event) { ... }<br>}<br>``` | ```java<br>// 🟢 监听方法为 static 静态，系统在类加载时合规自动订阅<br>@EventBusSubscriber(modid = MODID)<br>public class CapabilityRegistrar {<br>  @SubscribeEvent<br>  public static void registerCaps(RegisterCapabilitiesEvent event) { ... }<br>}<br>``` |
 
-> **一律省略 `bus` 说明**：
-> 自 1.21.1 起，`@EventBusSubscriber` 的 `bus` 参数属性一律省略。系统会在底层根据事件参数类是否实现了 `IModBusEvent` 接口，自动判定并分流路由到对应的 Mod 或 Game 事件总线上；但注解下的订阅监听方法本身，**必须 100% 声明为 `static` 静态方法**，否则无法自动注册。
+> **`bus` 是 NeoForge 小版本条件规则**：
+> 21.1.0～21.1.180 中注解默认 `Bus.GAME`，监听 `IModBusEvent` 必须显式 `bus = Bus.MOD`；21.1.181+ 才会自动分流并应省略 `bus`。两条分支下，注解订阅方法都必须为 `static`。
 
 ---
 
@@ -151,3 +155,5 @@ last_verified: 2026-07-26
 | 2026-07-26 | L3 专服冒烟在受限网络误报模组缺陷（`:downloadAssets` 超时被 watchdog 终止） | 环境失败与代码缺陷未区分，AI 可能误改无辜代码 | `compile_and_repair.py` FAIL 路径网络特征 triage + 「禁改模组代码」指令 |
 | 2026-07-27 | 首轮 eval T03 考生经 MCP 核源发现：verified 文档 `network_payloads.md` 把 `event.registrar(String)` 参数写成 mod id（真源为网络协议版本；示例因链式 `.versioned()` 覆盖而碰巧能跑） | 文档代码块未经真源逐参核验；「能跑」掩盖了语义错误 | 修正示例并加真源 javadoc 警示注释；印证 P0-7 MCP-first 为必要防线（考生按源码写出了正确代码） |
 | 2026-07-27 | 首轮 eval T07 考生读 3 篇文档（1 playbook + 2 references）却自称「额度合规」——限额口径被误读，且复合任务（注册+交互+DataGen）2 篇确实不足 | 「1～2 篇」规则未明确 playbook 合并计数口径，也未给复合任务出口，导致要么违规要么减配 | SKILL.md 阅读规则第 5 条新增复合任务例外：第 3 篇须列明理由，第 4 篇无例外 |
+| 2026-07-27 | verified 文档把 Payload Handler 默认线程写反，并把 `@EventBusSubscriber` 的新版自动分流扩大到全部 21.1.x | 用单一依赖版本验证后却声明整个小版本系列通用，且缺少错误语义回归测试 | Payload 改为“默认 MAIN、显式 NETWORK 才回主线程”；事件总线按 21.1.180/181 分界；新增真值测试与 VERSION pin 门禁 |
+| 2026-07-27 | RecordCodecBuilder 规则把“group 对齐工厂参数”误写成“永远对齐 record 声明顺序”，并绝对化为必然 ClassCastException | 把常用 `Record::new` 模式误当 API 的唯一合法工厂形式 | 允许显式适配 lambda；文档和静态门禁只检查可证明的 `Record::new` 映射错位 |

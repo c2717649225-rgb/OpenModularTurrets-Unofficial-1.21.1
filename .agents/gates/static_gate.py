@@ -7,6 +7,8 @@ HARD CONSTRAINTS (do not relax):
   - Never scan build/, .agents/, .gradle/, jars, or non-Java files
   - eventbus_nonstatic ONLY inside types annotated with @EventBusSubscriber
   - Instance methods registered via addListener / EVENT_BUS.register(this) are OK
+  - Payload handlers default to MAIN. Thread warnings require a high-confidence
+    same-compilation-unit registration explicitly using HandlerThread.NETWORK.
 """
 from __future__ import annotations
 
@@ -270,6 +272,87 @@ def split_top_level(params: str) -> List[str]:
     return [p.strip() for p in parts if p.strip()]
 
 
+def explicit_network_handler_refs(text: str) -> set[Tuple[str, str]]:
+    """
+    Return ``(owner simple name, method name)`` references registered through a
+    PayloadRegistrar that is explicitly configured for HandlerThread.NETWORK.
+
+    This intentionally recognizes only high-confidence, same-source patterns:
+
+      var registrar = event.registrar("1").executesOn(HandlerThread.NETWORK);
+      registrar.playToServer(..., PayloadHandlers::handle);
+
+      registrar = registrar.executesOn(HandlerThread.NETWORK);
+      registrar.playToServer(..., PayloadHandlers::handle);
+
+      event.registrar("1").executesOn(HandlerThread.NETWORK)
+          .playToServer(..., PayloadHandlers::handle);
+
+    PayloadRegistrar defaults to MAIN, and ``executesOn`` returns a configured
+    copy. Cross-file/indirect registrations are deliberately left to manual
+    review rather than guessed by regex.
+    """
+    code = re.sub(r"//[^\n]*|/\*.*?\*/", "", text, flags=re.DOTALL)
+    registrar_modes: dict[str, str] = {}
+    refs: set[Tuple[str, str]] = set()
+    register_method = (
+        r"(?:playToServer|playToClient|playBidirectional|"
+        r"configurationToServer|configurationToClient|configurationBidirectional|"
+        r"commonToServer|commonToClient|commonBidirectional)"
+    )
+    executes_on = re.compile(
+        r"\.executesOn\s*\(\s*(?:[A-Za-z_]\w*\.)*"
+        r"HandlerThread\.(MAIN|NETWORK)\s*\)"
+    )
+
+    for raw_statement in code.split(";"):
+        statement = raw_statement.strip()
+        if not statement:
+            continue
+
+        mode_match = executes_on.search(statement)
+        declaration = re.search(
+            r"\b(?:PayloadRegistrar|var)\s+([A-Za-z_]\w*)\s*=", statement
+        )
+        if declaration and (
+            re.search(r"\bevent\s*\.\s*registrar\s*\(", statement)
+            or mode_match is not None
+        ):
+            registrar_modes[declaration.group(1)] = (
+                mode_match.group(1) if mode_match else "MAIN"
+            )
+
+        reassignment = re.search(
+            r"\b([A-Za-z_]\w*)\s*=\s*\1\s*\.executesOn\s*\(\s*"
+            r"(?:[A-Za-z_]\w*\.)*HandlerThread\.(MAIN|NETWORK)\s*\)",
+            statement,
+        )
+        if reassignment:
+            registrar_modes[reassignment.group(1)] = reassignment.group(2)
+
+        if not re.search(rf"\b{register_method}\s*\(", statement):
+            continue
+
+        direct_network = bool(mode_match and mode_match.group(1) == "NETWORK")
+        receiver = re.search(
+            rf"\b([A-Za-z_]\w*)\s*\.\s*{register_method}\s*\(", statement
+        )
+        receiver_network = bool(
+            receiver and registrar_modes.get(receiver.group(1)) == "NETWORK"
+        )
+        if not (direct_network or receiver_network):
+            continue
+
+        refs.update(
+            (owner, method)
+            for owner, method in re.findall(
+                r"\b([A-Za-z_]\w*)\s*::\s*([A-Za-z_]\w*)\b", statement
+            )
+        )
+
+    return refs
+
+
 def record_param_names(text: str) -> dict:
     """Map record name -> ordered constructor parameter names."""
     out = {}
@@ -446,14 +529,16 @@ def scan_file(
                 )
             )
 
-    # --- codec_field_order: P0-2, only certain mismatches are reported ---
-    # Report ONLY when the codec's fieldOf(...) names and the record's constructor
-    # parameter names are the same SET in a different ORDER — that is a guaranteed
-    # save-corrupting bug. Different sets (custom json names) are skipped entirely.
+    # --- codec_field_order: P0-2, only high-confidence mismatches are reported ---
+    # Report only direct Record::new factories where fieldOf(...) names and record
+    # component names are the same set in a different order. Explicit adapter
+    # lambdas may intentionally reorder values and are deliberately skipped.
+    # Different sets (including custom serialized names) are also skipped.
     records = record_param_names(text)
     for m in re.finditer(r"RecordCodecBuilder\s*\.\s*(?:create|mapCodec)\s*\(", text):
         apply_m = re.search(
-            r"\.apply\s*\(\s*\w+\s*,\s*([A-Za-z_]\w*)(?:::new)?", text[m.start() :]
+            r"\.apply\s*\(\s*\w+\s*,\s*([A-Za-z_]\w*)\s*::\s*new",
+            text[m.start() :],
         )
         if not apply_m:
             continue
@@ -473,9 +558,11 @@ def scan_file(
                     "error",
                     rel,
                     line_of(text, m.start()),
-                    f"Codec field order {codec_names} != record `{target}` constructor "
-                    f"order {rec_names} — deserialization corrupts saves (P0). "
-                    "Reorder the .group(...) entries to match the record exactly.",
+                    f"With `{target}::new`, Codec field order {codec_names} != "
+                    f"record component order {rec_names}; decoded values can be "
+                    "mapped to the wrong components or rejected (P0). Reorder "
+                    ".group(...) for `::new`, or use an explicit audited adapter "
+                    "lambda.",
                 )
             )
 
@@ -498,12 +585,18 @@ def scan_file(
                 )
             )
 
-    # --- payload_thread_safety: P0-4 heuristic, warning ---
-    # A method taking IPayloadContext whose body mutates game state without any
-    # enqueueWork(...) is very likely running on the network thread.
+    # --- payload_thread_safety: conditional P0-4 heuristic, warning ---
+    # PayloadRegistrar defaults to MAIN. Warn only when the same compilation
+    # unit explicitly registers this file's handler method on NETWORK.
+    network_handler_refs = explicit_network_handler_refs(text)
     for m in re.finditer(
-        r"[\w<>\[\],\s.]+\s+\w+\s*\(([^)]*\bIPayloadContext\b[^)]*)\)\s*\{", text
+        r"[\w<>\[\],\s.]+\s+(?P<method>[A-Za-z_]\w*)\s*"
+        r"\((?P<params>[^)]*\bIPayloadContext\b[^)]*)\)\s*\{",
+        text,
     ):
+        method_name = m.group("method")
+        if (path.stem, method_name) not in network_handler_refs:
+            continue
         open_idx = text.find("{", m.end() - 1)
         close_idx = find_matching_brace(text, open_idx)
         if close_idx < 0:
@@ -523,9 +616,11 @@ def scan_file(
                     "warning",
                     rel,
                     line_of(text, open_idx + mut.start()),
-                    f"Payload handler mutates state (`.{mut.group(1)}(...)`) with no "
-                    "context.enqueueWork(...) in the method — handlers run on the "
-                    "network thread (P0-4). Wrap world/player mutations in enqueueWork.",
+                    f"Payload handler `{path.stem}::{method_name}` is registered with "
+                    "HandlerThread.NETWORK in this compilation unit and mutates state "
+                    f"(`.{mut.group(1)}(...)`) without context.enqueueWork(...). "
+                    "Move the game-state write to enqueueWork and handle the returned "
+                    "CompletableFuture; default MAIN handlers do not need this wrapper.",
                 )
             )
 

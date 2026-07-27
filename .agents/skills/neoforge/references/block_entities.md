@@ -2,7 +2,7 @@
 status: verified
 pin_minecraft: 1.21.1
 pin_neo: 21.1.x
-last_verified: 2026-07-25
+last_verified: 2026-07-27
 ---
 # NeoForge 1.21.1 Block Entities Guide
 
@@ -192,7 +192,9 @@ Make sure that your custom block item inherits block entity components by defaul
 
 ## 6. 1.21.1 现代能力系统绑定 (Capabilities Central Registration)
 
-**硬性红线**：1.21.1 已经**彻底废除**了旧版重写 `getCapability` 和使用 `LazyOptional` 获取流体、能量、物品栏接口的机制。所有的方块实体功能接口公开，**必须**在 **MOD 事件总线** 上监听 **`RegisterCapabilitiesEvent`** 进行静态绑定：
+**硬性红线**：1.21.1 已经**彻底废除**了旧版重写 `getCapability` 和使用 `LazyOptional` 获取流体、能量、物品栏接口的机制。所有的方块实体功能接口公开，**必须**在 **MOD 事件总线** 上监听 **`RegisterCapabilitiesEvent`** 进行静态绑定。
+
+`RegisterCapabilitiesEvent` 属于 `IModBusEvent`，须先读取宿主精确 `neo_version`：**21.1.0～21.1.180** 的 `@EventBusSubscriber` 默认只订阅 `Bus.GAME`，因此必须显式写 `bus = EventBusSubscriber.Bus.MOD`；**21.1.181+** 会按事件类型自动分流，应省略 `bus`。下例按 21.1.181+ 编写；旧版本须按上述规则替换注解。
 
 ### 6.1 事件订阅与静态绑定示例
 ```java
@@ -206,7 +208,7 @@ import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.capabilities.Capabilities;
 import net.neoforged.neoforge.capabilities.RegisterCapabilitiesEvent;
 
-@EventBusSubscriber(modid = TutorialMod.MODID) // 默认挂在 MOD 事件总线上
+@EventBusSubscriber(modid = TutorialMod.MODID) // 21.1.181+ 自动分流；21.1.0～21.1.180 须显式 bus = EventBusSubscriber.Bus.MOD
 public class ModCapabilityRegistrar {
 
     @SubscribeEvent
@@ -252,5 +254,4 @@ public class ModCapabilityRegistrar {
 *   **运行时闪退**：`NullPointerException` (在客户端 setup 注册 BEWLR 特殊渲染时)
     *   ❌ 错误：在静态块或主类构造中直接实例化 BEWLR（`BlockEntityWithoutLevelRenderer`）或者是注册渲染。
     *   ✅ 修正：客户端的特殊物品渲染器必须隔离在客户端侧，并且必须在 `RegisterClientExtensionsEvent` 注册事件中配合 `IClientItemExtensions` 绑定注册。
-
 

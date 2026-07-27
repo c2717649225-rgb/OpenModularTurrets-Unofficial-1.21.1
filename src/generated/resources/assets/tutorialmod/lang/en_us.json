@@ -1,0 +1,12 @@
+{
+  "block.tutorialmod.example_block": "Example Block",
+  "item.tutorialmod.example_item": "Example Item",
+  "itemGroup.tutorialmod": "Example Mod Tab",
+  "tutorialmod.configuration.items": "Item List",
+  "tutorialmod.configuration.logDirtBlock": "Log Dirt Block",
+  "tutorialmod.configuration.magicNumber": "Magic Number",
+  "tutorialmod.configuration.magicNumberIntroduction": "Magic Number Text",
+  "tutorialmod.configuration.section.tutorialmod.common.toml": "Example Mod Configs",
+  "tutorialmod.configuration.section.tutorialmod.common.toml.title": "Example Mod Configs",
+  "tutorialmod.configuration.title": "Example Mod Configs"
+}

@@ -1,0 +1,22 @@
+{
+  "$schema": "../schemas/execution-policy.schema.json",
+  "schema_version": 1,
+  "stability": "provisional",
+  "policy_id": "major.strict",
+  "backend": "bubblewrap",
+  "writable_paths": [
+    ".gradle",
+    "build",
+    "run",
+    "src/generated/resources"
+  ],
+  "timeout_seconds": 1800,
+  "required_capabilities": [
+    "evidence_unmounted",
+    "filesystem_read_only",
+    "network_denied",
+    "process_timeout",
+    "process_tree_cleanup",
+    "workspace_write_allowlist"
+  ]
+}

@@ -93,6 +93,37 @@ def replace_in_text(content: str, old_ids: List[str], mod_id: str) -> str:
     return out
 
 
+def align_generated_resource_contents(
+    generated_root: Path,
+    old_ids: List[str],
+    mod_id: str,
+    log: List[str],
+    dry_run: bool,
+) -> int:
+    """Align namespace references inside generated JSON after a Mod ID rename."""
+    changed = 0
+    if not generated_root.is_dir():
+        return changed
+
+    for path in sorted(generated_root.rglob("*.json")):
+        try:
+            content = path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        updated = replace_in_text(content, old_ids, mod_id)
+        if updated == content:
+            continue
+        changed += 1
+        if not dry_run:
+            path.write_text(updated, encoding="utf-8")
+
+    if changed:
+        log.append(
+            f"[Generated Content] align namespaces in {changed} JSON file(s)"
+        )
+    return changed
+
+
 def main(argv: Optional[List[str]] = None) -> int:
     _reconfigure_stdio()
     argv = list(sys.argv[1:] if argv is None else argv)
@@ -303,8 +334,11 @@ def main(argv: Optional[List[str]] = None) -> int:
                     continue
                 if sub.name in SYSTEM_NAMESPACES:
                     continue
+                if sub.name not in old_ids and sub.name != mod_id:
+                    old_ids.append(sub.name)
                 if sub.name != mod_id:
                     merge_or_move(sub, kind_dir / mod_id, f"Generated/{kind}", log, dry_run)
+        align_generated_resource_contents(gen_root, old_ids, mod_id, log, dry_run)
 
     # 6. pack.mcmeta
     pack_mcmeta_path = resources_dir / "pack.mcmeta"

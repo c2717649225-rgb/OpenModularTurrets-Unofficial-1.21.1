@@ -1,0 +1,31 @@
+package {{MOD_GROUP}}.gametest;
+
+import net.minecraft.gametest.framework.GameTest;
+import net.minecraft.gametest.framework.GameTestHelper;
+import net.neoforged.neoforge.gametest.GameTestHolder;
+import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
+
+/**
+ * Replace the placeholders before copying this class into src/main/java.
+ *
+ * <p>The fixture must exist at
+ * data/{{MODID}}/structure/{{TEMPLATE_NAME}}.nbt. The explicit
+ * {@link PrefixGameTestTemplate} keeps that resource name independent of this
+ * Java class name.</p>
+ */
+@GameTestHolder("{{MODID}}")
+@PrefixGameTestTemplate(false)
+public final class FeatureGameTests {
+    private FeatureGameTests() {
+    }
+
+    @GameTest(template = "{{TEMPLATE_NAME}}", timeoutTicks = 200)
+    public static void featureContract(GameTestHelper helper) {
+        // Arrange: place or locate the feature's initial server-authoritative state.
+        // Act: invoke the real player/world interaction.
+        // Assert: use helper.succeedWhen(...) for state that settles over ticks.
+
+        // A copied scaffold must never create a false-green behavior gate.
+        helper.fail("TODO: replace the GameTest scaffold with a real feature contract");
+    }
+}

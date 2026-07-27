@@ -2,7 +2,7 @@
 status: verified
 pin_minecraft: 1.21.1
 pin_neo: 21.1.x
-last_verified: 2026-07-25
+last_verified: 2026-07-27
 ---
 # Minecraft 1.21.1 数据组件 (Data Components) 参考指南
 
@@ -89,10 +89,10 @@ public class ModComponents {
 ### 2.2 复杂对象类型组件注册 (使用 Record 和 Codec)
 
 > [!CAUTION]
-> **⚠️ P0 物理红线：Codec 与 Record 构造参数顺序一致性**
-> 在编写 `RecordCodecBuilder` 时，`Codec` 内部字段声明的顺序（例如 `instance.group(...)` 中字段定义的顺序）必须与 Java `Record` 类的**主构造器中的参数声明顺序 100% 绝对一致**！
-> 任何微小的顺序不一致（如 Codec 里的顺序是 `name -> level`，而 Record 参数顺序是 `level -> name`）都会导致反序列化时抛出 `ClassCastException` 并直接损坏用户的物理存档！
-> 同样地，用于网络传输的 `StreamCodec.composite(...)` 的参数顺序，也必须与 Record 构造器字段声明顺序 100% 绝对一致，且最多支持 6 个参数。对于 7+ 个字段的类，请采用自定义 StreamCodec。
+> **⚠️ P0 物理红线：Codec 字段与构造工厂参数对齐**
+> `RecordCodecBuilder` 的 `instance.group(...)` 字段顺序必须匹配 `.apply(...)` 工厂函数的入参顺序。使用 `OwnerData::new` 这类 record 主构造器引用时，才等同于 record component 的声明顺序；显式适配 lambda（例如 `(name, level) -> new OwnerData(name, level)`）可以合法表达不同的 group 顺序。
+> 真正危险的是字段值与工厂入参错位：它可能在编译期暴露，也可能在运行时产生类型异常，或在同类型字段之间静默交换值。不要把“JSON 字段顺序”与“工厂参数映射”混为一谈。
+> `StreamCodec.composite(...)` 同理：每个 Codec/getter 对的顺序必须匹配末尾构造函数的入参顺序。它最多组合 6 个**字段**；7 个及以上字段请使用自定义 `StreamCodec.of`。
 
 如果要存储包含多个字段的数据，应先编写一个 `Record`：
 
@@ -138,7 +138,7 @@ public static final DeferredHolder<DataComponentType<?>, DataComponentType<Owner
 对于复杂的数据对象（例如存储一组生物的属性列表，以及键值对的扩展数据），可使用以下包含列表和 Map 的高级 Record 模板：
 
 > [!CAUTION]
-> **Codec 顺序红线**：同 2.2 节所述，所有字段编解码定义顺序必须与 Record 构造器参数声明保持 100% 绝对一致！
+> **Codec 映射红线**：同 2.2 节所述，字段编解码顺序必须匹配实际传给 `.apply(...)` / `StreamCodec.composite(...)` 的构造工厂参数；使用 `ComplexStats::new` 时即为 record component 顺序。
 
 ```java
 package com.tutorial.tutorialmod.component;

@@ -1,5 +1,6 @@
-# Core references that must carry verified + pin_neo metadata.
-# HARD CAP: 5–10 entries. Do not expand casually.
+# Small default candidate set. Every entry must also be in docs_verified_set.txt.
+# HARD CAP: 5–10 entries. Candidates are still loaded on demand under SKILL.md's
+# 1–2 document quota; this manifest does not automatically inject their content.
 # Paths relative to skills/neoforge/references/
 anti_patterns.md
 data_components.md

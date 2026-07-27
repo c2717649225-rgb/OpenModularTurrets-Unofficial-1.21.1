@@ -6,13 +6,30 @@ name: Toolkit Gates
 
 on:
   push:
-    paths: ['.agents/**', 'src/main/resources/**', '.github/workflows/agents.yml']
+    paths:
+      - '.agents/**'
+      - 'src/main/java/**'
+      - 'src/main/resources/**'
+      - 'src/generated/resources/**'
+      - 'src/main/templates/**'
+      - 'docs/features/**'
+      - 'gradle.properties'
+      - '.github/workflows/agents.yml'
   pull_request:
-    paths: ['.agents/**', 'src/main/resources/**', '.github/workflows/agents.yml']
+    paths:
+      - '.agents/**'
+      - 'src/main/java/**'
+      - 'src/main/resources/**'
+      - 'src/generated/resources/**'
+      - 'src/main/templates/**'
+      - 'docs/features/**'
+      - 'gradle.properties'
+      - '.github/workflows/agents.yml'
 
 jobs:
   toolkit-gates:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
 
@@ -33,10 +50,22 @@ jobs:
         run: python .agents/gates/static_gate.py
 
       - name: Asset gate on starter resources
-        run: python .agents/gates/asset_gate.py --warnings-as-errors
+        run: python .agents/gates/asset_gate.py --strict-datagen-layout --warnings-as-errors
+
+      - name: Validate any host Major contracts
+        run: python .agents/gates/contract_gate.py
+
+      - name: Discover any authored GameTests
+        run: python .agents/gates/gametest_gate.py
 
       - name: Unit tests for gates and workspace
-        run: python .agents/gates/test_gates.py
+        run: python -m unittest discover -s .agents/gates -p "test_*.py"
+
+      - name: Unit tests for eval harness
+        run: python -m unittest discover -s .agents/eval -p "test_*.py"
+
+      - name: Flagship scenario manifest
+        run: python .agents/eval/flagship/benchmark.py validate-suite
 
       - name: Crash-rules table loads and regexes compile
         run: |
@@ -56,3 +85,19 @@ jobs:
           d = json.load(open('.agents/gates/repair_rules.json', encoding='utf-8'))
           print(f"{len(d.get('rules', []))} repair rules OK")
           EOF
+
+  toolkit-windows:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Syntax-check toolkit gates
+        run: python -m compileall -q .agents/gates .agents/eval
+
+      - name: Windows gate and process-cleanup tests
+        run: python -m unittest discover -s .agents/gates -p "test_*.py"

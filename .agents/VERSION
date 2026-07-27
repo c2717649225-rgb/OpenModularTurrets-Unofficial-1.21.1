@@ -1,5 +1,6 @@
-1.1.0
+1.2.0
 Minecraft: 1.21.1
 NeoForge: 21.1.x
 docs_pin_neo: 21.1.x
 docs_core_set: skills/neoforge/docs_core_set.txt
+docs_verified_set: skills/neoforge/docs_verified_set.txt

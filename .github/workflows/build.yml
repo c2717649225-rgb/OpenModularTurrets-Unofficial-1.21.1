@@ -5,6 +5,7 @@ on: [push, pull_request]
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -18,8 +19,37 @@ jobs:
           java-version: '21'
           distribution: 'temurin'
 
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
+      - name: Validate any Major contracts
+        run: python .agents/gates/contract_gate.py
+
+      - name: Run authored GameTests when present
+        run: >-
+          python .agents/gates/gametest_gate.py
+          --run-if-present
+          --require-tests-if-contracts
+          --json-report build/reports/gametest-gate.json
+
+      - name: Verify DataGen output and resource gates
+        run: >-
+          python .agents/gates/compile_and_repair.py
+          --with-data
+          --with-static
+          --with-assets
+          --strict-datagen-layout
+          --warnings-as-errors
+          --verify-data-clean
+
       - name: Build with Gradle
         run: ./gradlew build
+
+      - name: Dedicated server smoke test
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: python .agents/gates/compile_and_repair.py --with-server

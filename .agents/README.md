@@ -32,11 +32,11 @@
    `python .agents/init_workspace.py`  
    （底层调用 `skills/workspace_setup/scripts/init_workspace.py`。）
 
-4. **编译门禁**  
+4. **快速质量档位**
    ```bash
-   python .agents/gates/compile_and_repair.py --with-static
+   python .agents/gates/pipeline.py --profile fast
    ```
-   分级：`--with-static`（L2 静态红线扫描）→ `--with-data`（DataGen）→ `--with-assets`（L2.5 注册项↔资源对账，DataGen 后执行）→ `--with-server`（L3 专服无头冒烟，发布前）。
+   `fast` 跑文档信任链 + L1/L2；`major` 再强制 L0 合同、DataGen、L2.5 与 L4 GameTest；`release` 再强制生成物 Git 零漂移、L3 专服启动与旗舰评测协议完整性。
 
 ---
 
@@ -46,7 +46,10 @@
 | --- | --- |
 | [AGENTS.md](./AGENTS.md) | 面向 AI 的硬红线（常驻） |
 | [mcp/](./mcp/) | 源码探针 `minecraft_mcp.py`（缓存/日志不入库） |
-| [gates/](./gates/) | 门禁脚本：编译 L1、静态 L2、资源对账 L2.5、专服冒烟 L3、文档自检；附崩溃分诊 `crash_triage.py`（排障入口，非门禁） |
+| [gates/](./gates/) | 一键质量档位与门禁：合同 L0、编译 L1、静态 L2、资源 L2.5、行为 L4、专服 L3、文档自检 |
+| [contracts/](./contracts/) | Major 功能通用 JSON Schema；宿主实际合同放 `docs/features/` |
+| [scaffolds/](./scaffolds/) | Major 合同与 GameTest 的防假绿脚手架 |
+| [eval/](./eval/) | T01–T07 微能力回归 + 六场景旗舰生产评测协议 |
 | [skills/neoforge/](./skills/neoforge/) | 领域知识：SKILL 索引、references、examples、playbooks |
 | [skills/workspace_setup/](./skills/workspace_setup/) | 初始化与改名（`init_workspace.py` 确定性重构引擎） |
 | [skills/systematic-debugging/](./skills/systematic-debugging/) | 按需：排障 |
@@ -81,8 +84,8 @@
 
 1. 复制整个 `.agents/` 目录到目标 NeoForge 1.21.1 工程根目录。  
 2. 挂载 `AGENTS.md`，配置 MCP 指向**目标工程**内的 `minecraft_mcp.py`。  
-3. 运行 L1（建议 L2）：  
-   `python .agents/gates/compile_and_repair.py --with-static`  
+3. 运行快速档位：
+   `python .agents/gates/pipeline.py --profile fast`
 4. 不要复制某个玩法模组的设计文档进 `.agents`；工具包保持平台通用。
 
 ## 质量自检（维护工具包时）
@@ -91,12 +94,26 @@
 python .agents/gates/check_doc_index.py
 python .agents/gates/check_doc_meta.py
 python .agents/gates/static_gate.py
-python .agents/gates/asset_gate.py
+python .agents/gates/asset_gate.py --strict-datagen-layout --warnings-as-errors
+python -m unittest discover -s .agents/gates -p "test_*.py"
+python -m unittest discover -s .agents/eval -p "test_*.py"
+python .agents/eval/flagship/benchmark.py validate-suite
+
+# 在干净 Git 工作区验证 DataGen 可复现性与生成 JSON
+python .agents/gates/compile_and_repair.py --with-data --with-assets --verify-data-clean
 ```
 
-任务评测见 [eval/](./eval/)：Prompt 交给 Agent，`python .agents/eval/grade.py T0x` 一键批卷（PASS/PARTIAL/FAIL），主观项人工复核。
+Major 开发先从 [合同脚手架](./scaffolds/major_feature/) 生成 `docs/features/*.json`，再从 [GameTest 脚手架](./scaffolds/gametest/) 创建真实行为测试，最后运行：
+
+```bash
+python .agents/gates/pipeline.py --profile major
+```
+
+L4 只能证明发现的测试已执行且全绿，不能自动判断相关性；Major 交付还须列出“变更/合同验收项 → `GameTestClass#method`”人工映射。
+
+任务评测见 [eval/](./eval/)：T01–T07 守基础能力，`eval/flagship/` 用六个跨系统场景做固定模型版本的重复实测。它衡量自治能力，不把“能编译”包装成“能做旗舰模组”。
 
 ## 版本
 
 见 [VERSION](./VERSION)。  
-`docs_core_set` 限制 verified 文档 5～10 篇；API 真源以宿主依赖 + MCP 源码为准。
+`docs_verified_set` 决定可信边界；`docs_core_set` 只是 5～10 篇 verified 文档的默认候选集，不会自动装载，实际仍按任务读取 1～2 篇。API 真源始终以宿主依赖 + MCP 源码为准。

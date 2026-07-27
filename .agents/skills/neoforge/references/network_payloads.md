@@ -2,7 +2,7 @@
 status: verified
 pin_minecraft: 1.21.1
 pin_neo: 21.1.x
-last_verified: 2026-07-25
+last_verified: 2026-07-27
 ---
 # NeoForge 1.21.1 Networking & Payloads Guide
 
@@ -24,7 +24,7 @@ A payload must specify:
 Here is a template for a payload that sends custom player stats from client to server (or vice-versa):
 
 ```java
-import net.minecraft.network.RegistryFriendlyByteBuf;
+import io.netty.buffer.ByteBuf;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.ResourceLocation;
@@ -34,9 +34,8 @@ public record MyCustomPayload(int energyAmount, String message) implements Custo
     // 1. Declare the Payload Type
     public static final Type<MyCustomPayload> TYPE = new Type<>(ResourceLocation.fromNamespaceAndPath(MyMod.MODID, "my_custom_payload"));
     
-    // 2. Define the Stream Codec (using RegistryFriendlyByteBuf for play network safety)
-    // 使用 1.21 官方推荐的 StreamCodec.composite 声明式构建器，彻底废弃 FriendlyByteBuf 的手动读写逻辑
-    public static final StreamCodec<net.minecraft.network.RegistryFriendlyByteBuf, MyCustomPayload> STREAM_CODEC = StreamCodec.composite(
+    // 2. 只有基本值字段，使用最窄的 ByteBuf 即可；注册表敏感字段见第 5 节。
+    public static final StreamCodec<ByteBuf, MyCustomPayload> STREAM_CODEC = StreamCodec.composite(
         net.minecraft.network.codec.ByteBufCodecs.VAR_INT, MyCustomPayload::energyAmount,
         net.minecraft.network.codec.ByteBufCodecs.STRING_UTF8, MyCustomPayload::message,
         MyCustomPayload::new
@@ -69,7 +68,7 @@ public class NetworkRegistry {
         registrar.playToServer(
             MyCustomPayload.TYPE,
             MyCustomPayload.STREAM_CODEC,
-            MyServerPayloadHandler::handle
+            MyServerPayloadHandler::handleOnMain
         );
         
         // Registering a payload sent from Server to Client
@@ -87,45 +86,83 @@ public class NetworkRegistry {
 ## 3. Handling the Payload
 
 > [!IMPORTANT]
-> **网络线程高压红线 (Thread Safety Warning)**：
-> 网络数据包的处理句柄（Handler）默认在**网络线程**（非主线程）中被调用。**绝对禁止直接在 `handle` 方法中修改游戏世界状态**（如修改玩家属性、破坏或放置方块、修改物品栏、生成实体等），否则会导致极难排查的随机多线程死锁或数据损坏。
-> 必须使用 **`context.enqueueWork(() -> { ... })`** 将所有游戏逻辑操作包裹并交由主游戏线程调度执行！
+> **线程真值（NeoForge 21.1.x）**：
+> `PayloadRegistrar` 初始使用 `HandlerThread.MAIN`，因此 Handler **默认在接收端主线程调用**。默认注册下可以直接执行经过校验的世界/玩家状态修改，机械地再套 `context.enqueueWork(...)` 没有必要。
+>
+> 只有注册链显式调用 `.executesOn(HandlerThread.NETWORK)` 时，后续由该 registrar 注册的 Handler 才运行在网络线程。此时网络线程阶段只能做不访问游戏对象的纯计算；任何 `Level` / `Entity` / 玩家状态回写必须通过 `context.enqueueWork(...)` 返回主线程，并处理其 `CompletableFuture` 异常。
+>
+> 真源：[NeoForge 1.21–1.21.1 Payload 文档](https://docs.neoforged.net/docs/1.21.1/networking/payload/)；`neoforge-21.1.234` 源码中 `PayloadRegistrar.thread` 初值为 `HandlerThread.MAIN`，`executesOn` 返回带新线程配置的 registrar 副本。
 
-### Server-side Handler (Runs on Server)
+### 3.1 默认模式：主线程 Handler
+
+#### Server-side Handler
 
 ```java
 import net.neoforged.neoforge.network.handling.IPayloadContext;
 
 public class MyServerPayloadHandler {
-    public static void handle(final MyCustomPayload payload, final IPayloadContext context) {
-        // Enqueue the work to execute on the main game thread
-        context.enqueueWork(() -> {
-            // Get the sending player
-            var player = context.player();
-            
-            // Execute gameplay logic safely
-            int energy = payload.energyAmount();
-            String msg = payload.message();
-            
-            player.sendSystemMessage(Component.literal("Received energy update: " + energy + " | " + msg));
-        });
+    public static void handleOnMain(final MyCustomPayload payload, final IPayloadContext context) {
+        // 默认已经在服务端主线程；C2S 输入仍然是不可信输入，先做权限与范围校验。
+        var player = context.player();
+        int energy = Mth.clamp(payload.energyAmount(), 0, MAX_ENERGY);
+        String msg = payload.message();
+
+        player.sendSystemMessage(Component.literal("Received energy update: " + energy + " | " + msg));
     }
 }
 ```
 
-### Client-side Handler (Runs on Client)
+#### Client-side Handler
 
 ```java
 public class MyClientPayloadHandler {
-    public static void handle(final MyClientPayload payload, final IPayloadContext context) {
-        context.enqueueWork(() -> {
-            // Client-side execution (e.g., updating client GUI, opening client screen)
-            var player = context.player();
-            // Client side logic...
-        });
+    public static void handleOnMain(final MyClientPayload payload, final IPayloadContext context) {
+        // 默认已经在客户端主/渲染线程；该类仍必须位于物理客户端隔离范围。
+        var player = context.player();
+        // Client side logic...
     }
 }
 ```
+
+### 3.2 显式 NETWORK 模式：计算与回写分离
+
+只有确有较重、且可完全脱离游戏对象执行的计算时才切换到网络线程。`executesOn` 返回新 registrar，必须保存返回值：
+
+```java
+@SubscribeEvent
+public static void registerPackets(final RegisterPayloadHandlersEvent event) {
+    final PayloadRegistrar networkRegistrar = event.registrar("1.0.0")
+        .executesOn(HandlerThread.NETWORK);
+
+    networkRegistrar.playToServer(
+        MyCustomPayload.TYPE,
+        MyCustomPayload.STREAM_CODEC,
+        MyServerPayloadHandler::handleOnNetwork
+    );
+}
+```
+
+```java
+public static void handleOnNetwork(
+        final MyCustomPayload payload,
+        final IPayloadContext context
+) {
+    // 这里只处理 payload 自带的纯数据；不要读取 Level、Entity、玩家背包或注册表可变状态。
+    final int validatedEnergy = validateAndCompute(payload.energyAmount());
+
+    context.enqueueWork(() -> {
+        // 已回到服务端主线程；再次校验发送者当前状态后再执行权威修改。
+        var player = context.player();
+        applyEnergy(player, validatedEnergy);
+    }).exceptionally(error -> {
+        LOGGER.error("Failed to apply MyCustomPayload", error);
+        context.disconnect(Component.translatable("my_mod.networking.failed"));
+        return null;
+    });
+}
+```
+
+若 `enqueueWork` 返回的 Future 异常未被处理，异常可能被吞掉，导致“发包成功但逻辑无效果”的静默故障。
 
 ---
 
@@ -216,7 +253,7 @@ public record ComplexSyncPayload(ItemStack itemStack, Holder<SoundEvent> soundHo
         ```
 *   **编译报错**：`incompatible types: StreamCodec<RegistryFriendlyByteBuf,ItemStack> cannot be converted to StreamCodec<ByteBuf,Object>`
     *   ❌ 错误：在包含 `ItemStack.STREAM_CODEC` 的复合 StreamCodec 中将泛型声明为 `ByteBuf`。
-    *   ✅ 修正：凡是包含 ItemStack、BlockPos、Component 等注册表类型的字段，StreamCodec 泛型必须改为 `RegistryFriendlyByteBuf`。
+    *   ✅ 修正：只要任一字段使用 `ItemStack.STREAM_CODEC` 等要求注册表上下文的字段 Codec，外层复合 Codec 的缓冲区类型就必须兼容 `RegistryFriendlyByteBuf`。不要仅凭值类型猜测；以字段 Codec 的泛型签名为准。
 *   **编译报错**：`cannot find symbol: method nullable() location: interface ByteBufCodecs`
     *   ❌ 错误：`ByteBufCodecs.nullable()`。
     *   ✅ 修正：1.21.1 中不存在 nullable，可空值统一使用 `ByteBufCodecs::optional`（并在 getter 中转换为 `Optional.ofNullable`，在构造器中用 `.orElse(null)` 解包还原）。

@@ -6,15 +6,15 @@ Grades what the human grader used to eyeball: after an agent finishes a task,
 run this to check the machine-checkable half of the scorecard.
 
     python .agents/eval/grade.py T03                 # grade one task
-    python .agents/eval/grade.py all                 # grade all five
+    python .agents/eval/grade.py all                 # grade all seven
     python .agents/eval/grade.py T01 --since main    # diff baseline (default HEAD)
     python .agents/eval/grade.py T01 --skip-gates    # assertions only, no compile
 
 How it judges (mirrors scorecard PASS/PARTIAL/FAIL):
   FAIL    - any `forbidden` pattern present, any `core` pattern missing,
             or the L1+L2 gate red
-  PARTIAL - core green but a `behavior` pattern missing (e.g. payload handler
-            without enqueueWork)
+  PARTIAL - core green but a `behavior` pattern or a high-confidence
+            conditional safety check is missing
   PASS    - everything green
 
 Evidence corpus = ADDED lines of `git diff <since> -- src/main/java` PLUS the
@@ -25,6 +25,9 @@ DeferredRegister et al.
 API feature patterns below were verified against neoforge-21.1.234 sources
 (NeoForgeRegistries.ATTACHMENT_TYPES, PayloadRegistrar.playToServer/Client,
 BlockEntity.saveAdditional/loadAdditional with HolderLookup.Provider).
+PayloadRegistrar defaults to HandlerThread.MAIN; T03 requires enqueueWork only
+when the submitted code explicitly opts into HandlerThread.NETWORK and performs
+a recognizable game-state mutation.
 Exit codes: 0 PASS (all graded tasks), 2 any PARTIAL, 1 any FAIL.
 """
 from __future__ import annotations
@@ -77,9 +80,7 @@ TASKS: Dict[str, Dict[str, List[Tuple[str, str]]]] = {
             (r"StreamCodec", "声明 StreamCodec"),
             (r"PayloadRegistrar|playToServer|playToClient|registerPayloadHandlers", "注册到 Payload 系统"),
         ],
-        "behavior": [
-            (r"enqueueWork", "Handler 经 enqueueWork 回主线程（P0-4；缺失按 scorecard 判 PARTIAL）"),
-        ],
+        "behavior": [],
         "forbidden": [
             (r"StreamCodec\s*<\s*ByteBuf\s*[,>][^;]*ItemStack", "传 ItemStack 却用 ByteBuf 泛型（须 RegistryFriendlyByteBuf）"),
         ],
@@ -140,6 +141,59 @@ TASKS: Dict[str, Dict[str, List[Tuple[str, str]]]] = {
         ],
     },
 }
+
+EXPLICIT_NETWORK_THREAD_RE = re.compile(
+    r"\.executesOn\s*\(\s*(?:[A-Za-z_]\w*\.)*HandlerThread\.NETWORK\s*\)"
+)
+PAYLOAD_STATE_MUTATION_RE = re.compile(
+    r"\.(?:setBlock|setData|set[A-Z]\w*|addItem|removeItem|hurt|heal|kill|"
+    r"teleportTo|addEffect|removeEffect|drop|playSound|spawn[A-Z]\w*)\s*\("
+)
+ENQUEUE_FUTURE_ERROR_RE = re.compile(
+    r"\.\s*(?:exceptionally|exceptionallyCompose|handle|whenComplete)\s*\("
+)
+
+
+def assess_t03_threading(corpus: str) -> Tuple[str, str]:
+    """
+    Conservatively assess the isolated T03 diff.
+
+    Default PayloadRegistrar handlers run on MAIN, so enqueueWork is not a
+    blanket requirement. Only the high-confidence combination of an explicit
+    HandlerThread.NETWORK opt-in and a recognizable game-state mutation can be
+    checked mechanically. Cross-file handler mapping and pure-computation
+    boundaries remain human-review items.
+    """
+    if not EXPLICIT_NETWORK_THREAD_RE.search(corpus):
+        return (
+            "PASS",
+            "未显式切换到 HandlerThread.NETWORK：按 NeoForge 21.1.x 默认在 MAIN 执行，"
+            "不要求重复 enqueueWork",
+        )
+
+    if not PAYLOAD_STATE_MUTATION_RE.search(corpus):
+        return (
+            "PASS",
+            "显式 NETWORK，但未识别到状态写入；自动检查不强制 enqueueWork，"
+            "仍需人工核对纯计算边界与跨文件 Handler 映射",
+        )
+
+    if not re.search(r"\b(?:context|ctx)\s*\.\s*enqueueWork\s*\(", corpus):
+        return (
+            "PARTIAL",
+            "显式 NETWORK 且识别到状态写入，但没有通过 context.enqueueWork 回到主线程",
+        )
+
+    if not ENQUEUE_FUTURE_ERROR_RE.search(corpus):
+        return (
+            "PARTIAL",
+            "显式 NETWORK 的状态回写已 enqueueWork，但未识别到 Future 异常处理",
+        )
+
+    return (
+        "PASS",
+        "显式 NETWORK 的状态回写使用 enqueueWork，且处理了返回 Future 的异常",
+    )
 
 
 def git(*args: str) -> str:
@@ -208,6 +262,13 @@ def grade(task_id: str, corpus: str, *, skip_gates: bool, gate_ok: bool = None) 
             print(f"  [miss-behavior] {label}")
             if verdict == "PASS":
                 verdict = "PARTIAL"
+
+    if task_id == "T03":
+        thread_verdict, thread_message = assess_t03_threading(corpus)
+        marker = "ok" if thread_verdict == "PASS" else "miss-behavior"
+        print(f"  [{marker}] {thread_message}")
+        if thread_verdict == "PARTIAL" and verdict == "PASS":
+            verdict = "PARTIAL"
 
     if not skip_gates and verdict != "FAIL":
         if gate_ok is None:

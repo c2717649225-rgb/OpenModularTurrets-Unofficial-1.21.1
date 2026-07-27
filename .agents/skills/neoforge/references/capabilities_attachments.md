@@ -2,7 +2,7 @@
 status: verified
 pin_minecraft: 1.21.1
 pin_neo: 21.1.x
-last_verified: 2026-07-25
+last_verified: 2026-07-27
 ---
 # NeoForge 1.21.1 能力系统与数据附加系统 (Capabilities & Data Attachments)
 
@@ -78,6 +78,8 @@ boolean hasMana = player.hasData(ModAttachments.MANA.get());
 
 1.21.1 废除了旧的 `getCapability` 方法和 `LazyOptional` 容器，取而代之的是在 **MOD 事件总线** 上订阅 `RegisterCapabilitiesEvent` 来注册静态绑定。
 
+`RegisterCapabilitiesEvent` 属于 `IModBusEvent`，须先读取宿主精确 `neo_version`：**21.1.0～21.1.180** 的 `@EventBusSubscriber` 默认只订阅 `Bus.GAME`，因此必须显式写 `bus = EventBusSubscriber.Bus.MOD`；**21.1.181+** 会按事件类型自动分流，应省略 `bus`。下例按 21.1.181+ 编写；旧版本须按上述规则替换注解。
+
 ### 2.1 方块实体能力注册示例
 ```java
 package com.tutorial.tutorialmod.capability;
@@ -90,7 +92,7 @@ import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.capabilities.Capabilities;
 import net.neoforged.neoforge.capabilities.RegisterCapabilitiesEvent;
 
-@EventBusSubscriber(modid = TutorialMod.MODID) // 1.21.1+ 已废弃 bus 参数，系统会自动通过 IModBusEvent 路由
+@EventBusSubscriber(modid = TutorialMod.MODID) // 21.1.181+ 自动分流；21.1.0～21.1.180 须显式 bus = EventBusSubscriber.Bus.MOD
 public class ModCapabilityRegistrar {
 
     @SubscribeEvent
@@ -344,5 +346,4 @@ public class MyEnergyMachineBlockEntity extends BlockEntity {
 *   **运行时崩溃**：`ClassCastException / NullPointerException (LazyOptional cannot be cast to ...)`
     *   ❌ 错误：在任何逻辑中声明 `LazyOptional` 或使用 `getCapability` 获取邻近物品栏。
     *   ✅ 修正：1.21.1 **彻底删除了 `LazyOptional`**。获取能力一律返回裸类型接口或 `null`。请使用本指南第 2.3 节的现代 `level.getCapability(...)` 语法。
-
 
