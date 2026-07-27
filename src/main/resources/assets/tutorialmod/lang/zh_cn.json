@@ -1,0 +1,12 @@
+{
+  "itemGroup.tutorialmod": "示例模组标签页",
+  "block.tutorialmod.example_block": "示例方块",
+  "item.tutorialmod.example_item": "示例物品",
+  "tutorialmod.configuration.title": "示例模组配置",
+  "tutorialmod.configuration.section.tutorialmod.common.toml": "示例模组配置",
+  "tutorialmod.configuration.section.tutorialmod.common.toml.title": "示例模组配置",
+  "tutorialmod.configuration.items": "物品列表",
+  "tutorialmod.configuration.logDirtBlock": "日志记录泥土方块",
+  "tutorialmod.configuration.magicNumberIntroduction": "魔数介绍文本",
+  "tutorialmod.configuration.magicNumber": "魔数"
+}

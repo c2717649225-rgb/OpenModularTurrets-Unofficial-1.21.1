@@ -2,15 +2,13 @@
 # Cheap by design: pure-Python gates only, no Gradle/JDK, finishes in seconds.
 # NOT here on purpose:
 #   - compile/L3 gates need Gradle+network (build.yml owns the mod build)
-#   - asset_gate: starter currently has known asset gaps; add the step once
-#     the starter is green (tracked as the DataGen backlog task)
 name: Toolkit Gates
 
 on:
   push:
-    paths: ['.agents/**', '.github/workflows/agents.yml']
+    paths: ['.agents/**', 'src/main/resources/**', '.github/workflows/agents.yml']
   pull_request:
-    paths: ['.agents/**', '.github/workflows/agents.yml']
+    paths: ['.agents/**', 'src/main/resources/**', '.github/workflows/agents.yml']
 
 jobs:
   toolkit-gates:
@@ -33,6 +31,9 @@ jobs:
 
       - name: Static gate on starter sources
         run: python .agents/gates/static_gate.py
+
+      - name: Asset gate on starter resources
+        run: python .agents/gates/asset_gate.py
 
       - name: Crash-rules table loads and regexes compile
         run: |
