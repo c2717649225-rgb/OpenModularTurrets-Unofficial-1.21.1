@@ -51,3 +51,9 @@ repo/
 # Local scripts & client-specific configs
 start-grok.bat
 opencode.json
+
+# Personal mod design notes (not part of the template)
+minecraft_mod_design.md
+
+# Local agent worktrees / session state
+.claude/
