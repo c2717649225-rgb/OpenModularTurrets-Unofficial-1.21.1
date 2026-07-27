@@ -129,10 +129,11 @@ def main(argv: Optional[List[str]] = None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
     dry_run = "--dry-run" in argv
     force = "--force" in argv
+    profile = "minimal" if "--profile=minimal" in argv or "minimal" in argv else "example"
 
     print("==================================================")
     print("Mod Workspace Auto-Refactoring Engine")
-    print(f"Mode: {'DRY-RUN (no writes)' if dry_run else 'APPLY'}")
+    print(f"Mode: {'DRY-RUN (no writes)' if dry_run else 'APPLY'} | Profile: {profile.upper()}")
     print("==================================================")
 
     project_dir, agents_dir = project_paths()
@@ -431,6 +432,21 @@ def main(argv: Optional[List[str]] = None) -> int:
                 log.append(f"[Java Code] update MODID in {main_class_file}")
                 if not dry_run:
                     target_main_path.write_text(new_java, encoding="utf-8")
+
+    # 8b. Minimal profile code & resource wiping
+    if profile == "minimal":
+        log.append("[Profile] apply minimal profile — wipe example tutorial items/blocks/datagen")
+        target_pkg_dir = java_root / Path(*mod_group_id.split("."))
+        datagen_dir = target_pkg_dir / "datagen"
+        if datagen_dir.is_dir():
+            log.append("[Minimal Profile] remove datagen/ package")
+            if not dry_run:
+                shutil.rmtree(datagen_dir)
+        config_file = target_pkg_dir / "Config.java"
+        if config_file.is_file():
+            log.append("[Minimal Profile] remove Config.java")
+            if not dry_run:
+                config_file.unlink()
 
     # 9. Update AGENTS.md metadata lines
     if agents_md_path.is_file():

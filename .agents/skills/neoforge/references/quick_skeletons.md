@@ -1,4 +1,4 @@
-﻿---
+---
 status: verified
 pin_minecraft: 1.21.1
 pin_neo: 21.1.x
@@ -115,3 +115,85 @@ public record SyncDataPayload(ItemStack stack, int value) implements CustomPacke
     @Override public Type<? extends CustomPacketPayload> type() { return TYPE; }
 }
 ```
+
+---
+
+### 5. Multiblock Controller (Event-Driven Multiblock Detection)
+```java
+// 物理禁止在 tick() 中轮询检测；仅在右键或状态改变时触发检测，零 Tick 开销
+public class MultiblockControllerBlock extends Block {
+    private static final BlockPos[] STRUCTURE_OFFSETS = new BlockPos[]{
+        new BlockPos(1, 0, 0), new BlockPos(-1, 0, 0),
+        new BlockPos(0, 0, 1), new BlockPos(0, 0, -1)
+    };
+
+    public MultiblockControllerBlock(Properties properties) { super(properties); }
+
+    @Override
+    protected InteractionResult useWithoutItem(BlockState state, Level level, BlockPos pos, Player player, BlockHitResult hitResult) {
+        if (!level.isClientSide) {
+            boolean formed = checkStructure(level, pos);
+            player.sendSystemMessage(Component.literal(formed ? "结构组装成功！" : "结构残缺！"));
+        }
+        return InteractionResult.sidedSuccess(level.isClientSide);
+    }
+
+    public boolean checkStructure(Level level, BlockPos controllerPos) {
+        for (BlockPos offset : STRUCTURE_OFFSETS) {
+            if (!level.getBlockState(controllerPos.offset(offset)).is(Blocks.STONE_BRICKS)) return false;
+        }
+        return true;
+    }
+}
+```
+
+---
+
+### 6. Jigsaw Structure Worldgen Skeleton
+```java
+// 标准 Jigsaw 遗迹结构引入（从 data/modid/structure/ 加载 NBT）
+public class MyJigsawStructure extends Structure {
+    public static final MapCodec<MyJigsawStructure> CODEC = RecordCodecBuilder.mapCodec(instance ->
+        instance.group(
+            settingsCodec(instance),
+            StructureTemplatePool.CODEC.fieldOf("start_pool").forGetter(s -> s.startPool),
+            ResourceLocation.CODEC.optionalFieldOf("start_jigsaw").forGetter(s -> s.startJigsaw),
+            Codec.intRange(0, 30).fieldOf("size").forGetter(s -> s.maxDepth),
+            HeightProvider.CODEC.fieldOf("start_height").forGetter(s -> s.startHeight),
+            Heightmap.Types.CODEC.optionalFieldOf("project_start_to_heightmap").forGetter(s -> s.projectStartToHeightmap),
+            Codec.intRange(1, 128).fieldOf("max_distance_from_center").forGetter(s -> s.maxDistanceFromCenter)
+        ).apply(instance, MyJigsawStructure::new)
+    );
+
+    private final Holder<StructureTemplatePool> startPool;
+    private final Optional<ResourceLocation> startJigsaw;
+    private final int maxDepth;
+    private final HeightProvider startHeight;
+    private final Optional<Heightmap.Types> projectStartToHeightmap;
+    private final int maxDistanceFromCenter;
+
+    public MyJigsawStructure(StructureSettings settings, Holder<StructureTemplatePool> startPool,
+                             Optional<ResourceLocation> startJigsaw, int maxDepth,
+                             HeightProvider startHeight, Optional<Heightmap.Types> projectStartToHeightmap,
+                             int maxDistanceFromCenter) {
+        super(settings);
+        this.startPool = startPool;
+        this.startJigsaw = startJigsaw;
+        this.maxDepth = maxDepth;
+        this.startHeight = startHeight;
+        this.projectStartToHeightmap = projectStartToHeightmap;
+        this.maxDistanceFromCenter = maxDistanceFromCenter;
+    }
+
+    @Override
+    public Optional<GenerationStub> findGenerationPoint(GenerationContext context) {
+        int minY = this.startHeight.sample(context.random(), new WorldGenerationContext(context.chunkGenerator(), context.heightAccessor()));
+        BlockPos blockpos = new BlockPos(context.chunkPos().getMinBlockX(), minY, context.chunkPos().getMinBlockZ());
+        return JigsawPlacement.addPieces(context, this.startPool, this.startJigsaw, this.maxDepth, blockpos, false, this.projectStartToHeightmap, this.maxDistanceFromCenter);
+    }
+
+    @Override
+    public StructureType<?> type() { return ModStructures.MY_JIGSAW.get(); }
+}
+```
+

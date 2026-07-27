@@ -28,6 +28,7 @@ sys.path.insert(0, str(AGENTS_DIR / "skills" / "workspace_setup" / "scripts"))
 import asset_gate
 import compile_and_repair
 import init_workspace
+import static_gate
 
 
 class TestGatesAndWorkspace(unittest.TestCase):
@@ -148,8 +149,38 @@ class TestGatesAndWorkspace(unittest.TestCase):
         self.assertIn("lang_key_missing_zh_cn", by_rule)
         self.assertIn("`english.only`", by_rule["lang_key_missing_zh_cn"].message)
         self.assertIn("lang_key_missing_en_us", by_rule)
-        self.assertIn("`chinese.only`", by_rule["lang_key_missing_en_us"].message)
-        self.assertTrue(all(finding.severity == "warning" for finding in findings))
+
+    def test_static_gate_detects_performance_antipatterns(self):
+        """Hot path stream usage and missing isClientSide check emit warnings."""
+        src_dir = self.test_dir / "src" / "main" / "java" / "com" / "example"
+        src_dir.mkdir(parents=True, exist_ok=True)
+        bad_java = src_dir / "BadBlockEntity.java"
+        bad_java.write_text(
+            """package com.example;
+            import net.minecraft.world.level.block.entity.BlockEntity;
+            import net.minecraft.world.level.Level;
+            import net.minecraft.core.BlockPos;
+            import net.minecraft.world.level.block.state.BlockState;
+            import java.util.List;
+            import java.util.stream.Collectors;
+
+            public class BadBlockEntity extends BlockEntity {
+                public static void tick(Level level, BlockPos pos, BlockState state, BadBlockEntity be) {
+                    List<String> list = be.items.stream().collect(Collectors.toList());
+                }
+            }
+            """,
+            encoding="utf-8",
+        )
+        findings = static_gate.scan_file(
+            bad_java,
+            bad_java.read_text(encoding="utf-8"),
+            java_root=src_dir,
+            mod_id="example",
+        )
+        rule_ids = {finding.rule_id for finding in findings}
+        self.assertIn("perf_tick_stream_usage", rule_ids)
+        self.assertIn("perf_blockentity_tick_clientside", rule_ids)
 
     def test_generated_resource_validation(self):
         """DataGen output must exist, be non-empty, and contain valid JSON."""

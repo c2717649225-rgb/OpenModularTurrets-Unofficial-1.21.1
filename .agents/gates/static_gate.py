@@ -448,6 +448,42 @@ def scan_file(
             )
         )
 
+    # --- perf_tick_stream_usage ---
+    for m in re.finditer(
+        r"(?:void|boolean|int|float)\s+([A-Za-z0-9_]*tick[A-Za-z0-9_]*)\s*\([^)]*\)\s*\{([^}]{1,500})",
+        text,
+        re.IGNORECASE,
+    ):
+        method_name, body = m.group(1), m.group(2)
+        if ".stream(" in body or "Collectors.toList()" in body:
+            findings.append(
+                Finding(
+                    "perf_tick_stream_usage",
+                    "warning",
+                    rel,
+                    line_of(text, m.start()),
+                    f"Avoid Stream API or list allocations in hot path `{method_name}` to prevent GC stutter.",
+                )
+            )
+
+    # --- perf_blockentity_tick_clientside ---
+    if "BlockEntity" in text or "BlockEntityTicker" in text:
+        for m in re.finditer(
+            r"public\s+static\s+(?:<[^>]+>\s+)?void\s+tick\s*\([^)]*\)\s*\{([^}]{1,300})",
+            text,
+        ):
+            body = m.group(1)
+            if "isClientSide" not in body and "level.isClientSide" not in body:
+                findings.append(
+                    Finding(
+                        "perf_blockentity_tick_clientside",
+                        "warning",
+                        rel,
+                        line_of(text, m.start()),
+                        "BlockEntity server tick method should check `if (level.isClientSide) return;` at start.",
+                    )
+                )
+
     # --- eventbus_nonstatic: ONLY inside @EventBusSubscriber class bodies ---
     for start, end in eventbus_subscriber_ranges(text):
         body = text[start : end + 1]
