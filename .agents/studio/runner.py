@@ -10,7 +10,9 @@ from __future__ import annotations
 
 import math
 import os
+import signal
 import subprocess
+import sys
 import threading
 import time
 from dataclasses import dataclass, field
@@ -22,6 +24,7 @@ try:
     from .evidence import (
         DIGEST_PATTERN,
         OUTCOMES,
+        EvidenceBudgetError,
         EvidenceIntegrityError,
         EvidenceLedger,
         EvidencePathError,
@@ -33,10 +36,16 @@ try:
         sha256_bytes,
         sha256_file,
     )
+    from .execution_policy import (
+        PreparedSandbox,
+        finalized_attestation,
+        validate_prepared_sandbox,
+    )
 except ImportError:  # Direct execution/tests with studio/ on sys.path.
     from evidence import (  # type: ignore
         DIGEST_PATTERN,
         OUTCOMES,
+        EvidenceBudgetError,
         EvidenceIntegrityError,
         EvidenceLedger,
         EvidencePathError,
@@ -47,6 +56,11 @@ except ImportError:  # Direct execution/tests with studio/ on sys.path.
         digest_path_set,
         sha256_bytes,
         sha256_file,
+    )
+    from execution_policy import (  # type: ignore
+        PreparedSandbox,
+        finalized_attestation,
+        validate_prepared_sandbox,
     )
 
 
@@ -280,6 +294,7 @@ class StudioRunner:
         run_id: str,
         *,
         digests: DigestBindings | Mapping[str, Any],
+        frozen_policy_digest: str,
         reports: Optional[Mapping[str, Path | str]] = None,
         artifacts: Optional[Mapping[str, Path | str]] = None,
         monotonic: Callable[[], float] = time.monotonic,
@@ -295,6 +310,18 @@ class StudioRunner:
             if isinstance(digests, DigestBindings)
             else DigestBindings.from_mapping(digests)
         )
+        if (
+            not isinstance(frozen_policy_digest, str)
+            or not DIGEST_PATTERN.fullmatch(frozen_policy_digest)
+        ):
+            raise RunnerError(
+                "frozen_policy_digest must be a lowercase SHA-256 digest"
+            )
+        if self.digests.policy_digest != frozen_policy_digest:
+            raise RunnerError(
+                "digest bindings do not match the externally frozen policy"
+            )
+        self.frozen_policy_digest = frozen_policy_digest
         self.reports = _normalize_declarations(
             reports or {},
             context="reports",
@@ -430,12 +457,41 @@ class StudioRunner:
                 "artifacts": artifact_evidence,
                 "details": details,
             }
-            bundle = self.ledger.seal(
-                transition_id="runner:sealed",
-                outcome=decision.outcome,
-                summary=summary,
-                expected_sequence=context.sequence,
-            )
+            try:
+                bundle = self.ledger.seal(
+                    transition_id="runner:sealed",
+                    outcome=decision.outcome,
+                    summary=summary,
+                    expected_sequence=context.sequence,
+                )
+            except EvidenceBudgetError as error:
+                # Oversized model/gate details must not strand an unsealed run.
+                # The ledger rejects the projected terminal append before any
+                # bytes are written, so a compact verified infrastructure
+                # outcome can still be sealed within the reserved budget.
+                decision = RunDecision.infrastructure_error(
+                    details={
+                        "classification": "evidence_budget_exceeded",
+                        "prior_outcome": decision.outcome,
+                        "message": str(error),
+                    }
+                )
+                summary = {
+                    "outcome": decision.outcome,
+                    "duration_seconds": duration,
+                    "exit_code": decision.exit_code,
+                    "timed_out": decision.timed_out,
+                    "interrupted": interrupted,
+                    "reports": [],
+                    "artifacts": [],
+                    "details": dict(decision.details),
+                }
+                bundle = self.ledger.seal(
+                    transition_id="runner:sealed",
+                    outcome=decision.outcome,
+                    summary=summary,
+                    expected_sequence=context.sequence,
+                )
 
         replay = self.ledger.replay(require_sealed=True)
         if bundle != replay.bundle:
@@ -454,13 +510,39 @@ class StudioRunner:
 
     def run_command(
         self,
-        argv: Sequence[str],
+        prepared: PreparedSandbox,
         *,
-        cwd: Path | str = ".",
+        cwd: Path | str | None = None,
         timeout_seconds: Optional[float] = None,
         environment: Optional[Mapping[str, str]] = None,
     ) -> RunRecord:
-        """Execute an argv without a shell and seal the classified result."""
+        """Execute only a live-probed, policy-bound sandbox launch.
+
+        Bare builder argv is intentionally unsupported: callers must first
+        produce a :class:`PreparedSandbox` from the frozen policy.  This keeps
+        the Builder in a PID/network/mount namespace where the external
+        authoritative evidence root is hidden by an empty tmpfs overlay.
+        Runtime environment values must also be frozen by
+        ``prepare_bubblewrap``; the host bwrap process always starts with an
+        empty environment so loader/runtime injection variables cannot affect
+        the trusted launcher.
+        """
+        validate_prepared_sandbox(prepared)
+        if prepared.policy_digest != self.frozen_policy_digest:
+            raise RunnerError(
+                "prepared sandbox does not match the frozen policy digest"
+            )
+        if Path(prepared.project_dir).resolve() != self.host_workspace:
+            raise RunnerError(
+                "prepared sandbox workspace does not match this runner"
+            )
+        if (
+            Path(prepared.evidence_root).resolve()
+            != self.ledger.evidence_root
+        ):
+            raise RunnerError(
+                "prepared sandbox does not hide this runner's evidence root"
+            )
         if timeout_seconds is not None and (
             not isinstance(timeout_seconds, (int, float))
             or isinstance(timeout_seconds, bool)
@@ -468,31 +550,161 @@ class StudioRunner:
             or timeout_seconds <= 0
         ):
             raise RunnerError("timeout_seconds must be a positive finite value")
-        normalized_argv = _normalize_argv(argv)
-        working_directory = _resolve_cwd(self.host_workspace, cwd)
+        effective_timeout = (
+            prepared.timeout_seconds
+            if timeout_seconds is None
+            else float(timeout_seconds)
+        )
+        if effective_timeout > prepared.timeout_seconds:
+            raise RunnerError(
+                "runtime timeout cannot expand the frozen policy timeout"
+            )
+        normalized_argv = _normalize_argv(prepared.argv)
+        prepared_cwd = str(prepared.attestation.get("cwd"))
+        working_directory = _resolve_cwd(
+            self.host_workspace,
+            "." if prepared_cwd == "." else prepared_cwd,
+        )
+        if cwd is not None and _resolve_cwd(
+            self.host_workspace,
+            cwd,
+        ) != working_directory:
+            raise RunnerError(
+                "runtime cwd cannot differ from the prepared sandbox cwd"
+            )
         if environment is not None:
-            for key, value in environment.items():
-                if not isinstance(key, str) or not isinstance(value, str):
-                    raise RunnerError(
-                        "environment keys and values must be strings"
-                    )
+            raise RunnerError(
+                "runtime environment overrides are forbidden; freeze allowed "
+                "sandbox values with prepare_bubblewrap(environment=...)"
+            )
 
-        def execute(_context: RunContext) -> subprocess.CompletedProcess:
+        def execute(context: RunContext) -> RunDecision:
+            process: Optional[subprocess.Popen] = None
+            process_identity: Optional[dict[str, Any]] = None
             try:
-                return subprocess.run(
+                process = subprocess.Popen(
                     normalized_argv,
                     cwd=working_directory,
-                    env=None if environment is None else dict(environment),
+                    # Never let LD_PRELOAD, LD_LIBRARY_PATH, PYTHONPATH or any
+                    # other caller/host variable influence the trusted bwrap
+                    # launcher.  Allowed child values are encoded as
+                    # --clearenv/--setenv in the validated prepared argv.
+                    env={},
                     stdin=subprocess.DEVNULL,
-                    check=False,
-                    timeout=timeout_seconds,
+                    start_new_session=True,
                 )
-            except subprocess.TimeoutExpired:
-                raise
+                process_identity = _linux_process_identity(process.pid)
+                try:
+                    returncode = process.wait(timeout=effective_timeout)
+                    process_tree_cleaned = process.poll() is not None
+                    attestation = finalized_attestation(
+                        prepared,
+                        launched=True,
+                        returncode=returncode,
+                        timed_out=False,
+                        process_tree_cleaned=process_tree_cleaned,
+                        process_identity=process_identity,
+                        cleanup_verification=(
+                            "bubblewrap_pid_namespace_reaped"
+                            if process_tree_cleaned
+                            else ""
+                        ),
+                    )
+                    context.record_event(
+                        transition_id="sandbox:attested",
+                        event_type="SANDBOX_ATTESTED",
+                        payload=attestation,
+                    )
+                    if not process_tree_cleaned:
+                        return RunDecision.infrastructure_error(
+                            details={
+                                "classification": (
+                                    "sandbox_process_tree_not_reaped"
+                                ),
+                                "sandbox_attestation_digest": attestation[
+                                    "attestation_digest"
+                                ],
+                            }
+                        )
+                    return (
+                        RunDecision.passed(
+                            details={
+                                "sandbox_attestation_digest": attestation[
+                                    "attestation_digest"
+                                ]
+                            }
+                        )
+                        if returncode == 0
+                        else RunDecision.failed(
+                            returncode,
+                            details={
+                                "sandbox_attestation_digest": attestation[
+                                    "attestation_digest"
+                                ]
+                            },
+                        )
+                    )
+                except subprocess.TimeoutExpired:
+                    process_tree_cleaned = _terminate_sandbox_process(process)
+                    attestation = finalized_attestation(
+                        prepared,
+                        launched=True,
+                        returncode=process.returncode,
+                        timed_out=True,
+                        process_tree_cleaned=process_tree_cleaned,
+                        process_identity=process_identity,
+                        cleanup_verification=(
+                            "bubblewrap_pid_namespace_reaped"
+                            if process_tree_cleaned
+                            else ""
+                        ),
+                    )
+                    context.record_event(
+                        transition_id="sandbox:attested",
+                        event_type="SANDBOX_ATTESTED",
+                        payload=attestation,
+                    )
+                    if not process_tree_cleaned:
+                        return RunDecision.infrastructure_error(
+                            details={
+                                "classification": (
+                                    "sandbox_timeout_cleanup_failed"
+                                ),
+                                "sandbox_attestation_digest": attestation[
+                                    "attestation_digest"
+                                ],
+                            }
+                        )
+                    return RunDecision.timeout(
+                        details={
+                            "timeout_seconds": effective_timeout,
+                            "sandbox_attestation_digest": attestation[
+                                "attestation_digest"
+                            ],
+                        }
+                    )
             except OSError as error:
+                attestation = finalized_attestation(
+                    prepared,
+                    launched=False,
+                    returncode=None,
+                    timed_out=False,
+                    process_tree_cleaned=True,
+                    process_identity=None,
+                    cleanup_verification="prelaunch_not_applicable",
+                )
+                context.record_event(
+                    transition_id="sandbox:attested",
+                    event_type="SANDBOX_ATTESTED",
+                    payload=attestation,
+                )
                 raise VerifiedInfrastructureError(
                     f"could not launch command: {error}"
                 ) from error
+            except BaseException:
+                if process is not None and process.poll() is None:
+                    _terminate_sandbox_process(process)
+                raise
 
         return self.run(normalized_argv, execute, cwd=working_directory)
 
@@ -558,6 +770,18 @@ class StudioRunner:
                 record = digest_path(target)
                 record["name"] = declaration.name
                 evidence.append(record)
+                if record["kind"] in {"missing", "symlink", "unreadable"}:
+                    errors.append(
+                        {
+                            "name": declaration.name,
+                            "error_type": "RequiredOutputMissing",
+                            "message": (
+                                "declared required output is not a readable "
+                                f"file/directory: {declaration.relative_path} "
+                                f"({record['kind']})"
+                            ),
+                        }
+                    )
             except Exception as error:
                 # Seal an honest infrastructure failure instead of leaving the
                 # journal unsealed.  No digest is fabricated.
@@ -580,6 +804,64 @@ class StudioRunner:
                     }
                 )
         return evidence, errors
+
+
+def _linux_process_identity(pid: int) -> dict[str, Any]:
+    if not sys.platform.startswith("linux"):
+        raise VerifiedInfrastructureError(
+            "the provisional sandbox runner is supported only on Linux"
+        )
+    stat_path = Path("/proc") / str(pid) / "stat"
+    try:
+        raw = stat_path.read_text(encoding="utf-8")
+        closing = raw.rfind(")")
+        if closing < 0:
+            raise ValueError("missing command terminator")
+        fields_after_command = raw[closing + 2 :].split()
+        # /proc/<pid>/stat field 22 is starttime.  The remainder starts at
+        # field 3, so the stable identity token is index 19.
+        start_token = fields_after_command[19]
+    except (OSError, IndexError, ValueError) as error:
+        raise VerifiedInfrastructureError(
+            f"could not capture sandbox process identity for pid {pid}: {error}"
+        ) from error
+    return {
+        "pid": pid,
+        "start_token": start_token,
+        "platform": "linux-procfs",
+    }
+
+
+def _terminate_sandbox_process(
+    process: subprocess.Popen,
+    *,
+    grace_seconds: float = 2.0,
+) -> bool:
+    """Terminate the bwrap wrapper; its verified PID namespace reaps children."""
+    if process.poll() is not None:
+        return True
+    try:
+        os.killpg(process.pid, signal.SIGTERM)
+    except (OSError, ProcessLookupError):
+        try:
+            process.terminate()
+        except OSError:
+            pass
+    try:
+        process.wait(timeout=grace_seconds)
+    except subprocess.TimeoutExpired:
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+        except (OSError, ProcessLookupError):
+            try:
+                process.kill()
+            except OSError:
+                pass
+        try:
+            process.wait(timeout=grace_seconds)
+        except subprocess.TimeoutExpired:
+            return False
+    return process.poll() is not None
 
 
 def _resolve_workspace(path: Path | str) -> Path:

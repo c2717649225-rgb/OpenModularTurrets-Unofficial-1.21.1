@@ -17,7 +17,6 @@ public final class ModBlockStateProvider extends BlockStateProvider {
     protected void registerStatesAndModels() {
         Block exampleBlock = TutorialMod.EXAMPLE_BLOCK.get();
         ModelFile model = models().cubeAll(TutorialMod.EXAMPLE_BLOCK.getId().getPath(), mcLoc("block/stone"));
-        simpleBlock(exampleBlock, model);
         simpleBlockWithItem(exampleBlock, model);
     }
 }

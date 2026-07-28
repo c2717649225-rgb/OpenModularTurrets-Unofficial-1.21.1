@@ -116,7 +116,11 @@ class ContractMigrationTests(unittest.TestCase):
             criterion["risk"] == "unclassified"
             for criterion in target["acceptance"]["criteria"]
         ))
-        draft_report = contract_gate.run_gate([target_path], require=True)
+        draft_report = contract_gate.run_gate(
+            [target_path],
+            require=True,
+            project_dir=self.temp_dir,
+        )
         self.assertTrue(draft_report.passed, draft_report.findings)
 
         target["status"] = "approved"
@@ -125,7 +129,11 @@ class ContractMigrationTests(unittest.TestCase):
             json.dumps(target, ensure_ascii=False, indent=2) + "\n",
             encoding="utf-8",
         )
-        incomplete = contract_gate.run_gate([target_path], require=True)
+        incomplete = contract_gate.run_gate(
+            [target_path],
+            require=True,
+            project_dir=self.temp_dir,
+        )
         incomplete_codes = {
             finding.code for finding in incomplete.findings
         }
@@ -142,7 +150,11 @@ class ContractMigrationTests(unittest.TestCase):
             json.dumps(target, ensure_ascii=False, indent=2) + "\n",
             encoding="utf-8",
         )
-        reviewed = contract_gate.run_gate([target_path], require=True)
+        reviewed = contract_gate.run_gate(
+            [target_path],
+            require=True,
+            project_dir=self.temp_dir,
+        )
         self.assertTrue(reviewed.passed, reviewed.findings)
 
     def test_refuses_overwrite_and_in_place_migration(self) -> None:

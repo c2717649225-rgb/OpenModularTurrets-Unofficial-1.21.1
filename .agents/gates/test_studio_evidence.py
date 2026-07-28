@@ -10,12 +10,14 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 
 STUDIO_DIR = Path(__file__).resolve().parents[1] / "studio"
 sys.path.insert(0, str(STUDIO_DIR))
 
 import evidence
+import execution_policy
 import runner
 
 
@@ -324,6 +326,26 @@ class TestEvidenceLedger(EvidenceFixture):
         ):
             tampered.replay()
 
+    def test_authoritative_evidence_budget_is_enforced_before_append(self):
+        ledger = self.ledger("oversize-event")
+        self.start(ledger)
+        with self.assertRaisesRegex(
+            evidence.EvidenceBudgetError,
+            "frozen .* budget",
+        ):
+            ledger.append_event(
+                transition_id="builder:oversize",
+                event_type="WORK_RECORDED",
+                payload={"embedded_log": "x" * evidence.MAX_EVIDENCE_BYTES},
+                expected_sequence=1,
+            )
+        replay = ledger.replay(require_sealed=False)
+        self.assertEqual(1, replay.last_sequence)
+        self.assertLessEqual(
+            ledger.journal_path.stat().st_size,
+            evidence.MAX_EVIDENCE_BYTES,
+        )
+
 
 class TestStudioRunner(EvidenceFixture):
     def make_runner(
@@ -333,11 +355,13 @@ class TestStudioRunner(EvidenceFixture):
         reports: dict[str, str] | None = None,
         artifacts: dict[str, str] | None = None,
     ) -> runner.StudioRunner:
+        bindings = self.bindings()
         return runner.StudioRunner(
             self.evidence_root,
             self.workspace,
             run_id,
-            digests=self.bindings(),
+            digests=bindings,
+            frozen_policy_digest=bindings.policy_digest,
             reports=reports,
             artifacts=artifacts,
         )
@@ -482,18 +506,194 @@ class TestStudioRunner(EvidenceFixture):
         self.assertEqual("FAIL", replay.outcome)
         self.assertFalse(replay.events[-1]["payload"]["interrupted"])
 
-    def test_run_command_classifies_process_exit(self):
-        passed = self.make_runner("command-pass").run_command(
-            [sys.executable, "-c", "raise SystemExit(0)"],
-            timeout_seconds=5,
+    def test_run_command_rejects_bare_builder_argv_before_journal_start(self):
+        studio_runner = self.make_runner("bare-command")
+        tamper = (
+            "from pathlib import Path; "
+            "Path(__import__('sys').argv[1]).write_text('forged')"
         )
-        failed = self.make_runner("command-fail").run_command(
-            [sys.executable, "-c", "raise SystemExit(4)"],
-            timeout_seconds=5,
+        with self.assertRaisesRegex(
+            execution_policy.CapabilityUnavailable,
+            "PreparedSandbox",
+        ):
+            studio_runner.run_command(  # type: ignore[arg-type]
+                [
+                    sys.executable,
+                    "-c",
+                    tamper,
+                    str(studio_runner.ledger.journal_path),
+                ],
+            )
+        self.assertFalse(studio_runner.ledger.journal_path.exists())
+
+    def test_run_command_never_passes_caller_or_host_environment_to_bwrap(
+        self,
+    ):
+        policy_document = {
+            "schema_version": 1,
+            "stability": "provisional",
+            "policy_id": "test.environment",
+            "backend": "bubblewrap",
+            "writable_paths": [".gradle", "build"],
+            "timeout_seconds": 10,
+            "required_capabilities": sorted(
+                execution_policy.CORE_CAPABILITIES
+            ),
+        }
+        policy_path = self.workspace / "strict-environment.json"
+        policy_path.write_text(
+            json.dumps(policy_document),
+            encoding="utf-8",
         )
-        self.assertEqual("PASS", passed.outcome)
-        self.assertEqual("FAIL", failed.outcome)
-        self.assertEqual(4, failed.exit_code)
+        policy = execution_policy.load_policy(policy_path)
+        self.evidence_root.mkdir()
+        executable = Path(sys.executable).resolve()
+        executable_digest = execution_policy.sha256_file(executable)
+        probe_document = {
+            "backend": "bubblewrap",
+            "version": "test",
+            "executable": str(executable),
+            "executable_sha256": executable_digest,
+            "verification": execution_policy.LIVE_PROBE_VERIFICATION,
+            "capabilities": sorted(execution_policy.CORE_CAPABILITIES),
+        }
+        probe = execution_policy.BackendProbe(
+            "bubblewrap",
+            True,
+            "test",
+            execution_policy.CORE_CAPABILITIES,
+            "",
+            str(executable),
+            executable_digest,
+            execution_policy.LIVE_PROBE_VERIFICATION,
+            execution_policy.sha256_json(probe_document),
+        )
+        with mock.patch.object(
+            execution_policy,
+            "probe_bubblewrap",
+            return_value=probe,
+        ):
+            prepared = execution_policy.prepare_bubblewrap(
+                policy,
+                project_dir=self.workspace,
+                evidence_root=self.evidence_root,
+                command=[sys.executable, "-c", "pass"],
+                environment={"CI": "true"},
+            )
+        bindings = runner.DigestBindings.capture(
+            self.workspace,
+            control_paths=(".agents",),
+            policy=policy.document,
+        )
+        rejected = runner.StudioRunner(
+            self.evidence_root,
+            self.workspace,
+            "runtime-env-rejected",
+            digests=bindings,
+            frozen_policy_digest=policy.digest,
+        )
+        with self.assertRaisesRegex(
+            runner.RunnerError,
+            "runtime environment overrides are forbidden",
+        ):
+            rejected.run_command(
+                prepared,
+                environment={"LD_PRELOAD": "/attacker.so"},
+            )
+        self.assertFalse(rejected.ledger.journal_path.exists())
+
+        class CompletedProcess:
+            pid = 123
+            returncode = 0
+
+            def wait(self, timeout=None):
+                return 0
+
+            def poll(self):
+                return 0
+
+        clean = runner.StudioRunner(
+            self.evidence_root,
+            self.workspace,
+            "host-env-empty",
+            digests=bindings,
+            frozen_policy_digest=policy.digest,
+        )
+        with mock.patch.object(
+            runner.subprocess,
+            "Popen",
+            return_value=CompletedProcess(),
+        ) as popen, mock.patch.object(
+            runner,
+            "_linux_process_identity",
+            return_value={
+                "pid": 123,
+                "start_token": "456",
+                "platform": "linux-procfs",
+            },
+        ):
+            record = clean.run_command(prepared)
+        self.assertEqual("PASS", record.outcome)
+        self.assertEqual({}, popen.call_args.kwargs["env"])
+        self.assertIn("--clearenv", popen.call_args.args[0])
+
+    def test_real_sandbox_hides_authoritative_journal_from_builder(self):
+        if not sys.platform.startswith("linux") or not shutil.which("bwrap"):
+            self.skipTest("real bubblewrap backend is unavailable")
+        probe = execution_policy.probe_bubblewrap()
+        if not probe.available:
+            self.skipTest(probe.reason)
+        policy_path = self.workspace / "strict-policy.json"
+        policy_path.write_text(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "stability": "provisional",
+                    "policy_id": "test.strict",
+                    "backend": "bubblewrap",
+                    "writable_paths": ["build"],
+                    "timeout_seconds": 10,
+                    "required_capabilities": sorted(
+                        execution_policy.CORE_CAPABILITIES
+                    ),
+                }
+            ),
+            encoding="utf-8",
+        )
+        policy = execution_policy.load_policy(policy_path)
+        bindings = runner.DigestBindings(
+            "a" * 64,
+            "b" * 64,
+            "c" * 64,
+            policy.digest,
+        )
+        studio_runner = runner.StudioRunner(
+            self.evidence_root,
+            self.workspace,
+            "sandbox-journal",
+            digests=bindings,
+            frozen_policy_digest=policy.digest,
+            reports={"major": "build/major.json"},
+        )
+        report = self.workspace / "build" / "major.json"
+        script = (
+            "from pathlib import Path\n"
+            f"journal=Path({str(studio_runner.ledger.journal_path)!r})\n"
+            "assert not journal.exists()\n"
+            f"report=Path({str(report)!r})\n"
+            "report.write_text('{\"status\":\"PASS\"}\\n', encoding='utf-8')\n"
+        )
+        prepared = execution_policy.prepare_bubblewrap(
+            policy,
+            project_dir=self.workspace,
+            evidence_root=self.evidence_root,
+            command=[sys.executable, "-c", script],
+        )
+        record = studio_runner.run_command(prepared)
+        self.assertEqual("PASS", record.outcome)
+        self.assertEqual(policy.digest, record.replay.events[0]["payload"][
+            "digests"
+        ]["policy_digest"])
 
     def test_unsafe_output_declarations_fail_before_execution(self):
         with self.assertRaises(runner.RunnerError):
@@ -507,15 +707,80 @@ class TestStudioRunner(EvidenceFixture):
                 reports={"escape": str((self.temp_dir / "x").resolve())},
             )
 
-    def test_missing_output_is_recorded_without_fabricated_digest(self):
+    def test_runner_requires_external_frozen_policy_digest(self):
+        bindings = self.bindings()
+        with self.assertRaisesRegex(
+            runner.RunnerError,
+            "externally frozen policy",
+        ):
+            runner.StudioRunner(
+                self.evidence_root,
+                self.workspace,
+                "policy-drift",
+                digests=bindings,
+                frozen_policy_digest="f" * 64,
+            )
+
+    def test_missing_required_output_fails_closed_without_fabricated_digest(self):
         record = self.make_runner(
             "missing-output",
-            reports={"optional": "build/missing.json"},
+            reports={"major": "build/missing.json"},
         ).run(["fixture"], lambda _context: 0)
         missing = record.replay.events[-1]["payload"]["reports"][0]
+        self.assertEqual("VERIFIED_INFRA_ERROR", record.outcome)
         self.assertEqual("missing", missing["kind"])
         self.assertFalse(missing["exists"])
         self.assertIsNone(missing["sha256"])
+        self.assertEqual(
+            "output_digest_capture_failed",
+            record.replay.events[-1]["payload"]["details"]["classification"],
+        )
+
+    def test_oversize_terminal_details_are_replaced_and_sealed_fail_closed(self):
+        studio_runner = self.make_runner("oversize-terminal")
+        record = studio_runner.run(
+            ["fixture"],
+            lambda _context: runner.RunDecision.passed(
+                details={
+                    "embedded_log": "x" * evidence.MAX_EVIDENCE_BYTES,
+                }
+            ),
+        )
+        self.assertEqual("VERIFIED_INFRA_ERROR", record.outcome)
+        self.assertTrue(record.replay.sealed)
+        self.assertEqual(
+            "evidence_budget_exceeded",
+            record.replay.events[-1]["payload"]["details"]["classification"],
+        )
+        total = (
+            record.bundle_path.stat().st_size
+            + studio_runner.ledger.journal_path.stat().st_size
+        )
+        self.assertLessEqual(total, evidence.MAX_EVIDENCE_BYTES)
+
+    def test_oversize_runtime_event_is_rejected_then_fail_sealed(self):
+        studio_runner = self.make_runner("oversize-runtime-event")
+
+        def operation(context: runner.RunContext) -> int:
+            context.record_event(
+                transition_id="builder:oversize",
+                event_type="WORK_RECORDED",
+                payload={
+                    "embedded_log": "x" * evidence.MAX_EVIDENCE_BYTES,
+                },
+            )
+            return 0
+
+        with self.assertRaises(evidence.EvidenceBudgetError):
+            studio_runner.run(["fixture"], operation)
+        replay = studio_runner.ledger.replay()
+        self.assertEqual("FAIL", replay.outcome)
+        self.assertTrue(replay.sealed)
+        self.assertLessEqual(
+            studio_runner.ledger.journal_path.stat().st_size
+            + studio_runner.ledger.bundle_path.stat().st_size,
+            evidence.MAX_EVIDENCE_BYTES,
+        )
 
 
 if __name__ == "__main__":

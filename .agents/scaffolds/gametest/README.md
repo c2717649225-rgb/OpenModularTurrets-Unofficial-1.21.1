@@ -5,7 +5,7 @@
 使用时：
 
 1. 将 `{{MOD_GROUP}}`、`{{MODID}}`、`{{TEMPLATE_NAME}}` 替换为宿主工程真实值，并复制到 `src/main/java`。
-2. 将结构模板放到 `src/main/resources/data/{{MODID}}/structure/{{TEMPLATE_NAME}}.nbt`，或由宿主既有资源流程提供。
+2. 将结构模板放到 `src/main/resources/data/{{MODID}}/structure/featuregametests.{{TEMPLATE_NAME}}.nbt`，或由宿主既有资源流程提供。
 3. 用真实的 Arrange / Act / Assert 替换 `helper.fail(...)`。该失败哨兵用于防止占位测试误报全绿。
 4. 运行：
 
@@ -13,4 +13,4 @@
    python .agents/gates/gametest_gate.py --require-tests --run
    ```
 
-`@GameTestHolder("{{MODID}}")` 负责自动注册。`@PrefixGameTestTemplate(false)` 使模板路径保持为 `{{MODID}}:{{TEMPLATE_NAME}}`，不会自动添加 Java 类名。
+`@GameTestHolder("{{MODID}}")` 负责自动注册。脚手架保留默认类名前缀，使模板名和运行时测试名都能由严格门禁确定性推导；不要用 `@PrefixGameTestTemplate(false)` 绕过该约束。

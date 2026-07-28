@@ -25,6 +25,7 @@ from pathlib import Path
 from typing import Any, Mapping, Optional, Sequence
 
 import gametest_gate
+import contract_gate
 
 
 SCHEMA_VERSION = 1
@@ -75,8 +76,23 @@ class TraceabilityReport:
     findings: list[Finding]
 
     @property
+    def full_required_coverage(self) -> bool:
+        required = [
+            entry
+            for entry in self.criterion_coverage
+            if entry.get("required") is True
+        ]
+        return bool(required) and all(
+            entry.get("l4_covered") is True for entry in required
+        )
+
+    @property
     def passed(self) -> bool:
-        return not self.findings and bool(self.mappings)
+        return (
+            not self.findings
+            and bool(self.mappings)
+            and self.full_required_coverage
+        )
 
     def to_dict(self) -> dict[str, Any]:
         required_coverage = [
@@ -89,9 +105,7 @@ class TraceabilityReport:
             for entry in required_coverage
             if entry.get("l4_covered") is True
         ]
-        full_required_coverage = bool(required_coverage) and (
-            len(required_covered) == len(required_coverage)
-        )
+        full_required_coverage = self.full_required_coverage
         return {
             "schema_version": SCHEMA_VERSION,
             "gate": "L4 acceptance traceability",
@@ -105,7 +119,7 @@ class TraceabilityReport:
             "mappings": [mapping.to_dict() for mapping in self.mappings],
             "criterion_coverage": list(self.criterion_coverage),
             "coverage": {
-                "scope": "required_acceptance_criteria_backed_by_gametest",
+                "scope": "all_required_acceptance_criteria",
                 "required_criteria_total": len(required_coverage),
                 "required_criteria_covered": len(required_covered),
                 "required_criteria_uncovered": (
@@ -129,9 +143,9 @@ class TraceabilityReport:
                     if entry.get("l4_covered") is not True
                 ],
                 "note": (
-                    "A passing traceability gate validates the GameTest chains "
-                    "it reports; it does not imply that non-GameTest criteria "
-                    "have been verified."
+                    "PASS requires every required criterion to be backed by an "
+                    "exact runtime-symbol GameTest result. Unsupported provider "
+                    "kinds remain explicitly uncovered."
                 ),
             },
             "findings": [finding.to_dict() for finding in self.findings],
@@ -259,6 +273,33 @@ def _validate_gametest_report(
                 json_path="$.schema_version",
             )
         )
+    attestation_boundary_valid = True
+    if data.get("attestation_scope") != gametest_gate.ATTESTATION_SCOPE:
+        attestation_boundary_valid = False
+        findings.append(
+            Finding(
+                code="attestation_scope_missing_or_changed",
+                message=(
+                    "GameTest evidence must declare the process-local "
+                    "attestation scope"
+                ),
+                file=str(report_path),
+                json_path="$.attestation_scope",
+            )
+        )
+    if data.get("tamper_resistance") != gametest_gate.TAMPER_RESISTANCE:
+        attestation_boundary_valid = False
+        findings.append(
+            Finding(
+                code="tamper_resistance_missing_or_changed",
+                message=(
+                    "GameTest evidence must state that active same-JVM "
+                    "tampering is outside its resistance boundary"
+                ),
+                file=str(report_path),
+                json_path="$.tamper_resistance",
+            )
+        )
 
     discovery = _mapping(data.get("discovery"))
     tests = _list(discovery.get("tests"))
@@ -361,6 +402,7 @@ def _validate_gametest_report(
 
     symbol_index: dict[str, Mapping[str, Any]] = {}
     source_hash_cache: dict[Path, Optional[str]] = {}
+    bytecode_hash_cache: dict[Path, Optional[str]] = {}
     for index, raw_test in enumerate(tests):
         test_path = f"$.discovery.tests[{index}]"
         test = _mapping(raw_test)
@@ -378,6 +420,8 @@ def _validate_gametest_report(
         method = test.get("method")
         source_path = test.get("path")
         source_sha256 = test.get("source_sha256")
+        bytecode_path = test.get("bytecode_path")
+        bytecode_sha256 = test.get("bytecode_sha256")
 
         if not isinstance(symbol, str) or not SYMBOL_PATTERN.fullmatch(symbol):
             findings.append(
@@ -463,6 +507,51 @@ def _validate_gametest_report(
                     ),
                     file=str(report_path),
                     json_path=f"{test_path}.signature_errors",
+                )
+            )
+        if test.get("bytecode_verified") is not True:
+            findings.append(
+                Finding(
+                    code="gametest_bytecode_unverified",
+                    message=(
+                        f"GameTest `{symbol}` was not bound to an official "
+                        "compiled method"
+                    ),
+                    file=str(report_path),
+                    json_path=f"{test_path}.bytecode_verified",
+                )
+            )
+        if not (
+            isinstance(bytecode_sha256, str)
+            and SHA256_PATTERN.fullmatch(bytecode_sha256)
+        ):
+            findings.append(
+                Finding(
+                    code="invalid_bytecode_digest",
+                    message=(
+                        f"GameTest `{symbol}` has no valid bytecode SHA-256"
+                    ),
+                    file=str(report_path),
+                    json_path=f"{test_path}.bytecode_sha256",
+                )
+            )
+        if not (
+            isinstance(bytecode_path, str)
+            and bytecode_path.startswith("build/classes/java/main/")
+            and bytecode_path.endswith(".class")
+            and "\\" not in bytecode_path
+            and not bytecode_path.startswith("/")
+            and "/../" not in f"/{bytecode_path}/"
+        ):
+            findings.append(
+                Finding(
+                    code="bytecode_path_outside_main",
+                    message=(
+                        f"GameTest `{symbol}` bytecode must be a portable path "
+                        "under build/classes/java/main"
+                    ),
+                    file=str(report_path),
+                    json_path=f"{test_path}.bytecode_path",
                 )
             )
         if not (
@@ -592,6 +681,57 @@ def _validate_gametest_report(
                 )
             )
 
+        if isinstance(bytecode_path, str):
+            bytecode_root = (
+                project_dir / "build" / "classes" / "java" / "main"
+            ).resolve()
+            bytecode_file = (project_dir / bytecode_path).resolve()
+            try:
+                bytecode_file.relative_to(bytecode_root)
+            except ValueError:
+                findings.append(
+                    Finding(
+                        code="bytecode_path_escape",
+                        message=(
+                            f"bytecode path escapes the compiled main root: "
+                            f"{bytecode_path}"
+                        ),
+                        file=str(report_path),
+                        json_path=f"{test_path}.bytecode_path",
+                    )
+                )
+            else:
+                if bytecode_file not in bytecode_hash_cache:
+                    try:
+                        bytecode_hash_cache[bytecode_file] = _sha256(
+                            bytecode_file.read_bytes()
+                        )
+                    except OSError as exc:
+                        bytecode_hash_cache[bytecode_file] = None
+                        findings.append(
+                            Finding(
+                                code="bytecode_unreadable",
+                                message=str(exc),
+                                file=str(bytecode_file),
+                            )
+                        )
+                current_bytecode_digest = bytecode_hash_cache[bytecode_file]
+                if (
+                    current_bytecode_digest is not None
+                    and current_bytecode_digest != bytecode_sha256
+                ):
+                    findings.append(
+                        Finding(
+                            code="bytecode_digest_drift",
+                            message=(
+                                "compiled GameTest class changed after runtime "
+                                f"evidence: {bytecode_path}"
+                            ),
+                            file=str(bytecode_file),
+                            json_path=f"{test_path}.bytecode_sha256",
+                        )
+                    )
+
         if isinstance(symbol, str):
             current = current_symbol_index.get(symbol)
             if current is None:
@@ -612,6 +752,8 @@ def _validate_gametest_report(
                     "method",
                     "symbol",
                     "holder_namespace",
+                    "runtime_name",
+                    "classification",
                     "source_sha256",
                     "signature_valid",
                 ):
@@ -645,6 +787,253 @@ def _validate_gametest_report(
     execution = _mapping(data.get("execution"))
     result = _mapping(data.get("result"))
     evidence_level = execution.get("evidence_level")
+    executed_symbols = execution.get("executed_symbols")
+    passed_symbols = execution.get("passed_symbols")
+    failed_symbols = execution.get("failed_symbols")
+    missing_symbols = execution.get("missing_symbols")
+    unexpected_runtime_tests = execution.get("unexpected_runtime_tests")
+
+    reporter_control_valid = False
+    reported_control_digest = execution.get("reporter_control_sha256")
+    reported_control_files = execution.get("reporter_control_files")
+    if not (
+        isinstance(reported_control_digest, str)
+        and SHA256_PATTERN.fullmatch(reported_control_digest)
+        and isinstance(reported_control_files, list)
+        and all(
+            isinstance(item, dict)
+            and set(item) == {"path", "sha256"}
+            and isinstance(item.get("path"), str)
+            and isinstance(item.get("sha256"), str)
+            and SHA256_PATTERN.fullmatch(item.get("sha256", ""))
+            for item in reported_control_files
+        )
+    ):
+        findings.append(
+            Finding(
+                code="reporter_control_evidence_invalid",
+                message=(
+                    "reporter control evidence must contain the stable digest "
+                    "and source/metadata/init-script file digests"
+                ),
+                file=str(report_path),
+                json_path="$.execution.reporter_control_sha256",
+            )
+        )
+    elif project_dir is not None:
+        try:
+            current_control_digest, current_control_files = (
+                gametest_gate.reporter_control_attestation(project_dir)
+            )
+        except OSError as error:
+            findings.append(
+                Finding(
+                    code="reporter_control_unreadable",
+                    message=str(error),
+                    file=str(project_dir),
+                )
+            )
+        else:
+            reporter_control_valid = (
+                reported_control_digest == current_control_digest
+                and reported_control_files == list(current_control_files)
+            )
+            if not reporter_control_valid:
+                findings.append(
+                    Finding(
+                        code="reporter_control_drift",
+                        message=(
+                            "reporter source, mods.toml, or init script differs "
+                            "from the controls bound into the GameTest report"
+                        ),
+                        file=str(report_path),
+                        json_path="$.execution.reporter_control_sha256",
+                    )
+                )
+
+    expected_runtime_symbols: dict[str, str] = {}
+    runtime_name_records_valid = True
+    for symbol, test in symbol_index.items():
+        runtime_name = test.get("runtime_name")
+        if (
+            not isinstance(runtime_name, str)
+            or not runtime_name
+            or runtime_name in expected_runtime_symbols
+        ):
+            runtime_name_records_valid = False
+            findings.append(
+                Finding(
+                    code="runtime_name_missing_or_duplicate",
+                    message=(
+                        f"GameTest `{symbol}` has no unique runtime_name for "
+                        "event replay"
+                    ),
+                    file=str(report_path),
+                    json_path="$.discovery.tests",
+                )
+            )
+            continue
+        expected_runtime_symbols[runtime_name] = symbol
+
+    event_replay_valid = False
+    raw_jsonl = execution.get("runtime_event_raw_jsonl")
+    event_nonce = execution.get("runtime_event_nonce")
+    reported_canonical_events = execution.get("canonical_runtime_events")
+    if not (
+        isinstance(raw_jsonl, str)
+        and isinstance(event_nonce, str)
+        and bool(event_nonce)
+        and len(event_nonce) <= 128
+        and isinstance(reported_canonical_events, list)
+    ):
+        findings.append(
+            Finding(
+                code="runtime_event_evidence_missing",
+                message=(
+                    "GameTest report must retain bounded raw JSONL, its nonce, "
+                    "and canonical runtime events"
+                ),
+                file=str(report_path),
+                json_path="$.execution.runtime_event_raw_jsonl",
+            )
+        )
+    else:
+        try:
+            raw_event_bytes = raw_jsonl.encode("utf-8", errors="strict")
+        except UnicodeEncodeError as error:
+            raw_event_bytes = b""
+            findings.append(
+                Finding(
+                    code="runtime_event_encoding_invalid",
+                    message=str(error),
+                    file=str(report_path),
+                    json_path="$.execution.runtime_event_raw_jsonl",
+                )
+            )
+        replay = gametest_gate.validate_runtime_event_bytes(
+            raw_event_bytes,
+            nonce=event_nonce,
+            expected_runtime_symbols=expected_runtime_symbols,
+        )
+        raw_digest_matches = (
+            replay.stream_sha256 == execution.get("event_stream_sha256")
+        )
+        if not raw_digest_matches:
+            findings.append(
+                Finding(
+                    code="event_stream_digest_mismatch",
+                    message=(
+                        "retained raw runtime events do not match "
+                        "event_stream_sha256"
+                    ),
+                    file=str(report_path),
+                    json_path="$.execution.event_stream_sha256",
+                )
+            )
+        canonical_matches = (
+            list(replay.canonical_events) == reported_canonical_events
+            and replay.canonical_stream_sha256
+            == execution.get("canonical_event_stream_sha256")
+        )
+        if not canonical_matches:
+            findings.append(
+                Finding(
+                    code="canonical_event_evidence_mismatch",
+                    message=(
+                        "canonical runtime events or their digest do not "
+                        "recompute from the retained raw stream"
+                    ),
+                    file=str(report_path),
+                    json_path="$.execution.canonical_runtime_events",
+                )
+            )
+        replayed_symbols_match = (
+            list(replay.executed_symbols) == executed_symbols
+            and list(replay.passed_symbols) == passed_symbols
+            and list(replay.failed_symbols) == failed_symbols
+            and list(replay.missing_symbols) == missing_symbols
+            and list(replay.unexpected_runtime_tests)
+            == unexpected_runtime_tests
+            and replay.protocol == execution.get("reporter_protocol")
+        )
+        if not replayed_symbols_match:
+            findings.append(
+                Finding(
+                    code="runtime_event_symbol_replay_mismatch",
+                    message=(
+                        "retained events do not reproduce the reported exact "
+                        "runtime symbol sets"
+                    ),
+                    file=str(report_path),
+                    json_path="$.execution.executed_symbols",
+                )
+            )
+        if not replay.passed:
+            findings.append(
+                Finding(
+                    code="runtime_event_replay_invalid",
+                    message=replay.reason,
+                    file=str(report_path),
+                    json_path="$.execution.runtime_event_raw_jsonl",
+                )
+            )
+        event_replay_valid = (
+            runtime_name_records_valid
+            and replay.passed
+            and raw_digest_matches
+            and canonical_matches
+            and replayed_symbols_match
+        )
+
+    runtime_symbol_evidence_valid = (
+        evidence_level == "runtime_symbol_set"
+        and execution.get("runtime_events_verified") is True
+        and isinstance(executed_symbols, list)
+        and isinstance(passed_symbols, list)
+        and isinstance(failed_symbols, list)
+        and isinstance(missing_symbols, list)
+        and isinstance(unexpected_runtime_tests, list)
+        and len(executed_symbols) == len(set(executed_symbols))
+        and set(executed_symbols) == set(symbol_index)
+        and set(passed_symbols) == set(symbol_index)
+        and not failed_symbols
+        and not missing_symbols
+        and not unexpected_runtime_tests
+        and isinstance(execution.get("reporter_protocol"), str)
+        and execution.get("reporter_protocol")
+        == gametest_gate.RUNTIME_EVENT_PROTOCOL
+        and isinstance(execution.get("reporter_jar_sha256"), str)
+        and SHA256_PATTERN.fullmatch(
+            execution.get("reporter_jar_sha256", "")
+        ) is not None
+        and isinstance(execution.get("event_stream_sha256"), str)
+        and SHA256_PATTERN.fullmatch(
+            execution.get("event_stream_sha256", "")
+        ) is not None
+        and isinstance(
+            execution.get("canonical_event_stream_sha256"), str
+        )
+        and SHA256_PATTERN.fullmatch(
+            execution.get("canonical_event_stream_sha256", "")
+        ) is not None
+        and attestation_boundary_valid
+        and reporter_control_valid
+        and event_replay_valid
+    )
+    if not runtime_symbol_evidence_valid:
+        findings.append(
+            Finding(
+                code="runtime_symbol_evidence_invalid",
+                message=(
+                    "traceability requires replayable process-local events, "
+                    "current reporter controls, and an exact runtime symbol "
+                    "set; console counts or digest-shaped strings are not "
+                    "sufficient"
+                ),
+                file=str(report_path),
+                json_path="$.execution",
+            )
+        )
     count_values = {
         "discovered": execution.get("discovered_tests"),
         "running": execution.get("running_tests"),
@@ -685,7 +1074,7 @@ def _validate_gametest_report(
         and execution.get("completion_marker") is True
         and execution.get("no_tests_marker") is False
         and execution.get("launch_error") is None
-        and evidence_level == "aggregate_set"
+        and runtime_symbol_evidence_valid
         and result.get("status") == "passed"
         and result.get("passed") is True
         and result.get("command_ok") is True
@@ -697,7 +1086,7 @@ def _validate_gametest_report(
             Finding(
                 code="aggregate_l4_not_passed",
                 message=(
-                    "GameTest report does not contain successful aggregate-set "
+                    "GameTest report does not contain successful exact-symbol "
                     "L4 evidence"
                 ),
                 file=str(report_path),
@@ -712,6 +1101,11 @@ def _validate_gametest_report(
         "passed": len(findings) == start_error_count,
         "evidence_level": evidence_level,
         "counts": count_values,
+        "passed_symbols": (
+            list(passed_symbols)
+            if isinstance(passed_symbols, list)
+            else []
+        ),
     }
     return symbol_index, project_dir, aggregate
 
@@ -725,7 +1119,6 @@ def _join_contracts(
     mappings: list[TraceMapping] = []
     criterion_coverage: list[dict[str, Any]] = []
     global_contract_ids: dict[str, Path] = {}
-    global_criterion_ids: dict[str, Path] = {}
     global_test_refs: dict[str, tuple[Path, str]] = {}
     declared_gametests: dict[tuple[str, str], tuple[Path, str]] = {}
     mapped_gametests: set[tuple[str, str]] = set()
@@ -861,22 +1254,6 @@ def _join_contracts(
                     )
                 )
                 continue
-            previous_contract = global_criterion_ids.get(criterion_id)
-            if previous_contract is not None:
-                findings.append(
-                    Finding(
-                        code="duplicate_criterion_id",
-                        message=(
-                            f"criterion id `{criterion_id}` was already "
-                            f"declared by {previous_contract}"
-                        ),
-                        file=str(contract_path),
-                        json_path=f"{criterion_path}.id",
-                    )
-                )
-            else:
-                global_criterion_ids[criterion_id] = contract_path
-
             test_ids = criterion.get("test_ids")
             if not isinstance(test_ids, list):
                 findings.append(
@@ -914,6 +1291,8 @@ def _join_contracts(
 
             criterion_gametest_ids: list[str] = []
             criterion_symbols: list[str] = []
+            required_non_gametest_ids: list[str] = []
+            optional_non_gametest_ids: list[str] = []
             for test_index, test_id in enumerate(test_ids):
                 reference_path = (
                     f"{criterion_path}.test_ids[{test_index}]"
@@ -933,6 +1312,14 @@ def _join_contracts(
                     continue
                 test = tests_by_id[test_id]
                 if test.get("kind") != "gametest":
+                    if test.get("required") is False:
+                        optional_non_gametest_ids.append(test_id)
+                    else:
+                        # L4 can only prove exact GameTest runtime symbols.
+                        # A required criterion cannot borrow that evidence to
+                        # hide a required dedicated-server, DataGen,
+                        # performance, static, or other provider result.
+                        required_non_gametest_ids.append(test_id)
                     continue
                 criterion_gametest_ids.append(test_id)
                 key = (contract_id, test_id)
@@ -993,11 +1380,28 @@ def _join_contracts(
                 aggregate_evidence.get("passed") is True
                 and aggregate_evidence.get("status") == "passed"
                 and aggregate_evidence.get("evidence_level")
-                == "aggregate_set"
+                == "runtime_symbol_set"
             )
-            l4_covered = bool(criterion_symbols) and aggregate_passed
+            passed_symbol_set = set(
+                _list(aggregate_evidence.get("passed_symbols"))
+            )
+            l4_covered = (
+                bool(criterion_symbols)
+                and aggregate_passed
+                and set(criterion_symbols).issubset(passed_symbol_set)
+                and not required_non_gametest_ids
+            )
             if l4_covered:
-                coverage_reason = "mapped GameTest symbol is in the passed L4 set"
+                coverage_reason = (
+                    "all required mapped evidence is GameTest evidence and "
+                    "every symbol is in the exact passed runtime set"
+                )
+            elif required_non_gametest_ids:
+                coverage_reason = (
+                    "criterion also requires non-GameTest acceptance test(s) "
+                    "that L4 cannot prove: "
+                    + ", ".join(required_non_gametest_ids)
+                )
             elif not criterion_gametest_ids:
                 coverage_reason = (
                     "criterion has no GameTest acceptance test; another gate "
@@ -1016,6 +1420,12 @@ def _join_contracts(
                     "criterion_id": criterion_id,
                     "required": criterion.get("required") is True,
                     "gametest_test_ids": criterion_gametest_ids,
+                    "required_non_gametest_test_ids": (
+                        required_non_gametest_ids
+                    ),
+                    "ignored_optional_non_gametest_test_ids": (
+                        optional_non_gametest_ids
+                    ),
                     "mapped_symbols": criterion_symbols,
                     "l4_covered": l4_covered,
                     "reason": coverage_reason,
@@ -1032,6 +1442,22 @@ def _join_contracts(
                         "not referenced by any acceptance criterion"
                     ),
                     file=str(contract_path),
+                    json_path="$.acceptance.criteria",
+                )
+            )
+    for coverage in criterion_coverage:
+        if (
+            coverage.get("required") is True
+            and coverage.get("l4_covered") is not True
+        ):
+            findings.append(
+                Finding(
+                    code="required_criterion_uncovered",
+                    message=(
+                        f"required criterion `{coverage.get('criterion_id')}` "
+                        "has no exact runtime-symbol evidence: "
+                        f"{coverage.get('reason')}"
+                    ),
                     json_path="$.acceptance.criteria",
                 )
             )
@@ -1052,8 +1478,12 @@ def run_gate(
     gametest_report_path: Path | str,
     *,
     project_dir: Optional[Path | str] = None,
+    require_approved: bool = True,
 ) -> TraceabilityReport:
     findings: list[Finding] = []
+    resolved_project: Optional[Path] = (
+        Path(project_dir).resolve() if project_dir is not None else None
+    )
     contract_files = _contract_files(contract_paths)
     contract_documents: list[tuple[Path, Mapping[str, Any], str]] = []
     contract_inputs: list[dict[str, str]] = []
@@ -1064,6 +1494,27 @@ def run_gate(
                 message="no v2 feature contract JSON files were found",
             )
         )
+    else:
+        contract_validation = contract_gate.run_gate(
+            contract_files,
+            require=True,
+            project_dir=(
+                resolved_project
+                if resolved_project is not None
+                else contract_gate.PROJECT_DIR
+            ),
+        )
+        for contract_finding in contract_validation.findings:
+            if contract_finding.severity != "error":
+                continue
+            findings.append(
+                Finding(
+                    code=f"contract_gate_{contract_finding.code}",
+                    message=contract_finding.message,
+                    file=contract_finding.file,
+                    json_path=contract_finding.json_path,
+                )
+            )
     for contract_path in contract_files:
         contract, digest = _read_json_object(
             contract_path, findings, label="contract"
@@ -1074,6 +1525,36 @@ def run_gate(
             )
         if contract is not None and digest is not None:
             contract_documents.append((contract_path, contract, digest))
+            if require_approved and contract.get("status") not in {
+                "approved",
+                "implementing",
+                "verifying",
+                "released",
+                "deprecated",
+            }:
+                findings.append(
+                    Finding(
+                        code="contract_lifecycle_not_approved",
+                        message=(
+                            "strict traceability requires an approved-or-later "
+                            "v2 contract with migration review completed"
+                        ),
+                        file=str(contract_path),
+                        json_path="$.status",
+                    )
+                )
+            if require_approved and _list(contract.get("review_required")):
+                findings.append(
+                    Finding(
+                        code="contract_review_incomplete",
+                        message=(
+                            "strict traceability rejects unresolved "
+                            "review_required items"
+                        ),
+                        file=str(contract_path),
+                        json_path="$.review_required",
+                    )
+                )
 
     report_path = Path(gametest_report_path).resolve()
     gametest_data, gametest_digest = _read_json_object(
@@ -1084,9 +1565,6 @@ def run_gate(
         "sha256": gametest_digest or "",
     }
     symbol_index: dict[str, Mapping[str, Any]] = {}
-    resolved_project: Optional[Path] = (
-        Path(project_dir).resolve() if project_dir is not None else None
-    )
     aggregate_evidence: dict[str, Any] = {
         "status": "failed",
         "passed": False,
@@ -1129,8 +1607,8 @@ def _default_project_dir() -> Path:
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
-            "Join v2 acceptance criteria to strict aggregate-set GameTest "
-            "evidence."
+            "Join v2 acceptance criteria to exact reporter-backed runtime "
+            "GameTest symbol evidence."
         )
     )
     parser.add_argument(
@@ -1159,6 +1637,19 @@ def _parser() -> argparse.ArgumentParser:
         type=Path,
         help="optionally write a machine-readable traceability report",
     )
+    parser.add_argument(
+        "--advisory",
+        action="store_true",
+        help=(
+            "always exit zero after producing the report; the JSON result "
+            "still records failed coverage and findings"
+        ),
+    )
+    parser.add_argument(
+        "--allow-draft",
+        action="store_true",
+        help="diagnostic only: do not require approved-or-later lifecycle",
+    )
     return parser
 
 
@@ -1182,6 +1673,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         contracts,
         args.gametest_report,
         project_dir=project,
+        require_approved=not args.allow_draft,
     )
 
     print(
@@ -1212,7 +1704,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             )
             return 2
         print(f"JSON report: {report_path}")
-    return 0 if report.passed else 1
+    return 0 if report.passed or args.advisory else 1
 
 
 if __name__ == "__main__":

@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "urn:codex:neoforge:studio:evidence:provisional:1",
   "title": "Autonomous Mod Studio Evidence Ledger (Provisional v1)",
-  "description": "Provisional schema for one authoritative journal event or sealed run evidence bundle.",
+  "description": "Provisional schema for one authoritative journal event or sealed run evidence bundle. The trusted writer additionally enforces a hard 10 MiB combined journal+bundle budget; large logs and artifacts are digest references, never embedded payloads.",
   "oneOf": [
     {
       "$ref": "#/$defs/event"

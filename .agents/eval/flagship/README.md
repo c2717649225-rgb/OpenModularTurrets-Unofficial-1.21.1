@@ -42,7 +42,7 @@ python .agents/eval/flagship/benchmark.py report path/to/results.json
       "agent_runtime": "exact-client-and-version",
       "reasoning_effort": "high",
       "tool_profile": "filesystem+shell+minecraft-mcp",
-      "toolkit_version": "1.2.0",
+      "toolkit_version": "1.3.0",
       "commit_sha": "full-git-sha",
       "result": "pass",
       "p0_escapes": 0,

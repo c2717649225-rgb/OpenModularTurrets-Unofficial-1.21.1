@@ -60,10 +60,21 @@ def build_plan(
     *,
     contract_root: Optional[Path] = None,
     gametest_timeout: float = 900.0,
+    strict_traceability: bool = False,
+    allow_reference_host_only: bool = False,
 ) -> list[PlannedStep]:
     """Build the exact argv plan for a profile without executing it."""
     if profile not in PROFILE_NAMES:
         raise ValueError(f"unknown profile: {profile}")
+    if strict_traceability and profile == "fast":
+        raise ValueError(
+            "strict traceability is only available for major/release profiles"
+        )
+    if allow_reference_host_only and profile == "fast":
+        raise ValueError(
+            "reference-host-only evidence is only available for "
+            "major/release profiles"
+        )
 
     gates = project_dir / ".agents" / "gates"
     plan: list[PlannedStep] = [
@@ -99,19 +110,16 @@ def build_plan(
             quality_command.extend(
                 ["--contract-root", str(contract_root)]
             )
+        if strict_traceability:
+            quality_command.append("--strict-traceability")
+        if allow_reference_host_only:
+            quality_command.append("--allow-reference-host-only")
     if profile == "release":
         quality_command.extend(["--verify-data-clean", "--with-server"])
 
     plan.append(PlannedStep(f"{profile} quality gates", quality_command))
 
-    if profile == "fast":
-        plan.append(
-            PlannedStep(
-                "asset gate reconciliation",
-                [sys.executable, str(gates / "asset_gate.py")],
-            )
-        )
-    elif profile == "release":
+    if profile == "release":
         plan.append(
             PlannedStep(
                 "flagship benchmark suite integrity",
@@ -415,6 +423,7 @@ def report_payload(
     duration_seconds: float,
     results: list[StepResult],
     passed: bool,
+    strict_traceability: bool = False,
 ) -> dict:
     return {
         "schema_version": SCHEMA_VERSION,
@@ -423,6 +432,7 @@ def report_payload(
         "started_at_utc": started_at,
         "project_dir": str(project_dir),
         "profile": profile,
+        "strict_traceability": strict_traceability,
         "dry_run": dry_run,
         "duration_seconds": round(duration_seconds, 3),
         "status": "planned" if dry_run else "passed" if passed else "failed",
@@ -461,11 +471,28 @@ def parser() -> argparse.ArgumentParser:
         help="override the default host contract directory (docs/features)",
     )
     command_parser.add_argument(
+        "--strict-traceability",
+        action="store_true",
+        help=(
+            "block major/release unless every required v2 criterion maps to "
+            "an exact reporter-backed runtime GameTest symbol"
+        ),
+    )
+    command_parser.add_argument(
         "--gametest-timeout",
         type=float,
         default=900.0,
         metavar="SECONDS",
         help="L4 GameTest timeout for major/release profiles (default: 900)",
+    )
+    command_parser.add_argument(
+        "--allow-reference-host-only",
+        action="store_true",
+        help=(
+            "allow the permanent dev.modstudio.referencehost infrastructure "
+            "probe to satisfy the GameTest existence requirement; use only "
+            "with the isolated reference-host contract"
+        ),
     )
     command_parser.add_argument(
         "--tail-lines",
@@ -515,6 +542,14 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         )
     if not 1 <= args.tail_lines <= 500:
         command_parser.error("--tail-lines must be between 1 and 500")
+    if args.strict_traceability and args.profile == "fast":
+        command_parser.error(
+            "--strict-traceability requires --profile major or release"
+        )
+    if args.allow_reference_host_only and args.profile == "fast":
+        command_parser.error(
+            "--allow-reference-host-only requires --profile major or release"
+        )
 
     project_dir = args.project_dir.resolve()
     contract_root = None
@@ -529,6 +564,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         args.profile,
         contract_root=contract_root,
         gametest_timeout=args.gametest_timeout,
+        strict_traceability=args.strict_traceability,
+        allow_reference_host_only=args.allow_reference_host_only,
     )
     started_at = datetime.now(timezone.utc).isoformat()
     started = time.monotonic()
@@ -586,6 +623,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         duration_seconds=duration,
         results=results,
         passed=passed,
+        strict_traceability=args.strict_traceability,
     )
     if args.json_report is not None:
         report_path = (

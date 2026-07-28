@@ -3,18 +3,16 @@ package {{MOD_GROUP}}.gametest;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.neoforged.neoforge.gametest.GameTestHolder;
-import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
 /**
  * Replace the placeholders before copying this class into src/main/java.
  *
  * <p>The fixture must exist at
- * data/{{MODID}}/structure/{{TEMPLATE_NAME}}.nbt. The explicit
- * {@link PrefixGameTestTemplate} keeps that resource name independent of this
- * Java class name.</p>
+ * data/{{MODID}}/structure/featuregametests.{{TEMPLATE_NAME}}.nbt. The
+ * vanilla-compatible class prefix also gives every test a stable, unique
+ * runtime name for exact-symbol evidence.</p>
  */
 @GameTestHolder("{{MODID}}")
-@PrefixGameTestTemplate(false)
 public final class FeatureGameTests {
     private FeatureGameTests() {
     }

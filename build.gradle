@@ -183,6 +183,55 @@ tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8' // Use the UTF-8 charset for Java compilation
 }
 
+// The reference host is a development-only trust-chain probe. Keep it on the
+// runData/GameTest classpath, but never ship its classes or reserved structure.
+tasks.named('jar') {
+    exclude('dev/modstudio/referencehost/**')
+    exclude('data/*/structure/referencehostgametests.smoke.nbt')
+}
+
+def productionJar = tasks.named('jar')
+def productionJarFile = productionJar.flatMap { it.archiveFile }
+var verifyReferenceHostNotPackaged = tasks.register(
+        'verifyReferenceHostNotPackaged'
+) {
+    dependsOn productionJar
+    inputs.file(productionJarFile)
+    doLast {
+        def archive = productionJarFile.get().asFile
+        def leakedEntries = []
+        def zip = new java.util.zip.ZipFile(archive)
+        try {
+            def entries = zip.entries()
+            while (entries.hasMoreElements()) {
+                def entryName = entries.nextElement().name
+                if (
+                        entryName.startsWith('dev/modstudio/referencehost/')
+                        || (
+                                entryName.startsWith('data/')
+                                && entryName.endsWith(
+                                        '/structure/referencehostgametests.smoke.nbt'
+                                )
+                        )
+                ) {
+                    leakedEntries.add(entryName)
+                }
+            }
+        } finally {
+            zip.close()
+        }
+        if (!leakedEntries.isEmpty()) {
+            throw new GradleException(
+                    "development-only reference host leaked into ${archive}: "
+                            + leakedEntries.join(', ')
+            )
+        }
+    }
+}
+tasks.named('check') {
+    dependsOn verifyReferenceHostNotPackaged
+}
+
 // IDEA no longer automatically downloads sources/javadoc jars for dependencies, so we need to explicitly enable the behavior.
 idea {
     module {

@@ -168,6 +168,131 @@ def find_matching_brace(text: str, open_idx: int) -> int:
     return -1
 
 
+def mask_java_comments_and_literals(text: str) -> str:
+    """
+    Replace comments and string/character literals with spaces while preserving
+    offsets and newlines.
+
+    Static rules use the masked text so words such as ``simpleBlockWithItem``
+    in a comment, string, or variable value cannot masquerade as executable
+    DataGen calls.
+    """
+    chars = list(text)
+    i = 0
+    n = len(chars)
+    state = "code"
+    quote = ""
+    while i < n:
+        ch = chars[i]
+        nxt = chars[i + 1] if i + 1 < n else ""
+        if state == "line_comment":
+            if ch == "\n":
+                state = "code"
+            else:
+                chars[i] = " "
+            i += 1
+            continue
+        if state == "block_comment":
+            if ch == "*" and nxt == "/":
+                chars[i] = chars[i + 1] = " "
+                state = "code"
+                i += 2
+            else:
+                if ch != "\n":
+                    chars[i] = " "
+                i += 1
+            continue
+        if state == "literal":
+            if ch == "\\":
+                chars[i] = " "
+                if i + 1 < n:
+                    if chars[i + 1] != "\n":
+                        chars[i + 1] = " "
+                    i += 2
+                else:
+                    i += 1
+                continue
+            if ch == quote:
+                chars[i] = " "
+                state = "code"
+            elif ch != "\n":
+                chars[i] = " "
+            i += 1
+            continue
+        if ch == "/" and nxt == "/":
+            chars[i] = chars[i + 1] = " "
+            state = "line_comment"
+            i += 2
+            continue
+        if ch == "/" and nxt == "*":
+            chars[i] = chars[i + 1] = " "
+            state = "block_comment"
+            i += 2
+            continue
+        if ch in ('"', "'"):
+            chars[i] = " "
+            state = "literal"
+            quote = ch
+        i += 1
+    return "".join(chars)
+
+
+DATAGEN_GENERATOR_CALLS = (
+    # BlockStateProvider helpers
+    "simpleBlock",
+    "simpleBlockItem",
+    "simpleBlockWithItem",
+    "horizontalBlock",
+    "directionalBlock",
+    "axisBlock",
+    "logBlock",
+    "buttonBlock",
+    "doorBlock",
+    "trapdoorBlock",
+    "fenceBlock",
+    "fenceGateBlock",
+    "slabBlock",
+    "stairsBlock",
+    "wallBlock",
+    "paneBlock",
+    "signBlock",
+    "hangingSignBlock",
+    "fourWayBlock",
+    "getVariantBuilder",
+    "getMultipartBuilder",
+    # ItemModelProvider helpers
+    "basicItem",
+    "withExistingParent",
+    "getBuilder",
+    "singleTexture",
+    "generated",
+    "handheld",
+    # RecipeProvider/builders and delegated provider helpers
+    "shaped",
+    "shapeless",
+    "smelting",
+    "blasting",
+    "stonecutting",
+    "save",
+    "accept",
+)
+DATAGEN_GENERATOR_CALL_RE = re.compile(
+    r"\b(?:" + "|".join(map(re.escape, DATAGEN_GENERATOR_CALLS)) + r")\s*\("
+)
+DATAGEN_DELEGATE_CALL_RE = re.compile(
+    r"\b(?:register|generate|build|add)[A-Z_][A-Za-z0-9_]*\s*\("
+)
+
+
+def has_datagen_generator_call(body: str) -> bool:
+    """Return whether a provider body contains a recognizable executable call."""
+    masked = mask_java_comments_and_literals(body)
+    return bool(
+        DATAGEN_GENERATOR_CALL_RE.search(masked)
+        or DATAGEN_DELEGATE_CALL_RE.search(masked)
+    )
+
+
 def find_matching_paren(text: str, open_idx: int) -> int:
     """open_idx points at '('. Returns index of matching ')' or -1.
     Tracks (), [], {} depth together; strings/comments are skipped."""
@@ -487,13 +612,16 @@ def scan_file(
     # --- datagen_empty_implementation ---
     if any(provider in text for provider in ("BlockStateProvider", "ItemModelProvider", "RecipeProvider", "LootTableProvider")):
         for m in re.finditer(
-            r"protected\s+void\s+(registerStatesAndModels|registerModels|buildRecipes)\s*\([^)]*\)\s*\{([^}]{1,500})",
+            r"protected\s+void\s+(registerStatesAndModels|registerModels|buildRecipes)\s*\([^)]*\)\s*\{",
             text,
         ):
-            method_name, body = m.group(1), m.group(2)
-            # Remove comments and whitespace
-            stripped = re.sub(r"//.*|/\*[\s\S]*?\*/", "", body).strip()
-            if not stripped or len(stripped) < 15 or not re.search(r"\b(simpleBlock|basicItem|withExistingParent|add|save|accept|button|door|fence|slab|stairs|wall)\b", stripped):
+            method_name = m.group(1)
+            open_idx = text.find("{", m.start(), m.end())
+            close_idx = find_matching_brace(text, open_idx)
+            if close_idx < 0:
+                continue
+            body = text[open_idx + 1 : close_idx]
+            if not has_datagen_generator_call(body):
                 findings.append(
                     Finding(
                         "datagen_empty_implementation",

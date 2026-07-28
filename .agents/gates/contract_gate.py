@@ -23,12 +23,13 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import math
 import re
 import sys
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Set, Tuple
 
 
@@ -80,6 +81,9 @@ class ContractDocument:
     path: Path
     data: Mapping[str, Any]
     schema_version: int = 1
+    design_source_path: Optional[Path] = None
+    design_source_sha256: Optional[str] = None
+    design_source_verified: bool = False
 
     @property
     def contract_id(self) -> Optional[str]:
@@ -90,6 +94,7 @@ class ContractDocument:
 @dataclass
 class GateReport:
     schema_path: Path
+    project_dir: Path
     input_paths: List[str]
     contract_files: List[Path]
     documents: List[ContractDocument]
@@ -109,9 +114,23 @@ class GateReport:
                 "version": document.data.get("version"),
                 "schema_version": document.schema_version,
                 "status": document.data.get("status"),
+                "design_source": (
+                    {
+                        "path": (
+                            str(document.design_source_path)
+                            if document.design_source_path is not None
+                            else None
+                        ),
+                        "sha256": document.design_source_sha256,
+                        "verified": document.design_source_verified,
+                    }
+                    if document.schema_version == 2
+                    else None
+                ),
             })
         return {
             "gate": "major_feature_contract",
+            "project_dir": str(self.project_dir),
             "schema": (
                 "auto"
                 if self.automatic_schema_dispatch
@@ -469,6 +488,133 @@ def _list(value: Any) -> List[Any]:
 
 def _string_list(value: Any) -> List[str]:
     return [item for item in _list(value) if isinstance(item, str)]
+
+
+def _verify_design_source(
+    document: ContractDocument,
+    project_dir: Path,
+) -> List[Finding]:
+    """Bind a v2 contract to the exact, in-project design source bytes."""
+    if document.schema_version != 2:
+        return []
+
+    findings: List[Finding] = []
+    file_name = _path_text(document.path)
+
+    def add(code: str, json_path: str, message: str) -> None:
+        findings.append(Finding("error", code, file_name, json_path, message))
+
+    design_source = _mapping(document.data.get("design_source"))
+    raw_path = design_source.get("path")
+    expected_sha256 = design_source.get("sha256")
+    if not isinstance(raw_path, str) or not isinstance(expected_sha256, str):
+        return findings
+    if re.fullmatch(r"[0-9a-f]{64}", expected_sha256) is None:
+        return findings
+
+    posix_path = PurePosixPath(raw_path)
+    if (
+        not raw_path
+        or posix_path.is_absolute()
+        or raw_path != posix_path.as_posix()
+        or any(part in {"", ".", ".."} for part in posix_path.parts)
+        or ":" in posix_path.parts[0]
+    ):
+        add(
+            "design_source_path_unsafe",
+            "$.design_source.path",
+            "design source path must be canonical and project-relative",
+        )
+        return findings
+
+    raw_root = Path(project_dir).expanduser()
+    try:
+        if raw_root.is_symlink():
+            raise OSError("project root is a symbolic link")
+        root = raw_root.resolve(strict=True)
+    except (OSError, RuntimeError) as error:
+        add(
+            "design_source_project_root_invalid",
+            "$.design_source.path",
+            f"cannot establish a trusted project root: {error}",
+        )
+        return findings
+    if not root.is_dir():
+        add(
+            "design_source_project_root_invalid",
+            "$.design_source.path",
+            f"project root is not a directory: {root}",
+        )
+        return findings
+
+    candidate = root.joinpath(*posix_path.parts)
+    current = root
+    try:
+        for part in posix_path.parts:
+            current = current / part
+            if current.is_symlink():
+                add(
+                    "design_source_symlink",
+                    "$.design_source.path",
+                    (
+                        "design source paths must not cross symbolic links: "
+                        f"{current}"
+                    ),
+                )
+                return findings
+        resolved = candidate.resolve(strict=False)
+        resolved.relative_to(root)
+    except (OSError, RuntimeError, ValueError) as error:
+        add(
+            "design_source_path_escape",
+            "$.design_source.path",
+            f"design source escapes or cannot be resolved inside the project: {error}",
+        )
+        return findings
+
+    document.design_source_path = resolved
+    if not resolved.exists():
+        add(
+            "design_source_missing",
+            "$.design_source.path",
+            f"declared design source does not exist: {resolved}",
+        )
+        return findings
+    if not resolved.is_file():
+        add(
+            "design_source_not_file",
+            "$.design_source.path",
+            f"declared design source is not a regular file: {resolved}",
+        )
+        return findings
+
+    digest = hashlib.sha256()
+    try:
+        with resolved.open("rb") as source:
+            for chunk in iter(lambda: source.read(1024 * 1024), b""):
+                digest.update(chunk)
+    except OSError as error:
+        add(
+            "design_source_unreadable",
+            "$.design_source.path",
+            f"cannot read declared design source: {error}",
+        )
+        return findings
+
+    actual_sha256 = digest.hexdigest()
+    document.design_source_sha256 = actual_sha256
+    if actual_sha256 != expected_sha256:
+        add(
+            "design_source_digest_mismatch",
+            "$.design_source.sha256",
+            (
+                "design source content drifted from the approved digest: "
+                f"expected {expected_sha256}, got {actual_sha256}"
+            ),
+        )
+        return findings
+    document.design_source_verified = True
+    return findings
 
 
 def _semantic_findings(document: ContractDocument) -> List[Finding]:
@@ -1100,7 +1246,14 @@ def run_gate(
     require: bool = False,
     schema_path: Optional[Path] = None,
     excluded_paths: Optional[Iterable[Path]] = None,
+    project_dir: Optional[Path] = None,
 ) -> GateReport:
+    project_root = (
+        Path(project_dir).expanduser()
+        if project_dir is not None
+        else PROJECT_DIR
+    )
+    report_project_root = project_root.resolve(strict=False)
     selected_paths = list(paths) if paths else [DEFAULT_CONTRACT_DIRECTORY]
     input_strings = [str(item) for item in selected_paths]
     contract_files, findings = discover_contract_files(
@@ -1143,6 +1296,7 @@ def run_gate(
     if len(validators) != len(selected_schema_paths):
         return GateReport(
             report_schema_path,
+            report_project_root,
             input_strings,
             contract_files,
             documents,
@@ -1221,10 +1375,12 @@ def run_gate(
             )
             documents.append(document)
             findings.extend(_semantic_findings(document))
+            findings.extend(_verify_design_source(document, project_root))
 
     findings.extend(_global_findings(documents))
     return GateReport(
         report_schema_path,
+        report_project_root,
         input_strings,
         contract_files,
         documents,
@@ -1294,6 +1450,12 @@ def _build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--project-dir",
+        type=Path,
+        default=PROJECT_DIR,
+        help="trusted project root used to resolve v2 design_source paths",
+    )
+    parser.add_argument(
         "--require",
         action="store_true",
         help="fail when no feature contract JSON files are found",
@@ -1336,6 +1498,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         require=args.require,
         schema_path=args.schema,
         excluded_paths=[report_target] if report_target is not None else None,
+        project_dir=args.project_dir,
     )
     payload = json.dumps(
         report.as_dict(),

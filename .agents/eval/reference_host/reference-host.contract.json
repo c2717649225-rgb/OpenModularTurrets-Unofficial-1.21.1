@@ -1,0 +1,195 @@
+{
+  "$schema": "../../contracts/major-feature-v2.schema.json",
+  "schema_version": 2,
+  "design_source": {
+    "path": ".agents/eval/reference_host/README.md",
+    "revision": "1",
+    "sha256": "8a5a0ffb2026b691bb0bbec15fb0c3caae1c6aeffabc38c240940acd1319f901"
+  },
+  "review_required": [],
+  "id": "toolkit.reference-host",
+  "version": 1,
+  "status": "approved",
+  "summary": "Prove the v1.3 evidence spine against a real NeoForge GameTestServer without claiming gameplay coverage.",
+  "server_authority": {
+    "owner": "logical_server",
+    "authoritative_state": [
+      "The isolated GameTest world owns the placed vanilla block state."
+    ],
+    "client_input_policy": "not_applicable",
+    "invalid_input_policy": "not_applicable"
+  },
+  "persistence": {
+    "required": false,
+    "scope": "none",
+    "schema": {
+      "version": 0,
+      "format": "none",
+      "owner": "not applicable",
+      "fields": []
+    },
+    "migration": {
+      "strategy": "none",
+      "supported_from": [],
+      "fallback": "not_applicable",
+      "test_ids": []
+    }
+  },
+  "network": {
+    "required": false,
+    "flows": []
+  },
+  "client_boundary": {
+    "common_code_client_imports": "forbidden",
+    "client_only_packages": [],
+    "visual_state": "not_applicable",
+    "dedicated_server_fallback": "The reference probe is server-only and has no renderer.",
+    "dedicated_server_test_id": "dedicated-server-boot"
+  },
+  "registries": {
+    "entries": [],
+    "tags": []
+  },
+  "assets": {
+    "generated": [
+      "The referencehostgametests.smoke structure is converted from reviewed SNBT by DataGen."
+    ],
+    "manual": [],
+    "locales": [],
+    "license_review": "not_applicable",
+    "validation_test_ids": [
+      "asset-contract"
+    ]
+  },
+  "performance": {
+    "budgets": [
+      {
+        "id": "gametest-liveness",
+        "metric": "custom",
+        "scope": "One isolated reference-host vanilla block placement assertion",
+        "limit": 20,
+        "unit": "custom",
+        "measurement": "Custom unit: ticks_to_completion. The GameTest framework fails the probe after timeoutTicks=20; this is a liveness guard, not a production benchmark.",
+        "test_id": "gametest-liveness"
+      }
+    ],
+    "hot_paths": [
+      "One server-side vanilla block placement in an isolated one-block structure"
+    ],
+    "measurement_environment": "NeoForge GameTestServer on Java 21; no client or graphics backend."
+  },
+  "dependencies": {
+    "features": [],
+    "mods": [
+      {
+        "id": "neoforge",
+        "requirement": "required",
+        "version_range": "[21.1,21.2)",
+        "fallback": "The reference probe is unavailable outside the pinned NeoForge line."
+      }
+    ]
+  },
+  "acceptance": {
+    "criteria": [
+      {
+        "id": "runtime.world-mutation",
+        "risk": "P0",
+        "required": true,
+        "statement": "The real server can place and observe a vanilla block in the generated GameTest structure.",
+        "observation": "The exact ReferenceHostGameTests method appears in the trusted runtime passed-symbol set.",
+        "test_ids": [
+          "world-mutation-gametest"
+        ]
+      }
+    ],
+    "tests": [
+      {
+        "id": "world-mutation-gametest",
+        "kind": "gametest",
+        "command": [
+          "python",
+          ".agents/gates/gametest_gate.py",
+          "--project-dir",
+          ".",
+          "--require-tests",
+          "--allow-reference-host-only",
+          "--run"
+        ],
+        "test_ref": "dev.modstudio.referencehost.ReferenceHostGameTests#vanillaBlockRoundTripsThroughWorld",
+        "covers": [
+          "DataGen structure loading, server world mutation and exact-symbol reporting."
+        ],
+        "required": true,
+        "expected": "The exact world-mutation GameTest symbol passes once with no missing or unexpected runtime tests.",
+        "timeout_seconds": 900
+      },
+      {
+        "id": "dedicated-server-boot",
+        "kind": "dedicated_server",
+        "command": [
+          "python",
+          ".agents/gates/compile_and_repair.py",
+          "--with-server"
+        ],
+        "covers": [
+          "The reference GameTest class introduces no common-code client dependency."
+        ],
+        "required": false,
+        "expected": "The dedicated server reaches Done without client classloading errors.",
+        "timeout_seconds": 900
+      },
+      {
+        "id": "asset-contract",
+        "kind": "datagen",
+        "command": [
+          "python",
+          ".agents/gates/compile_and_repair.py",
+          "--with-data",
+          "--with-assets",
+          "--strict-datagen-layout",
+          "--warnings-as-errors"
+        ],
+        "covers": [
+          "The reviewed SNBT deterministically generates the runtime structure and resources reconcile."
+        ],
+        "required": false,
+        "expected": "DataGen succeeds and L2.5 reports no missing or dangling resources.",
+        "timeout_seconds": 900
+      },
+      {
+        "id": "gametest-liveness",
+        "kind": "performance",
+        "command": [
+          "python",
+          ".agents/gates/gametest_gate.py",
+          "--project-dir",
+          ".",
+          "--require-tests",
+          "--allow-reference-host-only",
+          "--run",
+          "--timeout",
+          "120"
+        ],
+        "covers": [
+          "The one-step reference assertion completes before its declared 20-tick timeout."
+        ],
+        "required": false,
+        "expected": "The reference GameTest completes without timeout.",
+        "timeout_seconds": 180
+      }
+    ],
+    "manual_checks": [
+      {
+        "id": "scope-review",
+        "steps": [
+          "Confirm the reference-host contract remains outside docs/features.",
+          "Confirm the test only mutates its isolated template and claims no gameplay quality."
+        ],
+        "expected": "The fixture proves tooling integration without satisfying a real mod feature contract."
+      }
+    ],
+    "non_goals": [
+      "This fixture does not validate a playable loop, aesthetics, balance, compatibility, migration or release quality."
+    ]
+  }
+}

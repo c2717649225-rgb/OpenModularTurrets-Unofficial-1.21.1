@@ -36,7 +36,7 @@
    ```bash
    python .agents/gates/pipeline.py --profile fast
    ```
-   `fast` 跑文档信任链 + L1/L2；`major` 再强制 L0 合同、DataGen、L2.5 与 L4 GameTest；`release` 再强制生成物 Git 零漂移、L3 专服启动与旗舰评测协议完整性。
+   `fast` 跑文档信任链 + L1/L2；`major` 再强制 L0 合同、DataGen、L2.5 与 L4 GameTest，并生成验收追踪报告；`release` 再强制生成物 Git 零漂移、L3 专服启动与旗舰评测协议完整性。
 
 ---
 
@@ -46,9 +46,10 @@
 | --- | --- |
 | [AGENTS.md](./AGENTS.md) | 面向 AI 的硬红线（常驻） |
 | [mcp/](./mcp/) | 源码探针 `minecraft_mcp.py`（缓存/日志不入库） |
-| [gates/](./gates/) | 一键质量档位与门禁：合同 L0、编译 L1、静态 L2、资源 L2.5、行为 L4、专服 L3、文档自检 |
+| [gates/](./gates/) | 一键质量档位与门禁：合同 L0、编译 L1、静态 L2、资源 L2.5、行为 L4、验收追踪、专服 L3、文档自检 |
 | [contracts/](./contracts/) | Major 功能通用 JSON Schema；宿主实际合同放 `docs/features/` |
 | [scaffolds/](./scaffolds/) | Major 合同与 GameTest 的防假绿脚手架 |
+| [studio/](./studio/) | provisional 执行策略、外置哈希链证据账本、封存 Runner 与独立 Verifier |
 | [eval/](./eval/) | T01–T07 微能力回归 + 六场景旗舰生产评测协议 |
 | [skills/neoforge/](./skills/neoforge/) | 领域知识：SKILL 索引、references、examples、playbooks |
 | [skills/workspace_setup/](./skills/workspace_setup/) | 初始化与改名（`init_workspace.py` 确定性重构引擎） |
@@ -107,9 +108,12 @@ Major 开发先从 [合同脚手架](./scaffolds/major_feature/) 生成 `docs/fe
 
 ```bash
 python .agents/gates/pipeline.py --profile major
+
+# 可选：所有 v2 必选验收项都必须绑定到精确运行时 GameTest 符号
+python .agents/gates/pipeline.py --profile major --strict-traceability
 ```
 
-L4 只能证明发现的测试已执行且全绿，不能自动判断相关性；Major 交付还须列出“变更/合同验收项 → `GameTestClass#method`”人工映射。
+L4 会把严格源码发现、官方注解的编译后字节码和 GameTestServer 内的精确运行时符号集合绑定起来；仅伪造控制台 “all passed” 文本不能通过。普通 `major` 始终生成 `build/reports/traceability-gate.json` 供迁移观察；`--strict-traceability` 才把 v2 必选验收覆盖不足升级为阻断。该证据证明的是已声明的行为，不替代玩法设计与人工体验审核。
 
 任务评测见 [eval/](./eval/)：T01–T07 守基础能力，`eval/flagship/` 用六个跨系统场景做固定模型版本的重复实测。它衡量自治能力，不把“能编译”包装成“能做旗舰模组”。
 

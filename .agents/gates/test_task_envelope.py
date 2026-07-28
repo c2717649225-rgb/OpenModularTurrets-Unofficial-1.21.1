@@ -117,6 +117,7 @@ class TestTaskEnvelope(unittest.TestCase):
             manifest_path=self.manifest_path,
             manifest=self.manifest,
             policy=self.policy,
+            expected_policy_digest=self.policy.digest,
         )
 
     def test_build_is_deterministic_and_has_no_graph_surface(self):
@@ -130,6 +131,111 @@ class TestTaskEnvelope(unittest.TestCase):
         self.assertEqual(["build", "run"], first["execution_policy"]["writable_paths"])
         self.assertEqual("P0", first["risk"])
         self.assertEqual(64, len(first["envelope_digest"]))
+        self.assertEqual(
+            64,
+            len(first["frozen_inputs"]["digest"]),
+        )
+        self.assertEqual(
+            first["frozen_inputs"]["digest"],
+            task_envelope.verify_frozen_input_snapshot(
+                first["frozen_inputs"],
+                workspace=self.root,
+            ),
+        )
+
+    def test_supplied_mappings_must_match_their_strict_json_files(self):
+        other_contract = dict(self.contract)
+        other_contract["status"] = "implementing"
+        with self.assertRaisesRegex(
+            task_envelope.TaskEnvelopeError,
+            "contract mapping does not match",
+        ):
+            task_envelope.build_task_envelope(
+                workspace=self.root,
+                contract_path=self.contract_path,
+                contract=other_contract,
+                manifest_path=self.manifest_path,
+                manifest=self.manifest,
+                policy=self.policy,
+                expected_policy_digest=self.policy.digest,
+            )
+
+        other_manifest = dict(self.manifest)
+        other_manifest["project_id"] = "different-project"
+        with self.assertRaisesRegex(
+            task_envelope.TaskEnvelopeError,
+            "manifest mapping does not match",
+        ):
+            task_envelope.build_task_envelope(
+                workspace=self.root,
+                contract_path=self.contract_path,
+                contract=self.contract,
+                manifest_path=self.manifest_path,
+                manifest=other_manifest,
+                policy=self.policy,
+                expected_policy_digest=self.policy.digest,
+            )
+
+    def test_frozen_inputs_detect_post_run_drift(self):
+        envelope = self._build()
+        self.design.write_text("post-run mutation\n", encoding="utf-8")
+        with self.assertRaisesRegex(
+            task_envelope.TaskEnvelopeError,
+            "digest drift",
+        ):
+            task_envelope.verify_frozen_input_snapshot(
+                envelope["frozen_inputs"],
+                workspace=self.root,
+            )
+
+    def test_writable_paths_cannot_cover_any_frozen_input(self):
+        docs_policy_document = dict(self.policy_document)
+        docs_policy_document["writable_paths"] = ["docs"]
+        docs_policy_path = self.root / "docs-policy.json"
+        self._write_json(docs_policy_path, docs_policy_document)
+        docs_policy = execution_policy.load_policy(docs_policy_path)
+        with self.assertRaisesRegex(
+            task_envelope.TaskEnvelopeError,
+            "overlaps frozen input",
+        ):
+            task_envelope.build_task_envelope(
+                workspace=self.root,
+                contract_path=self.contract_path,
+                contract=self.contract,
+                manifest_path=self.manifest_path,
+                manifest=self.manifest,
+                policy=docs_policy,
+                expected_policy_digest=docs_policy.digest,
+            )
+
+        asset = self.root / "assets" / "approved.bin"
+        asset.parent.mkdir()
+        asset.write_bytes(b"approved asset")
+        self.manifest["approved_assets"].append(
+            {
+                "path": "assets/approved.bin",
+                "sha256": hashlib.sha256(asset.read_bytes()).hexdigest(),
+            }
+        )
+        self._write_json(self.manifest_path, self.manifest)
+        asset_policy_document = dict(self.policy_document)
+        asset_policy_document["writable_paths"] = ["assets"]
+        asset_policy_path = self.root / "asset-policy.json"
+        self._write_json(asset_policy_path, asset_policy_document)
+        asset_policy = execution_policy.load_policy(asset_policy_path)
+        with self.assertRaisesRegex(
+            task_envelope.TaskEnvelopeError,
+            "overlaps frozen input.*assets/approved.bin",
+        ):
+            task_envelope.build_task_envelope(
+                workspace=self.root,
+                contract_path=self.contract_path,
+                contract=self.contract,
+                manifest_path=self.manifest_path,
+                manifest=self.manifest,
+                policy=asset_policy,
+                expected_policy_digest=asset_policy.digest,
+            )
 
     def test_draft_or_unresolved_review_is_blocked(self):
         self.contract["status"] = "draft"
@@ -195,6 +301,21 @@ class TestTaskEnvelope(unittest.TestCase):
                 }
             ),
         )
+
+    def test_envelope_rejects_policy_digest_not_frozen_by_control_plane(self):
+        with self.assertRaisesRegex(
+            task_envelope.TaskEnvelopeError,
+            "externally frozen digest",
+        ):
+            task_envelope.build_task_envelope(
+                workspace=self.root,
+                contract_path=self.contract_path,
+                contract=self.contract,
+                manifest_path=self.manifest_path,
+                manifest=self.manifest,
+                policy=self.policy,
+                expected_policy_digest="f" * 64,
+            )
 
 
 if __name__ == "__main__":

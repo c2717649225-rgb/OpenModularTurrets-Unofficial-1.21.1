@@ -1,0 +1,44 @@
+/*
+ * Control-plane injection for the process-local L4 runtime symbol reporter.
+ *
+ * Values arrive as Gradle JVM system properties so this script can stay
+ * byte-for-byte frozen and included in the toolkit control digest.
+ */
+allprojects { candidate ->
+    afterEvaluate {
+        if (candidate != rootProject) {
+            return
+        }
+
+        def reporterJar = System.getProperty("codex.gametest.reporterJar")
+        def eventPath = System.getProperty("codex.gametest.events")
+        def nonce = System.getProperty("codex.gametest.nonce")
+        if (!reporterJar || !eventPath || !nonce) {
+            throw new GradleException(
+                "GameTest evidence reporter properties were not supplied"
+            )
+        }
+
+        def runtimeConfiguration = candidate.configurations.findByName(
+            "localRuntime"
+        ) ?: candidate.configurations.findByName("runtimeOnly")
+        if (runtimeConfiguration == null) {
+            throw new GradleException(
+                "host project has no localRuntime or runtimeOnly configuration"
+            )
+        }
+        candidate.dependencies.add(
+            runtimeConfiguration.name,
+            candidate.files(new File(reporterJar))
+        )
+
+        def neoForgeExtension = candidate.extensions.findByName("neoForge")
+        if (neoForgeExtension == null) {
+            throw new GradleException("NeoForge ModDevGradle extension not found")
+        }
+        neoForgeExtension.runs.named("gameTestServer") {
+            systemProperty "codex.gametest.events", eventPath
+            systemProperty "codex.gametest.nonce", nonce
+        }
+    }
+}

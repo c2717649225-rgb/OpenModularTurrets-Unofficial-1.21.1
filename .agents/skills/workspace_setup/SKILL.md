@@ -19,6 +19,20 @@ description: 适用于用户请求项目初始化、工作区配置、修改模�
    ```
    *(根目录入口封装 `skills/workspace_setup/scripts/init_workspace.py`)*  
    覆盖：`assets/`、`data/`、mixin json、可选 `src/generated`、主类 MODID；不扫描 `.agents` 文档当宿主资源。
+
+### Minimal 起点
+
+需要移除 starter 示例物品、方块、配置与示例 DataGen 时使用：
+
+```bash
+python .agents/init_workspace.py --dry-run --profile minimal
+python .agents/init_workspace.py --profile minimal
+```
+
+- `mod_id` 与 `mod_group_id` 会在任何写入前严格校验；绝对路径、`..`、反斜杠路径、Java 保留字、路径/符号链接逃逸都会 fail closed。
+- minimal 只移除工具包可识别的 starter 源文件和与 `example_block` / `example_item` 对应的生成物，不会删除整个 `datagen/` 包；用户新增的 provider 会保留。
+- 如果用户修改过 starter 文件，而移除 `EXAMPLE_*`、`Config` 或 starter provider 会留下悬空引用，脚本拒绝应用并要求先人工拆分，不会猜测或覆盖用户代码。
+- 应用前脚本会自动再执行一次同参数 dry-run 预检；应用后重复执行应报告“already aligned”，不得产生第二轮变化。
 3. **编译自检**：重构完成后，必须在向用户汇报前运行门禁，验证编译与静态扫描：
    ```bash
    python .agents/gates/compile_and_repair.py --with-static

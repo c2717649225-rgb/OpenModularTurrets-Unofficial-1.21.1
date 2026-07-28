@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -52,6 +53,7 @@ class TestGatesAndWorkspace(unittest.TestCase):
             [
                 "--with-static",
                 "--with-gametest",
+                "--allow-reference-host-only",
                 "--gametest-timeout=30",
             ]
         )
@@ -63,6 +65,23 @@ class TestGatesAndWorkspace(unittest.TestCase):
                     compile_and_repair.positive_finite_float(
                         value, "--gametest-timeout"
                     )
+
+    def test_compile_gametest_command_forwards_reference_host_opt_in(self):
+        normal = compile_and_repair.build_gametest_gate_command(
+            "gates",
+            "project",
+            30,
+        )
+        opted_in = compile_and_repair.build_gametest_gate_command(
+            "gates",
+            "project",
+            30,
+            allow_reference_host_only=True,
+        )
+
+        self.assertNotIn("--allow-reference-host-only", normal)
+        self.assertIn("--allow-reference-host-only", opted_in)
+        self.assertIn("--require-tests", opted_in)
 
     def test_asset_gate_plain_register_matching(self):
         """Verify plain ITEMS.register('name', ...) is matched by asset_gate."""
@@ -208,6 +227,86 @@ class TestGatesAndWorkspace(unittest.TestCase):
         rule_ids = {finding.rule_id for finding in findings}
         self.assertIn("datagen_empty_implementation", rule_ids)
 
+    def test_static_gate_datagen_calls_require_real_invocations(self):
+        """Valid helpers pass; comments, strings, and variable names do not."""
+        src_dir = self.test_dir / "src" / "main" / "java" / "com" / "example"
+        src_dir.mkdir(parents=True, exist_ok=True)
+
+        cases = {
+            "simple_block_with_item": (
+                "simpleBlockWithItem(EXAMPLE_BLOCK.get(), model);",
+                False,
+            ),
+            "horizontal_block": (
+                "horizontalBlock(EXAMPLE_BLOCK.get(), model);",
+                False,
+            ),
+            "truly_empty": (
+                "// simpleBlockWithItem(EXAMPLE_BLOCK.get(), model);",
+                True,
+            ),
+            "names_only": (
+                'String simpleBlockWithItem = "horizontalBlock(EXAMPLE_BLOCK.get(), model)";',
+                True,
+            ),
+        }
+
+        for name, (body, should_warn) in cases.items():
+            with self.subTest(name=name):
+                source = f"""
+                    package com.example;
+                    import net.neoforged.neoforge.client.model.generators.BlockStateProvider;
+                    public abstract class ExampleProvider extends BlockStateProvider {{
+                        @Override
+                        protected void registerStatesAndModels() {{
+                            {body}
+                        }}
+                    }}
+                """
+                java_file = src_dir / f"{name}.java"
+                findings = static_gate.scan_file(
+                    java_file,
+                    source,
+                    java_root=src_dir,
+                    mod_id="example",
+                )
+                warned = any(
+                    finding.rule_id == "datagen_empty_implementation"
+                    for finding in findings
+                )
+                self.assertEqual(should_warn, warned)
+
+    def test_example_blockstate_provider_uses_single_combined_registration(self):
+        """The shipped provider must not configure one block state twice."""
+        provider = (
+            PROJECT_DIR
+            / "src"
+            / "main"
+            / "java"
+            / "com"
+            / "tutorial"
+            / "tutorialmod"
+            / "datagen"
+            / "ModBlockStateProvider.java"
+        )
+        source = provider.read_text(encoding="utf-8")
+        standalone_simple_block = re.compile(r"(?<![A-Za-z0-9_])simpleBlock\s*\(")
+
+        self.assertIn("simpleBlockWithItem(exampleBlock, model);", source)
+        self.assertIsNone(standalone_simple_block.search(source))
+        findings = static_gate.scan_file(
+            provider,
+            source,
+            java_root=PROJECT_DIR / "src" / "main" / "java",
+            mod_id="tutorialmod",
+        )
+        self.assertFalse(
+            any(
+                finding.rule_id == "datagen_empty_implementation"
+                for finding in findings
+            )
+        )
+
     def test_generated_resource_validation(self):
         """DataGen output must exist, be non-empty, and contain valid JSON."""
         ok, message = compile_and_repair.validate_generated_resources(
@@ -333,7 +432,14 @@ class TestGatesAndWorkspace(unittest.TestCase):
         if assets_dir.is_dir():
             for sub in list(assets_dir.iterdir()):
                 if sub.is_dir() and sub.name not in init_workspace.SYSTEM_NAMESPACES and sub.name != "newmod":
-                    init_workspace.merge_or_move(sub, assets_dir / "newmod", "Assets", [], False)
+                    init_workspace.merge_or_move(
+                        sub,
+                        assets_dir / "newmod",
+                        "Assets",
+                        [],
+                        False,
+                        allowed_root=assets_dir,
+                    )
 
         self.assertTrue(mc_assets.exists())
         self.assertFalse((assets_dir / "newmod" / "minecraft").exists())
@@ -366,7 +472,14 @@ class TestGatesAndWorkspace(unittest.TestCase):
             jf.write_text(content, encoding="utf-8")
 
         new_pkg_dir = java_root / "com" / "example" / "newmod"
-        init_workspace.merge_or_move(old_pkg_dir, new_pkg_dir, "Java Package", [], False)
+        init_workspace.merge_or_move(
+            old_pkg_dir,
+            new_pkg_dir,
+            "Java Package",
+            [],
+            False,
+            allowed_root=java_root,
+        )
 
         new_java = new_pkg_dir / "TutorialMod.java"
         self.assertTrue(new_java.exists())

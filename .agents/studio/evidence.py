@@ -45,6 +45,11 @@ OUTCOMES = frozenset(
         "VERIFIED_INFRA_ERROR",
     }
 )
+MAX_EVIDENCE_BYTES = 10 * 1024 * 1024
+# Every non-terminal append leaves enough room for a compact terminal event and
+# bundle.  Large reports/logs belong in artifact storage and are represented
+# here only by bounded path digests.
+MINIMUM_SEAL_RESERVE_BYTES = 64 * 1024
 EVENT_KEYS = frozenset(
     {
         "schema_version",
@@ -134,6 +139,10 @@ class EvidencePathError(EvidenceError):
 
 class EvidenceIntegrityError(EvidenceError):
     """Journal or bundle contents fail deterministic integrity checks."""
+
+
+class EvidenceBudgetError(EvidenceIntegrityError):
+    """Authoritative evidence would exceed the frozen per-run byte budget."""
 
 
 class EvidenceSequenceConflict(EvidenceError):
@@ -805,6 +814,42 @@ class EvidenceLedger:
         self.lock_path = run_dir / LOCK_NAME
         self._clock = clock
 
+    def _authoritative_size_unlocked(self) -> int:
+        total = 0
+        for path in (self.journal_path, self.bundle_path):
+            if not path.exists():
+                continue
+            if path.is_symlink():
+                raise EvidencePathError(
+                    f"authoritative evidence must not be a symlink: {path}"
+                )
+            try:
+                total += path.stat().st_size
+            except OSError as error:
+                raise EvidenceIntegrityError(
+                    f"could not stat authoritative evidence {path}: {error}"
+                ) from error
+        return total
+
+    def _assert_budget_unlocked(
+        self,
+        *,
+        extra_bytes: int = 0,
+        context: str = "authoritative evidence",
+    ) -> None:
+        if (
+            not isinstance(extra_bytes, int)
+            or isinstance(extra_bytes, bool)
+            or extra_bytes < 0
+        ):
+            raise EvidenceBudgetError("extra evidence bytes must be non-negative")
+        projected = self._authoritative_size_unlocked() + extra_bytes
+        if projected > MAX_EVIDENCE_BYTES:
+            raise EvidenceBudgetError(
+                f"{context} exceeds the frozen {MAX_EVIDENCE_BYTES}-byte "
+                f"budget: projected={projected}"
+            )
+
     @contextmanager
     def _locked(self) -> Iterator[None]:
         if self.lock_path.exists() and self.lock_path.is_symlink():
@@ -857,6 +902,7 @@ class EvidenceLedger:
             handle.close()
 
     def _read_events_unlocked(self) -> list[dict[str, Any]]:
+        self._assert_budget_unlocked(context="authoritative evidence replay")
         if not self.journal_path.exists():
             return []
         if self.journal_path.is_symlink():
@@ -1022,6 +1068,7 @@ class EvidenceLedger:
         self,
         events: Sequence[Mapping[str, Any]],
     ) -> Optional[dict[str, Any]]:
+        self._assert_budget_unlocked(context="sealed evidence replay")
         sealed = bool(events and events[-1]["event_type"] == "RUN_SEALED")
         if not self.bundle_path.exists():
             if sealed:
@@ -1123,7 +1170,16 @@ class EvidenceLedger:
                 validate_bundle=True,
             )
 
-    def _append_bytes_unlocked(self, data: bytes) -> None:
+    def _append_bytes_unlocked(
+        self,
+        data: bytes,
+        *,
+        reserve_bytes: int = 0,
+    ) -> None:
+        self._assert_budget_unlocked(
+            extra_bytes=len(data) + reserve_bytes,
+            context="journal append",
+        )
         if self.journal_path.exists() and self.journal_path.is_symlink():
             raise EvidencePathError(
                 f"journal must not be a symlink: {self.journal_path}"
@@ -1146,6 +1202,10 @@ class EvidenceLedger:
             finally:
                 os.close(descriptor)
             _fsync_directory(self.run_dir)
+            self._assert_budget_unlocked(
+                extra_bytes=reserve_bytes,
+                context="journal append postcondition",
+            )
         except OSError as error:
             raise EvidenceError(
                 f"could not append journal {self.journal_path}: {error}"
@@ -1159,6 +1219,9 @@ class EvidenceLedger:
         payload: Mapping[str, Any],
         expected_sequence: int,
         allow_seal: bool,
+        reserve_factory: Optional[
+            Callable[[Mapping[str, Any], bytes], int]
+        ] = None,
     ) -> dict[str, Any]:
         if (
             not isinstance(expected_sequence, int)
@@ -1239,7 +1302,16 @@ class EvidenceLedger:
         }
         event = dict(event_without_digest)
         event["event_digest"] = digest_json(event_without_digest)
-        self._append_bytes_unlocked(canonical_json_bytes(event) + b"\n")
+        encoded_event = canonical_json_bytes(event) + b"\n"
+        reserve_bytes = (
+            reserve_factory(event, encoded_event)
+            if reserve_factory is not None
+            else MINIMUM_SEAL_RESERVE_BYTES
+        )
+        self._append_bytes_unlocked(
+            encoded_event,
+            reserve_bytes=reserve_bytes,
+        )
         return deepcopy(event)
 
     def append_event(
@@ -1284,12 +1356,41 @@ class EvidenceLedger:
         normalized_summary["outcome"] = outcome
 
         with self._locked():
+            def reserved_bundle_size(
+                candidate_terminal: Mapping[str, Any],
+                _encoded_event: bytes,
+            ) -> int:
+                placeholder_without_digest: dict[str, Any] = {
+                    "schema_version": SCHEMA_VERSION,
+                    "stability": STABILITY,
+                    "kind": "run_evidence_bundle",
+                    "run_id": self.run_id,
+                    "outcome": outcome,
+                    "sealed_at_utc": candidate_terminal["recorded_at_utc"],
+                    "event_count": candidate_terminal["sequence"],
+                    "journal_head_digest": candidate_terminal["event_digest"],
+                    "journal_sha256": "0" * 64,
+                    "terminal_transition_id": candidate_terminal[
+                        "transition_id"
+                    ],
+                    "terminal_event_digest": candidate_terminal[
+                        "event_digest"
+                    ],
+                    "summary": candidate_terminal["payload"],
+                }
+                placeholder = dict(placeholder_without_digest)
+                placeholder["bundle_digest"] = digest_json(
+                    placeholder_without_digest
+                )
+                return len(canonical_json_bytes(placeholder) + b"\n")
+
             terminal = self._append_event_unlocked(
                 transition_id=transition_id,
                 event_type="RUN_SEALED",
                 payload=normalized_summary,
                 expected_sequence=expected_sequence,
                 allow_seal=True,
+                reserve_factory=reserved_bundle_size,
             )
             bundle_without_digest: dict[str, Any] = {
                 "schema_version": SCHEMA_VERSION,
@@ -1308,6 +1409,10 @@ class EvidenceLedger:
             bundle = dict(bundle_without_digest)
             bundle["bundle_digest"] = digest_json(bundle_without_digest)
             encoded = canonical_json_bytes(bundle) + b"\n"
+            self._assert_budget_unlocked(
+                extra_bytes=0 if self.bundle_path.exists() else len(encoded),
+                context="sealed bundle write",
+            )
 
             if self.bundle_path.exists():
                 try:
@@ -1330,6 +1435,9 @@ class EvidenceLedger:
                         "bundle path escaped sealed-evidence directory"
                     )
                 _atomic_write_new(self.bundle_path, encoded)
+                self._assert_budget_unlocked(
+                    context="sealed bundle postcondition"
+                )
 
             validated = self._read_bundle_unlocked(
                 self._read_events_unlocked()

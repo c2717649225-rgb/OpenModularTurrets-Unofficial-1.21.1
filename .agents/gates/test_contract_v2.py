@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import copy
+import hashlib
 import json
+import os
 import sys
 import tempfile
 import unittest
 from pathlib import Path
 from typing import Any, Dict
+from unittest import mock
 
 
 GATES_DIR = Path(__file__).resolve().parent
@@ -16,6 +19,9 @@ sys.path.insert(0, str(GATES_DIR))
 
 import contract_gate
 from test_contract_gate import valid_contract
+
+DESIGN_CONTENT = "Approved v2 feature design.\n"
+DESIGN_SHA256 = hashlib.sha256(DESIGN_CONTENT.encode("utf-8")).hexdigest()
 
 
 def valid_v2_contract(contract_id: str = "test.feature.v2") -> Dict[str, Any]:
@@ -27,7 +33,7 @@ def valid_v2_contract(contract_id: str = "test.feature.v2") -> Dict[str, Any]:
     contract["design_source"] = {
         "path": "docs/design/feature-v2.md",
         "revision": "2",
-        "sha256": "c" * 64,
+        "sha256": DESIGN_SHA256,
     }
     contract["review_required"] = []
     contract["acceptance"]["criteria"] = [
@@ -79,8 +85,20 @@ class ContractV2Tests(unittest.TestCase):
     def setUp(self) -> None:
         self.temp_handle = tempfile.TemporaryDirectory(prefix="contract_v2_")
         self.temp_dir = Path(self.temp_handle.name)
+        self.design_path = (
+            self.temp_dir / "docs" / "design" / "feature-v2.md"
+        )
+        self.design_path.parent.mkdir(parents=True, exist_ok=True)
+        self.design_path.write_bytes(DESIGN_CONTENT.encode("utf-8"))
+        self.project_patch = mock.patch.object(
+            contract_gate,
+            "PROJECT_DIR",
+            self.temp_dir,
+        )
+        self.project_patch.start()
 
     def tearDown(self) -> None:
+        self.project_patch.stop()
         self.temp_handle.cleanup()
 
     def write(self, name: str, data: Dict[str, Any]) -> Path:
@@ -105,6 +123,9 @@ class ContractV2Tests(unittest.TestCase):
         self.assertEqual(2, report.documents[0].schema_version)
         self.assertEqual(2, report.as_dict()["contracts"][0]["schema_version"])
         self.assertEqual("auto", report.as_dict()["schema"])
+        design_evidence = report.as_dict()["contracts"][0]["design_source"]
+        self.assertTrue(design_evidence["verified"])
+        self.assertEqual(DESIGN_SHA256, design_evidence["sha256"])
 
     def test_mixed_v1_v2_directory_keeps_global_checks(self) -> None:
         self.write("legacy.json", valid_contract("test.legacy"))
@@ -167,6 +188,39 @@ class ContractV2Tests(unittest.TestCase):
                 report = contract_gate.run_gate([path], require=True)
                 self.assertFalse(report.passed)
                 self.assertIn("schema_pattern", self.codes(report))
+
+    def test_design_source_missing_and_digest_drift_fail_closed(self) -> None:
+        contract = valid_v2_contract()
+        path = self.write("feature-v2.json", contract)
+
+        self.design_path.unlink()
+        missing = contract_gate.run_gate([path], require=True)
+        self.assertFalse(missing.passed)
+        self.assertIn("design_source_missing", self.codes(missing))
+
+        self.design_path.write_bytes(b"drifted design\n")
+        drift = contract_gate.run_gate([path], require=True)
+        self.assertFalse(drift.passed)
+        self.assertIn("design_source_digest_mismatch", self.codes(drift))
+
+    def test_design_source_symlink_is_rejected(self) -> None:
+        outside = self.temp_dir.parent / (
+            f"{self.temp_dir.name}-outside-design.md"
+        )
+        outside.write_bytes(DESIGN_CONTENT.encode("utf-8"))
+        self.design_path.unlink()
+        try:
+            os.symlink(outside, self.design_path)
+        except (OSError, NotImplementedError) as error:
+            outside.unlink(missing_ok=True)
+            self.skipTest(f"symlink creation unavailable: {error}")
+        self.addCleanup(outside.unlink, missing_ok=True)
+        path = self.write("feature-v2.json", valid_v2_contract())
+
+        report = contract_gate.run_gate([path], require=True)
+
+        self.assertFalse(report.passed)
+        self.assertIn("design_source_symlink", self.codes(report))
 
     def test_criteria_ids_and_test_references_fail_closed(self) -> None:
         contract = valid_v2_contract()

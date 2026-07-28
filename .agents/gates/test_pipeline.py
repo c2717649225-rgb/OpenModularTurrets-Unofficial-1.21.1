@@ -28,13 +28,14 @@ class TestPipeline(unittest.TestCase):
 
     def test_fast_profile_excludes_expensive_runtime_gates(self):
         plan = pipeline.build_plan(self.temp_dir, "fast")
-        quality = plan[-2].command
+        quality = plan[-1].command
         self.assertIn("--with-static", quality)
-        self.assertEqual("asset gate reconciliation", plan[-1].name)
+        self.assertEqual("fast quality gates", plan[-1].name)
         self.assertNotIn("--with-contracts", quality)
         self.assertNotIn("--with-data", quality)
         self.assertNotIn("--with-gametest", quality)
         self.assertNotIn("--with-server", quality)
+        self.assertEqual(3, len(plan))
 
     def test_major_profile_requires_contract_data_assets_and_gametest(self):
         contract_root = self.temp_dir / "feature-contracts"
@@ -58,6 +59,49 @@ class TestPipeline(unittest.TestCase):
         self.assertIn("123", quality)
         self.assertNotIn("--verify-data-clean", quality)
         self.assertNotIn("--with-server", quality)
+        self.assertNotIn("--allow-reference-host-only", quality)
+
+    def test_reference_host_only_is_an_explicit_major_opt_in(self):
+        plan = pipeline.build_plan(
+            self.temp_dir,
+            "major",
+            allow_reference_host_only=True,
+        )
+        self.assertIn(
+            "--allow-reference-host-only",
+            plan[-1].command,
+        )
+
+        normal = pipeline.build_plan(self.temp_dir, "major")
+        self.assertNotIn(
+            "--allow-reference-host-only",
+            normal[-1].command,
+        )
+
+        with self.assertRaisesRegex(ValueError, "major/release"):
+            pipeline.build_plan(
+                self.temp_dir,
+                "fast",
+                allow_reference_host_only=True,
+            )
+
+    def test_strict_traceability_is_explicit_and_major_only(self):
+        plan = pipeline.build_plan(
+            self.temp_dir,
+            "major",
+            strict_traceability=True,
+        )
+        self.assertIn("--strict-traceability", plan[-1].command)
+
+        normal = pipeline.build_plan(self.temp_dir, "major")
+        self.assertNotIn("--strict-traceability", normal[-1].command)
+
+        with self.assertRaisesRegex(ValueError, "major/release"):
+            pipeline.build_plan(
+                self.temp_dir,
+                "fast",
+                strict_traceability=True,
+            )
 
     def test_release_adds_clean_data_server_and_suite_integrity(self):
         plan = pipeline.build_plan(self.temp_dir, "release")

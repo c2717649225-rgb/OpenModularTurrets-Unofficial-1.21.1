@@ -1,0 +1,9 @@
+modLoader="javafml"
+loaderVersion="[1,)"
+license="MIT"
+
+[[mods]]
+modId="codex_gametest_evidence"
+version="1.0.0"
+displayName="Codex GameTest Evidence Reporter"
+description="Process-local runtime reporter for replayable exact-symbol evidence; not a same-JVM security boundary."

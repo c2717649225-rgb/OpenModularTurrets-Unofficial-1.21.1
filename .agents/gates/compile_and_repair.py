@@ -21,6 +21,8 @@ BOOLEAN_OPTIONS = frozenset(
         "--with-server",
         "--with-contracts",
         "--with-gametest",
+        "--allow-reference-host-only",
+        "--strict-traceability",
         "--strict-datagen-layout",
         "--warnings-as-errors",
         "--verify-data-clean",
@@ -175,6 +177,30 @@ def positive_finite_float(text: Optional[str], option: str) -> float:
     if not math.isfinite(value) or value <= 0:
         raise ValueError(f"{option} must be finite and greater than zero")
     return value
+
+
+def build_gametest_gate_command(
+    script_dir: str,
+    project_dir: str,
+    timeout_seconds: float,
+    *,
+    allow_reference_host_only: bool = False,
+) -> List[str]:
+    command = [
+        sys.executable,
+        os.path.join(script_dir, "gametest_gate.py"),
+        "--project-dir",
+        project_dir,
+        "--require-tests",
+        "--run",
+        "--timeout",
+        f"{timeout_seconds:g}",
+        "--json-report",
+        "build/reports/gametest-gate.json",
+    ]
+    if allow_reference_host_only:
+        command.append("--allow-reference-host-only")
+    return command
 
 
 def terminate_process_tree(proc: subprocess.Popen) -> None:
@@ -348,6 +374,8 @@ def main():
     with_server = "--with-server" in sys.argv
     with_contracts = "--with-contracts" in sys.argv
     with_gametest = "--with-gametest" in sys.argv
+    allow_reference_host_only = "--allow-reference-host-only" in sys.argv
+    strict_traceability = "--strict-traceability" in sys.argv
     strict_datagen_layout = "--strict-datagen-layout" in sys.argv
     warnings_as_errors = "--warnings-as-errors" in sys.argv
     require_data_clean = (
@@ -367,6 +395,17 @@ def main():
         )
     except ValueError as error:
         print(f"Error: {error}")
+        sys.exit(2)
+    if strict_traceability and not (with_contracts and with_gametest):
+        print(
+            "Error: --strict-traceability requires both --with-contracts "
+            "and --with-gametest"
+        )
+        sys.exit(2)
+    if allow_reference_host_only and not with_gametest:
+        print(
+            "Error: --allow-reference-host-only requires --with-gametest"
+        )
         sys.exit(2)
     
     script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -509,8 +548,11 @@ def main():
     if with_static and not skip_static:
         print(f"\nStep {step}: Running L2 static_gate.py...")
         static_script = os.path.join(script_dir, "static_gate.py")
+        static_command = [sys.executable, static_script]
+        if warnings_as_errors:
+            static_command.append("--warnings-as-errors")
         static_result = subprocess.run(
-            [sys.executable, static_script],
+            static_command,
             cwd=project_dir,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -647,20 +689,14 @@ def main():
     # at least one real host @GameTest and an unambiguous all-green run.
     if with_gametest:
         print(f"\nStep {step}: Running L4 NeoForge GameTest gate...")
-        gametest_script = os.path.join(script_dir, "gametest_gate.py")
+        gametest_command = build_gametest_gate_command(
+            script_dir,
+            project_dir,
+            gametest_timeout,
+            allow_reference_host_only=allow_reference_host_only,
+        )
         gametest_result = subprocess.run(
-            [
-                sys.executable,
-                gametest_script,
-                "--project-dir",
-                project_dir,
-                "--require-tests",
-                "--run",
-                "--timeout",
-                f"{gametest_timeout:g}",
-                "--json-report",
-                "build/reports/gametest-gate.json",
-            ],
+            gametest_command,
             cwd=project_dir,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -677,6 +713,52 @@ def main():
             print("FAILURE: L4 GameTest gate failed.")
             print("==================================================")
             sys.exit(gametest_result.returncode)
+        step += 1
+
+    # Join the validated v2 contract to exact reporter-backed GameTest symbols.
+    # Major/release runs always emit the report; --strict-traceability upgrades
+    # incomplete or stale coverage from advisory evidence to a blocking gate.
+    if with_contracts and with_gametest:
+        mode = "strict" if strict_traceability else "advisory"
+        print(
+            f"\nStep {step}: Running L4 acceptance traceability "
+            f"({mode})..."
+        )
+        traceability_script = os.path.join(
+            script_dir, "traceability_gate.py"
+        )
+        traceability_command = [
+            sys.executable,
+            traceability_script,
+            "--gametest-report",
+            "build/reports/gametest-gate.json",
+            "--project-dir",
+            project_dir,
+            "--json-report",
+            "build/reports/traceability-gate.json",
+        ]
+        if contract_root is not None:
+            traceability_command.append(contract_root)
+        if not strict_traceability:
+            traceability_command.append("--advisory")
+        traceability_result = subprocess.run(
+            traceability_command,
+            cwd=project_dir,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+        if traceability_result.stdout:
+            print(traceability_result.stdout.rstrip())
+        if traceability_result.stderr:
+            print(traceability_result.stderr.rstrip())
+        if traceability_result.returncode != 0:
+            print("==================================================")
+            print("FAILURE: L4 acceptance traceability gate failed.")
+            print("==================================================")
+            sys.exit(traceability_result.returncode)
         step += 1
 
     # L3 dedicated-server smoke boot, the last and slowest gate.
@@ -703,6 +785,12 @@ def main():
         passed.append("L2.5 assets")
     if with_gametest:
         passed.append("L4 GameTest")
+    if with_contracts and with_gametest:
+        passed.append(
+            "L4 strict traceability"
+            if strict_traceability
+            else "L4 traceability report"
+        )
     if with_server:
         passed.append("L3 server smoke")
     print(f"SUCCESS: {' + '.join(passed)} passed!")
