@@ -28,8 +28,9 @@ class TestPipeline(unittest.TestCase):
 
     def test_fast_profile_excludes_expensive_runtime_gates(self):
         plan = pipeline.build_plan(self.temp_dir, "fast")
-        quality = plan[-1].command
+        quality = plan[-2].command
         self.assertIn("--with-static", quality)
+        self.assertEqual("asset gate reconciliation", plan[-1].name)
         self.assertNotIn("--with-contracts", quality)
         self.assertNotIn("--with-data", quality)
         self.assertNotIn("--with-gametest", quality)

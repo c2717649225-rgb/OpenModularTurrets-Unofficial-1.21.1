@@ -484,6 +484,26 @@ def scan_file(
                     )
                 )
 
+    # --- datagen_empty_implementation ---
+    if any(provider in text for provider in ("BlockStateProvider", "ItemModelProvider", "RecipeProvider", "LootTableProvider")):
+        for m in re.finditer(
+            r"protected\s+void\s+(registerStatesAndModels|registerModels|buildRecipes)\s*\([^)]*\)\s*\{([^}]{1,500})",
+            text,
+        ):
+            method_name, body = m.group(1), m.group(2)
+            # Remove comments and whitespace
+            stripped = re.sub(r"//.*|/\*[\s\S]*?\*/", "", body).strip()
+            if not stripped or len(stripped) < 15 or not re.search(r"\b(simpleBlock|basicItem|withExistingParent|add|save|accept|button|door|fence|slab|stairs|wall)\b", stripped):
+                findings.append(
+                    Finding(
+                        "datagen_empty_implementation",
+                        "warning",
+                        rel,
+                        line_of(text, m.start()),
+                        f"DataGen provider method `{method_name}` appears to be empty or missing generator calls.",
+                    )
+                )
+
     # --- eventbus_nonstatic: ONLY inside @EventBusSubscriber class bodies ---
     for start, end in eventbus_subscriber_ranges(text):
         body = text[start : end + 1]

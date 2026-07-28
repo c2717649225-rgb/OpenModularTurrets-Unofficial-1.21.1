@@ -104,7 +104,14 @@ def build_plan(
 
     plan.append(PlannedStep(f"{profile} quality gates", quality_command))
 
-    if profile == "release":
+    if profile == "fast":
+        plan.append(
+            PlannedStep(
+                "asset gate reconciliation",
+                [sys.executable, str(gates / "asset_gate.py")],
+            )
+        )
+    elif profile == "release":
         plan.append(
             PlannedStep(
                 "flagship benchmark suite integrity",

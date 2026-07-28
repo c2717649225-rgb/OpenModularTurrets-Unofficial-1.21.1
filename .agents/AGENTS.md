@@ -33,13 +33,16 @@
 
 ---
 
+---
+
 ## 🛠️ 部分二：P1 级别 - 工程开发规范 (Guidelines)
 
 1. **资源生成与 DataGen**：配方、掉落表、模型、标签等 JSON 须经 `DataProvider` + 门禁更新；禁止手写（`zh_cn.json` 与 metadata 除外）。目录名单数（`loot_table`、`recipe` 等）。交付/发布线标准见 [quality_bar.md](skills/neoforge/references/quality_bar.md)。
 2. **命名空间与标签**：跨模组通用标签用 `c:`（如 `c:gems/ruby`），禁用 `forge:` / `neoforge:` 作通用标签前缀。
 3. **自测纠错优先**：改码后以编译器与门禁输出为准，禁止空口断言。门禁未拦住的实际错误必须回流为门禁规则或 anti_patterns 条目（登记于其尾表）方可关闭。
 4. **精确最小编辑**：只做最小补丁；改 Mod ID/包名须走 `init_workspace` 脚本，禁止手工碎片化重构。
-5. **任务剧本**：若存在匹配的 `playbooks/`（全集仅 5 个平台能力），先读 1 个 playbook 再读其指定的 1 个 reference。
+5. **模组移植 SOP (Assets First)**：在 Mod 移植或重构任务中，完成 Java 注册类编写前，必须第一动作把参考仓库的 `textures/` 目录连同子目录一键迁移至宿主工程的 `src/main/resources/assets/<modid>/textures/` 下，绝不允许先写 Java 注册而漏移材质图片。
+6. **任务剧本**：若存在匹配的 `playbooks/`（全集仅 5 个平台能力），先读 1 个 playbook 再读其指定的 1 个 reference。
 
 ---
 

@@ -182,6 +182,32 @@ class TestGatesAndWorkspace(unittest.TestCase):
         self.assertIn("perf_tick_stream_usage", rule_ids)
         self.assertIn("perf_blockentity_tick_clientside", rule_ids)
 
+    def test_static_gate_detects_empty_datagen_implementation(self):
+        """Empty or dummy DataGen provider methods trigger a warning."""
+        src_dir = self.test_dir / "src" / "main" / "java" / "com" / "example"
+        src_dir.mkdir(parents=True, exist_ok=True)
+        dummy_java = src_dir / "DummyBlockStateProvider.java"
+        dummy_java.write_text(
+            """package com.example;
+            import net.neoforged.neoforge.client.model.generators.BlockStateProvider;
+            public abstract class DummyBlockStateProvider extends BlockStateProvider {
+                @Override
+                protected void registerStatesAndModels() {
+                    // TODO: add blocks later
+                }
+            }
+            """,
+            encoding="utf-8",
+        )
+        findings = static_gate.scan_file(
+            dummy_java,
+            dummy_java.read_text(encoding="utf-8"),
+            java_root=src_dir,
+            mod_id="example",
+        )
+        rule_ids = {finding.rule_id for finding in findings}
+        self.assertIn("datagen_empty_implementation", rule_ids)
+
     def test_generated_resource_validation(self):
         """DataGen output must exist, be non-empty, and contain valid JSON."""
         ok, message = compile_and_repair.validate_generated_resources(
