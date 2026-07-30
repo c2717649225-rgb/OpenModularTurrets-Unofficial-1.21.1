@@ -18,6 +18,6 @@ Copy-Item `
 4. client/common 边界、注册项和资产；
 5. 量化性能预算；
 6. 自动测试 argv、人工步骤和依赖；
-7. 运行 `python .agents/gates/contract_gate.py --require`。
+7. 运行 `python .agents/run.py .agents/gates/contract_gate.py --require`。
 
 若功能不需要持久化或网络，仍要保留对应对象并显式使用 `required: false`、`scope/format/strategy: "none"` 或空 `flows`；不能删除问题。

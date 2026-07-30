@@ -24,7 +24,7 @@ malicious mod forging or modifying evidence inside the same JVM.
 Run the isolated vertical slice with:
 
 ```text
-python .agents/gates/pipeline.py --profile major --strict-traceability --allow-reference-host-only --contract-root .agents/eval/reference_host
+python .agents/run.py .agents/gates/pipeline.py --profile major --strict-traceability --allow-reference-host-only --contract-root .agents/eval/reference_host
 ```
 
 The evidence mapping is:

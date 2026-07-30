@@ -56,15 +56,15 @@
    - `neoforge` / `workspace_setup` / `systematic-debugging`（按需）/ `task_monitor`（按需）
 4. **外部双 Agent**：以用户提示与本文件为准；勿复活归档 superpowers 链。协作文档外置，禁止本机绝对路径写入工具包。
 5. **门禁命令**：
-   - 一键档位: `python .agents/gates/pipeline.py --profile fast|major|release`
-   - 索引自检: `python .agents/gates/check_doc_index.py`
-   - 文档元数据: `python .agents/gates/check_doc_meta.py`
-   - Major 合同 L0: `python .agents/gates/contract_gate.py --require`
-   - 编译 L1: `python .agents/gates/compile_and_repair.py`（`--with-data` 生成 JSON）
+- 一键档位: `python .agents/run.py .agents/gates/pipeline.py --profile fast|major|release`
+- 索引自检: `python .agents/run.py .agents/gates/check_doc_index.py`
+- 文档元数据: `python .agents/run.py .agents/gates/check_doc_meta.py`
+- Major 合同 L0: `python .agents/run.py .agents/gates/contract_gate.py --require`
+- 编译 L1: `python .agents/run.py .agents/gates/compile_and_repair.py`（`--with-data` 生成 JSON）
    - 编译+静态 L1+L2: 同上加 `--with-static`；资源对账 L2.5 加 `--with-assets`
-   - 行为测试 L4: `python .agents/gates/gametest_gate.py --require-tests --run`
-   - 专服冒烟 L3: `python .agents/gates/compile_and_repair.py --with-server`
-   - 仅 L2 / L2.5: `python .agents/gates/static_gate.py` / `asset_gate.py`
-   - 初始化预览/应用: `python .agents/init_workspace.py --dry-run` / `python .agents/init_workspace.py`
-   - 评测批卷（仅评测场景，完整流程先读 `eval/README.md`）: `python .agents/eval/grade.py T01..T07|all`，输出计入完成证据
-   - 旗舰评测协议: `python .agents/eval/flagship/benchmark.py validate-suite|report RESULTS`
+- 行为测试 L4: `python .agents/run.py .agents/gates/gametest_gate.py --require-tests --run`
+- 专服冒烟 L3: `python .agents/run.py .agents/gates/compile_and_repair.py --with-server`
+- 仅 L2 / L2.5: `python .agents/run.py .agents/gates/static_gate.py` / `python .agents/run.py .agents/gates/asset_gate.py`
+- 初始化预览/应用: `python .agents/run.py .agents/init_workspace.py --dry-run` / `python .agents/run.py .agents/init_workspace.py`
+- 评测批卷（仅评测场景，完整流程先读 `eval/README.md`）: `python .agents/run.py .agents/eval/grade.py T01..T07|all`，输出计入完成证据
+- 旗舰评测协议: `python .agents/run.py .agents/eval/flagship/benchmark.py validate-suite|report RESULTS`

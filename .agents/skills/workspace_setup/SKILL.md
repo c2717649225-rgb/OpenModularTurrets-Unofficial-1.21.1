@@ -13,9 +13,9 @@ description: 适用于用户请求项目初始化、工作区配置、修改模�
 2. **强制运行重构脚本**：由确定性 Python 引擎执行命名空间/资源对齐（禁止手工碎片化改名）：
    ```bash
    # 必须先预览
-   python .agents/init_workspace.py --dry-run
+python .agents/run.py .agents/init_workspace.py --dry-run
    # 确认后再应用（工作区非 clean 时默认拒绝，可用 --force）
-   python .agents/init_workspace.py
+python .agents/run.py .agents/init_workspace.py
    ```
    *(根目录入口封装 `skills/workspace_setup/scripts/init_workspace.py`)*  
    覆盖：`assets/`、`data/`、mixin json、可选 `src/generated`、主类 MODID；不扫描 `.agents` 文档当宿主资源。
@@ -25,8 +25,8 @@ description: 适用于用户请求项目初始化、工作区配置、修改模�
 需要移除 starter 示例物品、方块、配置与示例 DataGen 时使用：
 
 ```bash
-python .agents/init_workspace.py --dry-run --profile minimal
-python .agents/init_workspace.py --profile minimal
+python .agents/run.py .agents/init_workspace.py --dry-run --profile minimal
+python .agents/run.py .agents/init_workspace.py --profile minimal
 ```
 
 - `mod_id` 与 `mod_group_id` 会在任何写入前严格校验；绝对路径、`..`、反斜杠路径、Java 保留字、路径/符号链接逃逸都会 fail closed。
@@ -35,7 +35,7 @@ python .agents/init_workspace.py --profile minimal
 - 应用前脚本会自动再执行一次同参数 dry-run 预检；应用后重复执行应报告“already aligned”，不得产生第二轮变化。
 3. **编译自检**：重构完成后，必须在向用户汇报前运行门禁，验证编译与静态扫描：
    ```bash
-   python .agents/gates/compile_and_repair.py --with-static
+python .agents/run.py .agents/gates/compile_and_repair.py --with-static
    ```
    （门禁脚本统一位于顶层 [`.agents/gates/`](../../gates/)；本 skill 只保留初始化/改名引擎。）
    - L1：`compileJava`  
@@ -51,8 +51,8 @@ python .agents/init_workspace.py --profile minimal
 ## 文档索引 / 元数据自检（改 neoforge 文档后）
 
 ```bash
-python .agents/gates/check_doc_index.py
-python .agents/gates/check_doc_meta.py
+python .agents/run.py .agents/gates/check_doc_index.py
+python .agents/run.py .agents/gates/check_doc_meta.py
 ```
 
 - 每个 `references/*.md`、`examples/*.md`、`playbooks/*.md` 必须被 `skills/neoforge/SKILL.md` 引用。  

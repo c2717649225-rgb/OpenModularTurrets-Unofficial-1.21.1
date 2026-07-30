@@ -11,13 +11,20 @@
 请在您的项目根目录下，直接打开终端运行以下指令：
 
 ```bash
-python .agents/mcp/minecraft_mcp.py --help
+python .agents/run.py .agents/mcp/minecraft_mcp.py --help
 ```
 
 ### 🎁 运行后你将获得：
 1. **自动定位并解析的物理绝对路径**
 2. **当前 Python 环境的绝对执行文件路径**（自动替换为 `sys.executable`，彻底防范 Windows 商店广告或 python/python3 找不到的问题）
-3. **Cursor、Cline (Roo Code)、Claude Code、Grok 专用的完美 JSON 配置块**
+3. **Codex、Cursor、Cline (Roo Code)、Claude Code、Grok 的专用配置命令或配置块**
+
+Codex 用户执行帮助输出中的两条命令，并重启 Codex：
+
+```text
+codex mcp add minecraft-mcp -- "<PYTHON_3_10+>" "<ABS_PROJECT>/.agents/mcp/minecraft_mcp.py"
+codex mcp get minecraft-mcp
+```
 
 您可以直接在终端输出的高亮框线中复制配置进行一键贴入！
 

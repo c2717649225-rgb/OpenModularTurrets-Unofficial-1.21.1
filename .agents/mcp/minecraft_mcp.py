@@ -1,13 +1,16 @@
 # ==============================================================================
-# Minecraft MCP Server (v1.0.0)
+# Minecraft MCP Server (v1.1.0)
 # A zero-dependency JSON-RPC over stdio MCP server tailored for Minecraft/NeoForge
 # modding. Provides class searching, source grepping, and AST-less method parsing.
 # ==============================================================================
 import os
 import sys
-# Python version check (sys.stdout.reconfigure requires Python 3.7+)
-if sys.version_info < (3, 7):
-    sys.stderr.write("Error: Python 3.7+ is required to run this MCP server (due to utf-8 stream reconfigure support).\n")
+# Keep this aligned with the rest of the toolkit, which uses Python 3.10 syntax.
+if sys.version_info < (3, 10):
+    sys.stderr.write(
+        "Error: Python 3.10+ is required to run the Minecraft MCP server "
+        "and the toolkit gates.\n"
+    )
     sys.exit(1)
 
 import json
@@ -19,6 +22,58 @@ import re
 # Project path is dynamically resolved to two levels up from the script's directory (.agents/mcp/minecraft_mcp.py)
 PROJECT_PATH = os.path.realpath(os.path.join(os.path.dirname(__file__), "..", ".."))
 CACHE_FILE = os.path.join(os.path.dirname(__file__), "mcp_jar_cache.json")
+CACHE_SCHEMA_VERSION = 2
+
+
+def load_project_metadata(project_path=PROJECT_PATH):
+    """Read version pins and active optional dependencies from this project."""
+    properties = {}
+    properties_path = os.path.join(project_path, "gradle.properties")
+    if os.path.isfile(properties_path):
+        with open(properties_path, "r", encoding="utf-8") as handle:
+            for raw_line in handle:
+                line = raw_line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                key, value = line.split("=", 1)
+                properties[key.strip()] = value.strip()
+
+    build_text_parts = []
+    for relative_path in (
+        "build.gradle",
+        "build.gradle.kts",
+        os.path.join("gradle", "libs.versions.toml"),
+    ):
+        path = os.path.join(project_path, relative_path)
+        if os.path.isfile(path):
+            with open(path, "r", encoding="utf-8") as handle:
+                build_text_parts.append(handle.read())
+    build_text = "\n".join(build_text_parts)
+    build_text = re.sub(r"/\*.*?\*/", "", build_text, flags=re.DOTALL)
+    build_text = re.sub(r"(?m)^\s*(?://|#).*$", "", build_text).lower()
+
+    optional_keywords = (
+        "geckolib",
+        "curios",
+        "patchouli",
+        "jei",
+        "rei",
+        "emi",
+        "architectury",
+        "cloth-config",
+        "citadel",
+        "pehkui",
+    )
+    return {
+        "minecraft_version": properties.get("minecraft_version", ""),
+        "neo_version": properties.get("neo_version", ""),
+        "dependency_keywords": [
+            keyword for keyword in optional_keywords if keyword in build_text
+        ],
+    }
+
+
+PROJECT_METADATA = load_project_metadata()
 
 SAFE_PREFIXES = [
     os.path.realpath(os.path.expanduser("~/.gradle")),
@@ -68,6 +123,8 @@ def get_source_jars():
     global GLOBAL_CLASS_PATHS, GLOBAL_ARTIFACT_PATHS
     watch_files = [
         os.path.join(PROJECT_PATH, "build.gradle"),
+        os.path.join(PROJECT_PATH, "build.gradle.kts"),
+        os.path.join(PROJECT_PATH, "gradle.properties"),
         os.path.join(PROJECT_PATH, "settings.gradle"),
         os.path.join(PROJECT_PATH, "settings.gradle.kts"),
         os.path.join(PROJECT_PATH, "gradle", "libs.versions.toml")
@@ -77,7 +134,11 @@ def get_source_jars():
             with open(CACHE_FILE, "r", encoding="utf-8") as f:
                 data = json.load(f)
                 
-                cache_valid = data.get("project_path") == PROJECT_PATH
+                cache_valid = (
+                    data.get("cache_schema_version") == CACHE_SCHEMA_VERSION
+                    and data.get("project_path") == PROJECT_PATH
+                    and data.get("project_metadata") == PROJECT_METADATA
+                )
                 cache_timestamp = data.get("timestamp", 0)
                 
                 # 自适应缓存失效机制：如果项目路径改变，或任意依赖定义文件的修改时间新于缓存生成时间，则判定缓存失效并重扫
@@ -108,7 +169,6 @@ def get_source_jars():
     subdirs_to_scan = [
         os.path.join(cache_dir, "modules-2", "files-2.1"),
         os.path.join(cache_dir, "neoform"),
-        os.path.join(cache_dir, "forge_gradle"),
         os.path.join(PROJECT_PATH, "build", "moddev")
     ]
     for sub in subdirs_to_scan:
@@ -126,7 +186,16 @@ def get_source_jars():
                         jars.append(os.path.normpath(os.path.join(root, file)))
     
     # 提前抓取过滤后核心 Sources JAR 包的类文件与资源文件列表索引，控制缓存 JSON 大小
-    core_jars = filter_jars(jars, scan_all_deps=False)
+    compatible_jars = filter_jars(
+        jars,
+        scan_all_deps=True,
+        metadata=PROJECT_METADATA,
+    )
+    core_jars = filter_jars(
+        compatible_jars,
+        scan_all_deps=False,
+        metadata=PROJECT_METADATA,
+    )
     class_paths = {}
     artifact_paths = {}
     for c_jar in core_jars:
@@ -148,27 +217,30 @@ def get_source_jars():
     try:
         with open(CACHE_FILE, "w", encoding="utf-8") as f:
             json.dump({
+                "cache_schema_version": CACHE_SCHEMA_VERSION,
                 "timestamp": time.time(), 
-                "jars": jars, 
+                "jars": compatible_jars,
                 "class_paths": class_paths, 
                 "artifact_paths": artifact_paths,
-                "project_path": PROJECT_PATH
+                "project_path": PROJECT_PATH,
+                "project_metadata": PROJECT_METADATA,
             }, f, indent=2)
     except Exception as e:
         sys.stderr.write(f"Cache save error: {e}\n")
-    return jars
+    return compatible_jars
 
-def filter_jars(jars, scan_all_deps=False):
-    """Filters jars to prioritize Minecraft/NeoForge/Common Mods and avoid Netty/Guava bloat unless requested."""
-    if scan_all_deps:
-        return jars
+def filter_jars(jars, scan_all_deps=False, metadata=None):
+    """Keep sources compatible with this project's pinned loader and MC version."""
+    metadata = metadata or PROJECT_METADATA
+    minecraft_version = metadata.get("minecraft_version", "")
+    neo_version = metadata.get("neo_version", "")
+    dependency_keywords = metadata.get("dependency_keywords", [])
     filtered = []
     
     # 常用模组/API 白名单特征词，用于在跨模组联调时自动放行其源码包 (基于 basename 规则匹配)
     mod_keywords = [
         "minecraft", "neoforge", "parchment",
-        "geckolib", "curios", "patchouli", "jei", "rei", "emi",
-        "architectury", "cloth-config", "citadel", "pehkui"
+        *dependency_keywords,
     ]
     
     block_keywords = [
@@ -178,9 +250,39 @@ def filter_jars(jars, scan_all_deps=False):
     
     for jar in jars:
         name = os.path.basename(jar).lower()
+        normalized = os.path.normpath(jar).replace("\\", "/").lower()
+
+        # This toolkit targets NeoForge. A machine-wide Gradle cache may also
+        # contain Forge sources from unrelated projects; those must never enter
+        # the default or scan-all search set.
+        if (
+            name.startswith("forge-")
+            or "/net/minecraftforge/forge/" in normalized
+            or "/forge_gradle/" in normalized
+        ):
+            continue
+
+        if (
+            neo_version
+            and name.startswith("neoforge-")
+            and f"neoforge-{neo_version}" not in name
+        ):
+            continue
+
+        # Reject artifacts that explicitly advertise another Minecraft line.
+        if minecraft_version and not name.startswith("neoforge-"):
+            advertised_versions = set(
+                re.findall(r"(?<!\d)(1\.\d+(?:\.\d+)?)(?!\d)", normalized)
+            )
+            if advertised_versions and minecraft_version not in advertised_versions:
+                continue
+
+        if scan_all_deps:
+            filtered.append(jar)
+            continue
         if any(bk in name for bk in block_keywords) or name.startswith("asm-") or re.match(r'^asm-\d', name):
             continue
-        is_whitelisted = any(kw in name for kw in mod_keywords) or name.startswith("forge-")
+        is_whitelisted = any(kw in name for kw in mod_keywords)
         if is_whitelisted:
             filtered.append(jar)
     return filtered
@@ -876,6 +978,13 @@ def print_mcp_onboarding():
     print(" For Claude Code (Run command globally):")
     print(f"  claude mcp add minecraft-mcp \"{python_exe}\" \"{abs_script_path}\"")
     print("")
+    print(" For Codex (Run once, then restart Codex):")
+    print(
+        "  codex mcp add minecraft-mcp -- "
+        f"\"{python_exe}\" \"{abs_script_path}\""
+    )
+    print("  codex mcp get minecraft-mcp")
+    print("")
     print(" For Grok Build / Other stdio MCP Clients:")
     print(f"  Register command: \"{python_exe}\" \"{abs_script_path}\"")
     print(border)
@@ -949,7 +1058,7 @@ def main():
                     },
                     "serverInfo": {
                         "name": "minecraft-mcp",
-                        "version": "1.0.0"
+                        "version": "1.1.0"
                     }
                 }
             }

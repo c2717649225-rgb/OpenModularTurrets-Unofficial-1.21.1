@@ -28,12 +28,12 @@ description: >
   [docs_core_set.txt](docs_core_set.txt) 只是 5～10 篇 verified 文档组成的**默认候选集**，不代表会自动装载，也不豁免本节的 1～2 篇按需阅读额度；未进入 verified 清单的 reference 一律视为 **draft**，不得当唯一依据。
 
 ### 写码后验证
-* 汇报前必须运行 L1：`python .agents/gates/compile_and_repair.py`
+* 汇报前必须运行 L1：`python .agents/run.py .agents/gates/compile_and_repair.py`
 * L2 已落地时必须加 `--with-static`（仅扫描宿主 `src/main/java`，见 static_gate 规格）。
 * 涉及 DeferredRegister 或 DataGen 时加 `--with-data`。
-* 修改 references/examples/playbooks 后跑：`python .agents/gates/check_doc_index.py` 与 `python .agents/gates/check_doc_meta.py`。
-* Major 功能须先落 `docs/features/*.json` 合同并通过 L0；实现后须有真实 `@GameTest` 并通过 L4，还须人工列出“变更/合同验收项 → `GameTestClass#method`”映射，因为 L4 不能自动判断测试相关性。可直接运行 `python .agents/gates/pipeline.py --profile major`。
-* 发布声明须运行非 dry-run 的 `python .agents/gates/pipeline.py --profile release` 全绿，或提供与其等价的 DataGen 零漂移、L3 与旗舰评测协议完整性证据。
+* 修改 references/examples/playbooks 后跑：`python .agents/run.py .agents/gates/check_doc_index.py` 与 `python .agents/run.py .agents/gates/check_doc_meta.py`。
+* Major 功能须先落 `docs/features/*.json` 合同并通过 L0；实现后须有真实 `@GameTest` 并通过 L4，还须人工列出“变更/合同验收项 → `GameTestClass#method`”映射，因为 L4 不能自动判断测试相关性。可直接运行 `python .agents/run.py .agents/gates/pipeline.py --profile major`。
+* 发布声明须运行非 dry-run 的 `python .agents/run.py .agents/gates/pipeline.py --profile release` 全绿，或提供与其等价的 DataGen 零漂移、L3 与旗舰评测协议完整性证据。
 * 元数据唯一真源：宿主 `gradle.properties` 与 `neoforge.mods.toml`，禁止硬编码 Mod ID/包名。
 * 宣称完成须附：变更路径 + 门禁通过输出（见 `AGENTS.md` 完成证据协议）。
 

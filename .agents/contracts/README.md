@@ -32,18 +32,18 @@
 ```powershell
 # 默认按每份合同自动分派：缺少 schema_version 为 v1，值 2 为 v2；
 # 未知版本失败。没有合同时也失败
-python .agents/gates/contract_gate.py --require
+python .agents/run.py .agents/gates/contract_gate.py --require
 
 # 检查一个文件或任意目录
-python .agents/gates/contract_gate.py path/to/feature.json
-python .agents/gates/contract_gate.py path/to/contracts
+python .agents/run.py .agents/gates/contract_gate.py path/to/feature.json
+python .agents/run.py .agents/gates/contract_gate.py path/to/contracts
 
 # 同时生成机器可读报告
-python .agents/gates/contract_gate.py --require `
+python .agents/run.py .agents/gates/contract_gate.py --require `
   --json-report build/reports/major-feature-contracts.json
 
 # JSON-only stdout，适合 CI
-python .agents/gates/contract_gate.py --require --json-report
+python .agents/run.py .agents/gates/contract_gate.py --require --json-report
 ```
 
 目录输入会递归检查所有 `.json`，但忽略 `*.schema.json`。重叠输入会按真实路径去重。门禁仅使用 Python 标准库。
@@ -57,7 +57,7 @@ python .agents/gates/contract_gate.py --require --json-report
 `approved` 或后续状态：
 
 ```powershell
-python .agents/contracts/migrate_v1_to_v2.py `
+python .agents/run.py .agents/contracts/migrate_v1_to_v2.py `
   docs/features/legacy.contract.json `
   --output docs/features/feature-v2.contract.json `
   --diff build/reports/feature-v1-to-v2.diff `

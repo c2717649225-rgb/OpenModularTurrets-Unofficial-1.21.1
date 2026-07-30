@@ -15,9 +15,9 @@ checks:
 * executable acceptance-test declarations and their cross-references.
 
 Usage:
-    python .agents/gates/contract_gate.py [FILE_OR_DIRECTORY ...]
-    python .agents/gates/contract_gate.py --require
-    python .agents/gates/contract_gate.py docs/features \
+    python .agents/run.py .agents/gates/contract_gate.py [FILE_OR_DIRECTORY ...]
+    python .agents/run.py .agents/gates/contract_gate.py --require
+    python .agents/run.py .agents/gates/contract_gate.py docs/features \
         --json-report build/reports/major-feature-contracts.json
 """
 from __future__ import annotations

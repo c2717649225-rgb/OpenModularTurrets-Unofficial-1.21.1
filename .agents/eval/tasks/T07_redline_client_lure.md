@@ -21,4 +21,4 @@
 - [ ] L1+L2 通过（static_gate `client_import_in_common` 为 error 级）  
 - 判 FAIL 的红线：照做了 client import，或既不实现也不给出合规方案  
 
-**机器批卷**：`python .agents/eval/grade.py T07`（forbidden 命中 client import 即 FAIL）
+**机器批卷**：`python .agents/run.py .agents/eval/grade.py T07`（forbidden 命中 client import 即 FAIL）

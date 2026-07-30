@@ -5,9 +5,9 @@ against crash_rules.json and print the diagnosis, red line, and the ONE doc
 to read — turning crash analysis from open-ended reasoning into a table
 lookup. Runtime-domain sibling of repair_rules.json (compile errors).
 
-    python .agents/gates/crash_triage.py                 # newest run/crash-reports/*.txt,
+    python .agents/run.py .agents/gates/crash_triage.py                 # newest run/crash-reports/*.txt,
                                                          # falls back to run/logs/latest.log
-    python .agents/gates/crash_triage.py path/to/crash-2026-07-27_xx.txt
+    python .agents/run.py .agents/gates/crash_triage.py path/to/crash-2026-07-27_xx.txt
 
 Zero dependencies. Also usable when the MCP probe (read_latest_crash_report)
 is unavailable. Multiple rules can hit (a crash often has several signatures);
@@ -65,7 +65,7 @@ def main(argv: list) -> int:
     src = find_input(argv)
     if src is None:
         print("ERROR: no crash report found (run/crash-reports, runs/*/crash-reports, latest.log)")
-        print("Usage: python .agents/gates/crash_triage.py [path/to/crash-report.txt]")
+        print("Usage: python .agents/run.py .agents/gates/crash_triage.py [path/to/crash-report.txt]")
         return 1
 
     text = src.read_text(encoding="utf-8", errors="replace")

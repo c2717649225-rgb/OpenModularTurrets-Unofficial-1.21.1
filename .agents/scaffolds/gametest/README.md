@@ -10,7 +10,7 @@
 4. 运行：
 
    ```text
-   python .agents/gates/gametest_gate.py --require-tests --run
+   python .agents/run.py .agents/gates/gametest_gate.py --require-tests --run
    ```
 
 `@GameTestHolder("{{MODID}}")` 负责自动注册。脚手架保留默认类名前缀，使模板名和运行时测试名都能由严格门禁确定性推导；不要用 `@PrefixGameTestTemplate(false)` 绕过该约束。

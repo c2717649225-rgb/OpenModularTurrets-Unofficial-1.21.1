@@ -31,7 +31,7 @@
 
 ## 门禁
 ```bash
-python .agents/gates/compile_and_repair.py --with-static
+python .agents/run.py .agents/gates/compile_and_repair.py --with-static
 ```
 
 ## 完成证据

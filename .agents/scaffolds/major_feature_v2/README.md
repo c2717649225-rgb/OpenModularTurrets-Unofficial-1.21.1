@@ -15,7 +15,7 @@ v2 在完整保留 v1 行为声明的基础上增加：
 模板故意保留阻断性 `{{...}}` 占位符。填完后运行：
 
 ```powershell
-python .agents/gates/contract_gate.py docs/features/my_feature.contract.json
+python .agents/run.py .agents/gates/contract_gate.py docs/features/my_feature.contract.json
 ```
 
 迁移旧合同请使用 `migrate_v1_to_v2.py` 生成新文件；迁移器不会覆盖原文件。

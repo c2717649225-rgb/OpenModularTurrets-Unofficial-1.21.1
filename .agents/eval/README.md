@@ -14,8 +14,8 @@
 旗舰结论必须来自固定模型版本的重复实测：
 
 ```bash
-python .agents/eval/flagship/benchmark.py validate-suite
-python .agents/eval/flagship/benchmark.py report path/to/results.json
+python .agents/run.py .agents/eval/flagship/benchmark.py validate-suite
+python .agents/run.py .agents/eval/flagship/benchmark.py report path/to/results.json
 ```
 
 ## 范围
@@ -33,7 +33,7 @@ python .agents/eval/flagship/benchmark.py report path/to/results.json
 2. 挂载 `AGENTS.md`，启用 MCP。  
 3. 将 `tasks/T0x_*.md` 中的 **Prompt** 交给 Agent（不要粘贴「评分要点」段）。  
 4. Agent 完成后**机器批卷**：  
-   `python .agents/eval/grade.py T0x`（单题）或 `python .agents/eval/grade.py all`  
+`python .agents/run.py .agents/eval/grade.py T0x`（单题）或 `python .agents/run.py .agents/eval/grade.py all`
    - 以 `git diff` 新增代码 + 未跟踪 `.java` 为语料，防止 starter 既有代码假阳性；基线非 HEAD 时加 `--since <ref>`  
    - 自动判 PASS / PARTIAL / FAIL（含 L1+L2 门禁；退出码 0/2/1），断言与 API 特征已对照 neoforge-21.1.234 源码  
 5. 人工复核机器管不到的主观项（命名合理性、是否偏题），把结果抄入 [scorecard_template.md](./scorecard_template.md)。

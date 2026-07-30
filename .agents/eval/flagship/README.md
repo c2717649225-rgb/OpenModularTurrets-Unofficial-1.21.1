@@ -25,8 +25,8 @@
 6. 验证并汇总：
 
 ```bash
-python .agents/eval/flagship/benchmark.py validate-suite
-python .agents/eval/flagship/benchmark.py report path/to/results.json
+python .agents/run.py .agents/eval/flagship/benchmark.py validate-suite
+python .agents/run.py .agents/eval/flagship/benchmark.py report path/to/results.json
 ```
 
 ## 单次结果格式

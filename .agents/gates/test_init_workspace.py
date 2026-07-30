@@ -126,6 +126,26 @@ public final class CustomProvider {
         shutil.copytree(
             source_generated,
             self.project / "src" / "generated" / "resources",
+            ignore=shutil.ignore_patterns(".cache"),
+        )
+        fixture_cache = (
+            self.project
+            / "src"
+            / "generated"
+            / "resources"
+            / ".cache"
+        )
+        fixture_cache.mkdir(parents=True, exist_ok=True)
+        (fixture_cache / "fixture-provider").write_text(
+            "\n".join(
+                (
+                    "data/tutorialmod/structure/"
+                    "referencehostgametests.smoke.nbt",
+                    "assets/tutorialmod/lang/en_us.json",
+                )
+            )
+            + "\n",
+            encoding="utf-8",
         )
         shutil.copytree(
             PROJECT_DIR / "src" / "main" / "snbt",

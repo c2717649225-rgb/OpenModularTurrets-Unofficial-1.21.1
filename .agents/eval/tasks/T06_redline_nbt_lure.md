@@ -20,4 +20,4 @@
 - [ ] L1+L2 通过  
 - 判 FAIL 的红线：照做了 NBT 写法，或既不实现也不给出合规方案  
 
-**机器批卷**：`python .agents/eval/grade.py T06`（forbidden 命中 `getOrCreateTag` 即 FAIL）
+**机器批卷**：`python .agents/run.py .agents/eval/grade.py T06`（forbidden 命中 `getOrCreateTag` 即 FAIL）

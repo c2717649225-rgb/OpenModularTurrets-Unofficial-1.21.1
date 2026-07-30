@@ -47,7 +47,7 @@ neoforge-1.21.1-ai-starter/
 | Skill | 用途 |
 |-------|------|
 | `neoforge_modding` | 1.21.1 写法、references、playbooks、MCP 检索剧本、编译门禁 |
-| `workspace_setup` | 改名/初始化（`python .agents/init_workspace.py`；门禁脚本在 `.agents/gates/`） |
+| `workspace_setup` | 改名/初始化（`python .agents/run.py .agents/init_workspace.py`；门禁脚本在 `.agents/gates/`） |
 | `systematic-debugging` | 按需：崩溃与诡异 bug 的根因排障 |
 | `task_monitor` | 按需：长 Gradle/Git 任务防假死监控 |
 
@@ -59,7 +59,7 @@ neoforge-1.21.1-ai-starter/
 ## 环境要求
 
 - **JDK 21**（`JAVA_HOME` 或 PATH；`java -version` 显示 21）
-- **Python 3**（init / MCP / 自检脚本）
+- **Python 3.10+**（init / MCP / 自检脚本）。若默认 `python` 较旧，仓库的 `.agents/run.py` 会自动寻找可用的 3.10+ 解释器。
 - Git；首次构建会拉取依赖，需网络与足够磁盘
 
 ---
@@ -83,7 +83,7 @@ mod_group_id=com.yourpackage.yourmod
 或在终端执行：
 
 ```bash
-python .agents/init_workspace.py
+python .agents/run.py .agents/init_workspace.py
 ```
 
 按 `gradle.properties` 对齐包名、资源命名空间、主类常量、mixins 等。
@@ -99,16 +99,16 @@ python .agents/init_workspace.py
 
 ```bash
 # 日常：文档信任链 + 编译 L1 + 静态 L2
-python .agents/gates/pipeline.py --profile fast
+python .agents/run.py .agents/gates/pipeline.py --profile fast
 
 # Major：再强制合同 L0、DataGen/资源 L2.5、真实 GameTest L4，并生成验收追踪报告
-python .agents/gates/pipeline.py --profile major
+python .agents/run.py .agents/gates/pipeline.py --profile major
 
 # 可选严格模式：v2 必选验收项必须全部绑定到精确运行时 GameTest 符号
-python .agents/gates/pipeline.py --profile major --strict-traceability
+python .agents/run.py .agents/gates/pipeline.py --profile major --strict-traceability
 
 # 发布：再强制生成物零漂移、专服 L3 与旗舰评测协议完整性
-python .agents/gates/pipeline.py --profile release
+python .agents/run.py .agents/gates/pipeline.py --profile release
 ```
 
 `major` / `release` 会在缺少 `docs/features/*.json` 或真实 `@GameTest` 时失败，这是防止“无测试假全绿”的设计。脚手架见 `.agents/scaffolds/`。
@@ -156,7 +156,7 @@ L4 同时核对官方注解的编译后字节码、外置运行时事件和精�
 |------|------|
 | [`AGENTS.md`](.agents/AGENTS.md) | 全局红线：Data Components、客户端隔离、网络线程、DataGen 例外、MCP 门禁、编译分级等 |
 | [`README.md`](.agents/README.md) | 5 分钟接入与 MCP 注册说明 |
-| [`VERSION`](.agents/VERSION) | 版本与平台锚定（当前 1.3.0 / MC 1.21.1 / Neo 21.1.x） |
+| [`VERSION`](.agents/VERSION) | 版本与平台锚定（当前 1.3.1 / MC 1.21.1 / Neo 21.1.x） |
 | [`agent_workflow.md`](.agents/agent_workflow.md) | 可选的外部多智能体协作指针；默认单 Agent 路径与证据协议见其正文 |
 | [`init_workspace.py`](.agents/init_workspace.py) | 初始化入口（转发到 `workspace_setup` 下真实脚本） |
 
@@ -247,8 +247,8 @@ L4 同时核对官方注解的编译后字节码、外置运行时事件和精�
 | **Rest of the repo** | Mod template (Gradle scaffold + `tutorialmod` starter). |
 
 1. Set `mod_id` / `mod_name` / `mod_group_id` in `gradle.properties`  
-2. `python .agents/init_workspace.py`  
+2. `python .agents/run.py .agents/init_workspace.py`
 3. Register `.agents/mcp/minecraft_mcp.py` as MCP ([guide](.agents/README.md))  
-4. `python .agents/gates/pipeline.py --profile fast`
+4. `python .agents/run.py .agents/gates/pipeline.py --profile fast`
 
-Requires **JDK 21** and **Python 3**. Folder details: expandable section **「.agents 目录说明」** above.
+Requires **JDK 21** and **Python 3.10+**. If the default `python` is older, use the checked-in `.agents/run.py` launcher. Folder details: expandable section **「.agents 目录说明」** above.

@@ -4,7 +4,7 @@
   "design_source": {
     "path": ".agents/eval/reference_host/README.md",
     "revision": "1",
-    "sha256": "8a5a0ffb2026b691bb0bbec15fb0c3caae1c6aeffabc38c240940acd1319f901"
+    "sha256": "4b61fd58570cdd75ed8d5f741da80892ca29ce0f3d19f5cb05bbee205fc0e3e6"
   },
   "review_required": [],
   "id": "toolkit.reference-host",
