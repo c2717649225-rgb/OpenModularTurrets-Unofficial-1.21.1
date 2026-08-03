@@ -1,8 +1,0 @@
-# Machine-local MCP probe cache (paths differ per developer)
-mcp_jar_cache.json
-mcp_error.log
-
-# Python bytecode
-__pycache__/
-*.py[cod]
-*$py.class
