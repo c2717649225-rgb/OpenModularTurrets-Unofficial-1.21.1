@@ -1,5 +1,7 @@
 # OpenModularTurrets Unofficial 1.21.1 (开放式炮台：非官方版)
 
+![OpenModularTurrets Cover](docs/images/cover.jpg)
+
 [![Minecraft](https://img.shields.io/badge/Minecraft-1.21.1-green)](https://www.minecraft.net/)
 [![NeoForge](https://img.shields.io/badge/NeoForge-21.1.x-orange)](https://neoforged.net/)
 [![License](https://img.shields.io/badge/License-GPL--3.0-blue)](LICENSE)
