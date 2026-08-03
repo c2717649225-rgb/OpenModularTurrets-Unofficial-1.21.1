@@ -1,0 +1,332 @@
+{
+  "$schema": "../../.agents/contracts/major-feature-v2.schema.json",
+  "schema_version": 2,
+  "design_source": {
+    "path": "docs/porting/openmodularturrets-1.21.1-acceptance-design.md",
+    "revision": "confirmed-2026-08-01",
+    "sha256": "7594696d646d05ef287e4596f1383417a169282a01483fc18ed9eee56496f0d6"
+  },
+  "review_required": [],
+  "id": "openmodularturrets.client_visuals",
+  "version": 2,
+  "summary": "All turret, attachment, projectile and beam presentation consumes the preserved art through modern model, BER and renderer pipelines.",
+  "server_authority": {
+    "owner": "logical_server",
+    "authoritative_state": [
+      "Turret aim, target, concealed state and addon inventory remain server-owned.",
+      "Client renderers derive interpolation and particles from synchronized presentation state."
+    ],
+    "client_input_policy": "read_only",
+    "invalid_input_policy": "reject_and_log"
+  },
+  "persistence": {
+    "required": false,
+    "scope": "none",
+    "schema": {
+      "version": 1,
+      "format": "none",
+      "owner": "No additional persistent state",
+      "fields": []
+    },
+    "migration": {
+      "strategy": "none",
+      "supported_from": [],
+      "fallback": "not_applicable",
+      "test_ids": []
+    }
+  },
+  "network": {
+    "required": true,
+    "flows": [
+      {
+        "id": "visual_aim_and_beam",
+        "direction": "s2c",
+        "purpose": "Consume existing bounded aim and beam presentation payloads.",
+        "validation": [
+          "Client requires a loaded matching turret for aim.",
+          "Beam sampling is capped at 96 steps and RGB values are cosmetic."
+        ],
+        "rate_limit": {
+          "strategy": "coalesced",
+          "max_per_second": 40,
+          "burst": 40,
+          "key": "dimension"
+        },
+        "max_payload_bytes": 80,
+        "test_ids": [
+          "visual_state_contract"
+        ]
+      }
+    ]
+  },
+  "client_boundary": {
+    "common_code_client_imports": "forbidden",
+    "client_only_packages": [
+      "omtteam.openmodularturrets.client"
+    ],
+    "visual_state": "synced_server_state",
+    "dedicated_server_fallback": "Blocks and entities retain complete gameplay without model classes.",
+    "dedicated_server_test_id": "visual_dedicated_server_boot"
+  },
+  "registries": {
+    "entries": [],
+    "tags": []
+  },
+  "assets": {
+    "generated": [
+      "Six-direction attachment blockstates and models",
+      "Invisible turret block models backed by BER model layers"
+    ],
+    "manual": [
+      "Preserved GPL-3.0-compatible turret, addon, rocket and attachment textures"
+    ],
+    "locales": [
+      "en_us",
+      "zh_cn"
+    ],
+    "license_review": "complete",
+    "validation_test_ids": [
+      "visual_asset_contract"
+    ]
+  },
+  "performance": {
+    "budgets": [
+      {
+        "id": "beam_particle_budget",
+        "metric": "entity_count",
+        "scope": "One beam effect",
+        "limit": 97,
+        "unit": "count",
+        "measurement": "One particle at each of at most 96 segments plus endpoint.",
+        "test_id": "visual_performance_budget"
+      }
+    ],
+    "hot_paths": [
+      "TurretHeadBlockEntityRenderer",
+      "Projectile renderer tick particles",
+      "BeamEffectPayload client handler"
+    ],
+    "measurement_environment": "Java 21, NeoForge 21.1.234 client and GameTest server."
+  },
+  "dependencies": {
+    "features": [
+      "openmodularturrets.addon_mechanics",
+      "openmodularturrets.special_turrets"
+    ],
+    "mods": [
+      {
+        "id": "neoforge",
+        "requirement": "required",
+        "version_range": "[21.1,21.2)",
+        "fallback": "The mod refuses to load outside the pinned NeoForge 21.1 line."
+      }
+    ]
+  },
+  "status": "verifying",
+  "acceptance": {
+    "criteria": [
+      {
+        "id": "criterion.cover_cb6b0f6a518e1e7776e2fd52c7222ee0fa935010e1d522edb5b48d785ea9c370",
+        "risk": "P1",
+        "required": true,
+        "statement": "All turret definitions map to a stable texture and model key.",
+        "observation": "Rendering one block and item instance of every turret definition uses its declared model key and texture without a missing-texture fallback.",
+        "test_ids": [
+          "visual_state_contract"
+        ]
+      },
+      {
+        "id": "criterion.cover_c9e193a5d150fedf6d29f86c5e3183eb20c7a76f6b224a976d8d52bcbc0bc7cc",
+        "risk": "P1",
+        "required": true,
+        "statement": "Six attachment directions map to deterministic render transforms.",
+        "observation": "Rendering the same turret on all six attachment faces produces the documented deterministic orientation for each face.",
+        "test_ids": [
+          "visual_state_contract"
+        ]
+      },
+      {
+        "id": "criterion.cover_ad09c6914e5bfdd3e41ea2d1f6efc10ad776185f16eec6e4dbc088dc4083955c",
+        "risk": "P1",
+        "required": true,
+        "statement": "Concealed state and addon masks derive from synchronized gameplay state.",
+        "observation": "Changing synchronized concealed and addon-mask state changes only the corresponding visible turret and addon geometry.",
+        "test_ids": [
+          "visual_state_contract"
+        ]
+      },
+      {
+        "id": "criterion.cover_54ee99a559e8ec3077360e1ca3c65e6541b5274f53128d5f818cbf3134ee0c3f",
+        "risk": "P1",
+        "required": true,
+        "statement": "Beam sampling and cosmetic particle counts are bounded.",
+        "observation": "At maximum configured beam length and during every cosmetic burst, the observed sample count never exceeds the declared beam and particle limits.",
+        "test_ids": [
+          "visual_performance_budget"
+        ]
+      },
+      {
+        "id": "criterion.cover_4ac87cfbc7998ba8514dabb7bd8a5a80b9c649bee8b3483eb51d6986d002e2b9",
+        "risk": "P1",
+        "required": true,
+        "statement": "Rocket flight emits 21 smoke particles without flame, while plasma has no flight trail and emits paired 16-particle flame/large-smoke impact bursts.",
+        "observation": "A rocket client tick emits 21 smoke particles and no flame; plasma emits no flight particles and one impact emits 16 flame plus 16 large-smoke particles.",
+        "test_ids": [
+          "visual_performance_budget"
+        ]
+      },
+      {
+        "id": "criterion.cover_b97b8e648d1e906daadac3626361c8c71c02ded1952db9862f2dbacd9994ccb6",
+        "risk": "P1",
+        "required": true,
+        "statement": "Rail Gun and Relativistic idle dust use six particles per display tick, and a Teleporter shot emits a 26-particle portal burst at the turret.",
+        "observation": "Each visible Rail Gun and Relativistic display tick emits six dust particles, and one accepted Teleporter shot emits 26 portal particles centered on the turret.",
+        "test_ids": [
+          "visual_performance_budget"
+        ]
+      },
+      {
+        "id": "criterion.cover_88894a2c9e2534bbce1e284289815b31e026e460ff2efdc8f11425e0bb17ffba",
+        "risk": "P0",
+        "required": true,
+        "statement": "No renderer or model class is loaded by a dedicated server.",
+        "observation": "A dedicated server reaches its ready state without loading renderer, model, screen or other client-only visual classes.",
+        "test_ids": [
+          "visual_dedicated_server_boot"
+        ]
+      },
+      {
+        "id": "criterion.cover_df6ab9e1e97bb2994753f5d9ab356360a63fc9a833e389652c19e37006721142",
+        "risk": "P1",
+        "required": true,
+        "statement": "All model, texture and blockstate references resolve.",
+        "observation": "The asset gate resolves every turret blockstate, model and texture reference without a missing asset.",
+        "test_ids": [
+          "visual_asset_contract"
+        ]
+      },
+      {
+        "id": "criterion.cover_4123cf3bf1e5b2b974096eb8d9a52fa324c17a699e74c61edc5aad6afedc7c43",
+        "risk": "P1",
+        "required": true,
+        "statement": "Plasma preserves the legacy Grenade Launcher model and texture reuse.",
+        "observation": "The Plasma turret block and item deliberately resolve to the grenade model and grenade_turret texture used by the 1.12.2 renderer.",
+        "test_ids": [
+          "visual_asset_contract"
+        ]
+      }
+    ],
+    "tests": [
+      {
+        "id": "visual_state_contract",
+        "kind": "gametest",
+        "command": [
+          "python",
+          ".agents/run.py",
+          ".agents/gates/gametest_gate.py",
+          "--require-tests",
+          "--run"
+        ],
+        "covers": [
+          "All turret definitions map to a stable texture and model key.",
+          "Six attachment directions map to deterministic render transforms.",
+          "Concealed state and addon masks derive from synchronized gameplay state."
+        ],
+        "required": true,
+        "expected": "Pure visual routing rules pass without loading client classes.",
+        "timeout_seconds": 900,
+        "test_ref": "omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#visualStateContract"
+      },
+      {
+        "id": "visual_performance_budget",
+        "kind": "performance",
+        "command": [
+          "python",
+          ".agents/run.py",
+          ".agents/gates/gametest_gate.py",
+          "--require-tests",
+          "--run"
+        ],
+        "covers": [
+          "Beam sampling and cosmetic particle counts are bounded.",
+          "Rocket flight emits 21 smoke particles without flame, while plasma has no flight trail and emits paired 16-particle flame/large-smoke impact bursts.",
+          "Rail Gun and Relativistic idle dust use six particles per display tick, and a Teleporter shot emits a 26-particle portal burst at the turret."
+        ],
+        "required": true,
+        "expected": "Declared particle budgets remain fixed.",
+        "timeout_seconds": 900
+      },
+      {
+        "id": "visual_dedicated_server_boot",
+        "kind": "dedicated_server",
+        "command": [
+          "python",
+          ".agents/run.py",
+          ".agents/gates/compile_and_repair.py",
+          "--with-server"
+        ],
+        "covers": [
+          "No renderer or model class is loaded by a dedicated server."
+        ],
+        "required": true,
+        "expected": "Dedicated server reaches Done.",
+        "timeout_seconds": 900
+      },
+      {
+        "id": "visual_asset_contract",
+        "kind": "datagen",
+        "command": [
+          "python",
+          ".agents/run.py",
+          ".agents/gates/compile_and_repair.py",
+          "--with-data",
+          "--with-static",
+          "--with-assets"
+        ],
+        "covers": [
+          "All model, texture and blockstate references resolve.",
+          "Plasma preserves the legacy Grenade Launcher model and texture reuse."
+        ],
+        "required": true,
+        "expected": "DataGen and asset reconciliation pass.",
+        "timeout_seconds": 900
+      }
+    ],
+    "manual_checks": [
+      {
+        "id": "turret_visual_matrix",
+        "steps": [
+          "Place every turret on all six faces of tier-five bases.",
+          "Capture idle, aimed, firing and concealed states.",
+          "Repeat with Damage Amp, Solar Panel and Redstone Reactor."
+        ],
+        "expected": "Placed heads retain the same texture brightness as held heads; geometry, pivot, texture, attachment and visibility match the legacy visual intent without transparent terrain holes."
+      },
+      {
+        "id": "base_attachment_visual_matrix",
+        "steps": [
+          "Place every inventory expander, power expander and loot deleter on all six faces of a compatible base.",
+          "Compare each rendered plate against its selection and collision outline.",
+          "Place and operate the manual charger on every horizontal base face and inspect its item form.",
+          "Reload client resources and inspect the manual charger item again."
+        ],
+        "expected": "All eleven plate attachments occupy the legacy 12x12x6 side indicated by FACING, and the manual charger survives startup/resource reload using the preserved lever texture and animated two-part model rather than a fallback cube."
+      },
+      {
+        "id": "projectile_visual_matrix",
+        "steps": [
+          "Observe all seven projectile types and both beam turrets.",
+          "Inspect the 21-smoke rocket trail, the absence of a plasma flight trail, the paired plasma impact burst and beam colors.",
+          "Observe Rail Gun and Relativistic idle dust and fire the Teleporter once."
+        ],
+        "expected": "The visible particle families and counts match the 1.12.2 behavior while remaining within declared budgets."
+      }
+    ],
+    "non_goals": [
+      "Base GUI and trusted-player screen.",
+      "Base camouflage rendering.",
+      "Third-party shader-specific rendering.",
+      "Changing preserved texture pixels."
+    ]
+  }
+}

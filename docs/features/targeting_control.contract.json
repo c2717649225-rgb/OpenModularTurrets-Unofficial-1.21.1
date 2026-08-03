@@ -1,0 +1,585 @@
+{
+  "$schema": "../../.agents/contracts/major-feature-v2.schema.json",
+  "schema_version": 2,
+  "design_source": {
+    "path": "docs/porting/openmodularturrets-1.21.1-acceptance-design.md",
+    "revision": "confirmed-2026-08-01",
+    "sha256": "7594696d646d05ef287e4596f1383417a169282a01483fc18ed9eee56496f0d6"
+  },
+  "review_required": [],
+  "id": "openmodularturrets.targeting_control",
+  "version": 2,
+  "summary": "Server-authoritative target filtering, deterministic turret-specific priorities, allied and pet protection, multi-target coordination, player warnings and menu-synced controls.",
+  "server_authority": {
+    "owner": "logical_server",
+    "authoritative_state": [
+      "TurretBaseBlockEntity owns target category flags, multi-target mode, trust policy and warning cooldowns.",
+      "TurretHeadBlockEntity validates and scores all candidates and owns its current target and five legacy priority weights.",
+      "TurretBaseMenu exposes only server-synchronized ContainerData values to its screen."
+    ],
+    "client_input_policy": "intent_only",
+    "invalid_input_policy": "reject_and_log"
+  },
+  "persistence": {
+    "required": true,
+    "scope": "block_entity",
+    "schema": {
+      "version": 4,
+      "format": "value_io",
+      "owner": "TurretBaseBlockEntity and MemoryCardProfile",
+      "fields": [
+        "multi_targeting",
+        "owner_team stores the owner's scoreboard team for offline-owner ally protection.",
+        "Turret head priority_max_health, priority_missing_health, priority_distance, priority_armor and priority_player fields.",
+        "Memory Card schema 2 copies multi-targeting together with existing base configuration.",
+        "Warning cooldowns and current targets are transient."
+      ]
+    },
+    "migration": {
+      "strategy": "custom",
+      "supported_from": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "fallback": "reject_incompatible",
+      "test_ids": [
+        "targeting_profile_migration"
+      ]
+    }
+  },
+  "network": {
+    "required": true,
+    "flows": [
+      {
+        "id": "base_targeting_command",
+        "direction": "c2s",
+        "purpose": "Apply a bounded targeting configuration intent while the matching base menu is open.",
+        "validation": [
+          "sender has the matching TurretBaseMenu open",
+          "payload position matches that menu",
+          "sender is within 8 blocks",
+          "sender has USE access",
+          "rate limit and command value bounds pass"
+        ],
+        "rate_limit": {
+          "strategy": "fixed_window",
+          "max_per_second": 20,
+          "burst": 20,
+          "key": "player"
+        },
+        "max_payload_bytes": 64,
+        "test_ids": [
+          "targeting_network_authority"
+        ]
+      },
+      {
+        "id": "base_menu_state",
+        "direction": "s2c",
+        "purpose": "Synchronize bounded base configuration values to the current menu viewer.",
+        "validation": [
+          "Vanilla menu listeners receive six signed-short-safe values."
+        ],
+        "rate_limit": {
+          "strategy": "coalesced",
+          "max_per_second": 20,
+          "burst": 6,
+          "key": "player"
+        },
+        "max_payload_bytes": 32,
+        "test_ids": [
+          "targeting_network_authority"
+        ]
+      }
+    ]
+  },
+  "client_boundary": {
+    "common_code_client_imports": "forbidden",
+    "client_only_packages": [
+      "omtteam.openmodularturrets.client"
+    ],
+    "visual_state": "synced_server_state",
+    "dedicated_server_fallback": "All targeting, warning and command validation works without client classes.",
+    "dedicated_server_test_id": "targeting_dedicated_server_boot"
+  },
+  "registries": {
+    "entries": [],
+    "tags": [
+      "openmodularturrets:target_blacklist"
+    ]
+  },
+  "assets": {
+    "generated": [
+      "Entity type target blacklist tag"
+    ],
+    "manual": [],
+    "locales": [
+      "en_us",
+      "zh_cn"
+    ],
+    "license_review": "not_applicable",
+    "validation_test_ids": [
+      "targeting_asset_contract"
+    ]
+  },
+  "performance": {
+    "budgets": [
+      {
+        "id": "target_scan_budget",
+        "metric": "custom",
+        "scope": "One turret target acquisition",
+        "limit": 10,
+        "unit": "count",
+        "measurement": "Position-staggered scan interval in TurretHeadBlockEntity.",
+        "test_id": "target_priority_rules"
+      },
+      {
+        "id": "multi_target_neighbor_budget",
+        "metric": "custom",
+        "scope": "Sibling target lookup",
+        "limit": 6,
+        "unit": "count",
+        "measurement": "Only the six positions adjacent to the base are inspected.",
+        "test_id": "multi_target_coordination"
+      }
+    ],
+    "hot_paths": [
+      "TurretHeadBlockEntity target acquisition",
+      "TurretBaseBlockEntity warning scan"
+    ],
+    "measurement_environment": "Java 21, NeoForge 21.1.234 GameTest server."
+  },
+  "dependencies": {
+    "features": [
+      "openmodularturrets.core_turret_loop",
+      "openmodularturrets.base_rules_upgrades",
+      "openmodularturrets.addon_mechanics"
+    ],
+    "mods": [
+      {
+        "id": "neoforge",
+        "requirement": "required",
+        "version_range": "[21.1,21.2)",
+        "fallback": "The mod refuses to load outside the pinned NeoForge 21.1 line."
+      }
+    ]
+  },
+  "status": "verifying",
+  "acceptance": {
+    "criteria": [
+      {
+        "id": "criterion.cover_9aeeec792135de71410b54cd071fc4a6e17a789c76b7090815a55988d097b9e2",
+        "risk": "P1",
+        "required": true,
+        "statement": "All five normalized dimensions honor positive, negative and zero weights.",
+        "observation": "The performance acceptance command exits 0 after demonstrating this condition: All five normalized dimensions honor positive, negative and zero weights.",
+        "test_ids": [
+          "target_priority_rules"
+        ]
+      },
+      {
+        "id": "criterion.cover_6845c15e3a0b3e068a83fbdce72182e0ffefe5bf9cc9997cc73f473cc5d6b2dc",
+        "risk": "P1",
+        "required": true,
+        "statement": "Every turret definition has a valid five-entry default profile.",
+        "observation": "GameTest `omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#targetPriorityRules` passes after asserting that every turret definition has a valid five-entry default profile.",
+        "test_ids": [
+          "target_priority_defaults"
+        ]
+      },
+      {
+        "id": "criterion.cover_e143861a922a1ffa477305b946e60c3adb0266fae68515a8b7d0492043636ece",
+        "risk": "P1",
+        "required": true,
+        "statement": "Score ties are deterministic.",
+        "observation": "The performance acceptance command exits 0 after demonstrating this condition: Score ties are deterministic.",
+        "test_ids": [
+          "target_priority_rules"
+        ]
+      },
+      {
+        "id": "criterion.cover_25a7c88c97e3f1da6150d16e33005550d74bd62c4300d3675503f5d6cf2fa2df",
+        "risk": "P0",
+        "required": true,
+        "statement": "Owners, trusted players, team allies and their tameable pets are protected.",
+        "observation": "GameTest `omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#targetProtectionPolicy` passes after asserting that owners, trusted players, team allies and their tameable pets are protected.",
+        "test_ids": [
+          "target_protection_policy"
+        ]
+      },
+      {
+        "id": "criterion.cover_2adc3632c8c9ca67f52fb3de4e2e5db6a4bc49af596103c37715f428b8ce7470",
+        "risk": "P0",
+        "required": true,
+        "statement": "The damage_trusted_players switch applies consistently to trusted players and their tameable pets while owner and owner-team protection remains unconditional.",
+        "observation": "GameTest `omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#targetProtectionPolicy` passes after asserting that the damage_trusted_players switch applies consistently to trusted players and their tameable pets while owner and owner-team protection remains unconditional.",
+        "test_ids": [
+          "target_protection_policy"
+        ]
+      },
+      {
+        "id": "criterion.cover_7448a75920c354846b3494598c0c7d42b7a280b287597140912527b9cd8f8c3a",
+        "risk": "P0",
+        "required": true,
+        "statement": "Creative and spectator players are never warned or targeted.",
+        "observation": "GameTest `omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#targetProtectionPolicy` passes after asserting that creative and spectator players are never warned or targeted.",
+        "test_ids": [
+          "target_protection_policy"
+        ]
+      },
+      {
+        "id": "criterion.cover_7e6f53dfcab912941c4d58fdd98a5f95828b20e938bb5818c57852279c13b6fd",
+        "risk": "P0",
+        "required": true,
+        "statement": "Entity types in target_blacklist are rejected.",
+        "observation": "GameTest `omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#targetProtectionPolicy` passes after asserting that entity types in target_blacklist are rejected.",
+        "test_ids": [
+          "target_protection_policy"
+        ]
+      },
+      {
+        "id": "criterion.cover_2e14365a3c2644374e8626c741a504c1ee12ed1f479a512156a64f0ce7636907",
+        "risk": "P1",
+        "required": true,
+        "statement": "Disabled multi-target permits focus fire.",
+        "observation": "GameTest `omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#multiTargetCoordination` passes after asserting that disabled multi-target permits focus fire.",
+        "test_ids": [
+          "multi_target_rules"
+        ]
+      },
+      {
+        "id": "criterion.cover_04ac1c9ec0ab8aa3076b0a4ed8fdeb64114c51cb8fe75221260dc4efe65a9201",
+        "risk": "P1",
+        "required": true,
+        "statement": "Enabled multi-target excludes targets already held by sibling heads.",
+        "observation": "GameTest `omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#multiTargetCoordination` passes after asserting that enabled multi-target excludes targets already held by sibling heads.",
+        "test_ids": [
+          "multi_target_rules"
+        ]
+      },
+      {
+        "id": "criterion.cover_2250dd208ecea5b1f2f941be3673e3e83f8804cad78d9ef2266fcace7625d07e",
+        "risk": "P1",
+        "required": true,
+        "statement": "The menu synchronizes six bounded server-owned configuration values.",
+        "observation": "GameTest `omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#targetingMenuState` passes after asserting that the menu synchronizes six bounded server-owned configuration values.",
+        "test_ids": [
+          "targeting_menu_state"
+        ]
+      },
+      {
+        "id": "criterion.cover_a6a5a1f5a7d00348232fca134bd2d74926b575b0bb5d6da4c25d44073bb20fc5",
+        "risk": "P0",
+        "required": true,
+        "statement": "Unknown, out-of-range and unauthorized targeting commands do not mutate the base.",
+        "observation": "The integration acceptance command exits 0 after demonstrating this condition: Unknown, out-of-range and unauthorized targeting commands do not mutate the base.",
+        "test_ids": [
+          "targeting_network_authority"
+        ]
+      },
+      {
+        "id": "criterion.cover_74e8d716fc033199de7baa8f3af98b04ed1f3c052bdb83f8df33b8bd1155a246",
+        "risk": "P0",
+        "required": true,
+        "statement": "Schema 1 Memory Cards decode with multi-target false.",
+        "observation": "GameTest `omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#targetingProfileMigration` passes after asserting that schema 1 Memory Cards decode with multi-target false.",
+        "test_ids": [
+          "targeting_profile_schema_one"
+        ]
+      },
+      {
+        "id": "criterion.cover_58f89e4599c7028cd05ae6e440427641669ce6ce9d200cd31dbdac3b8891f82b",
+        "risk": "P0",
+        "required": true,
+        "statement": "Schema 2 profiles round-trip all copied settings.",
+        "observation": "The migration acceptance command exits 0 after demonstrating this condition: Schema 2 profiles round-trip all copied settings.",
+        "test_ids": [
+          "targeting_profile_migration"
+        ]
+      },
+      {
+        "id": "criterion.cover_1852ef63a940ec04ecc4ddb48e09172ab1eff6f1a52afc20be1832500624f346",
+        "risk": "P0",
+        "required": true,
+        "statement": "Five per-head legacy priority weights survive block-entity save and load.",
+        "observation": "GameTest `omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#turretPriorityPersistence` passes after asserting that five per-head legacy priority weights survive block-entity save and load.",
+        "test_ids": [
+          "turret_priority_persistence"
+        ]
+      },
+      {
+        "id": "criterion.cover_439f451471eead5f3caeafe931e9e51799b89532ea4a63212cffc84f81b8de09",
+        "risk": "P0",
+        "required": true,
+        "statement": "Older turret-head data without priority fields migrates to its turret definition defaults.",
+        "observation": "GameTest `omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#turretPriorityPersistence` passes after asserting that older turret-head data without priority fields migrates to its turret definition defaults.",
+        "test_ids": [
+          "turret_priority_persistence"
+        ]
+      },
+      {
+        "id": "criterion.cover_29ffc8c32ae54507a4abb1c16e5c90c8a993806dc2d076796f079979a9e7cebe",
+        "risk": "P0",
+        "required": true,
+        "statement": "Targeting and menu common code does not load client classes.",
+        "observation": "The dedicated-server command exits 0 and the server log reaches `Done` without violating this condition: Targeting and menu common code does not load client classes.",
+        "test_ids": [
+          "targeting_dedicated_server_boot"
+        ]
+      },
+      {
+        "id": "criterion.cover_592f778cd71aef027cffcd639b9aed55ae34316642543a1692d046c61b82cb09",
+        "risk": "P2",
+        "required": true,
+        "statement": "Target blacklist and both locale entries are generated or present.",
+        "observation": "The DataGen/static/asset reconciliation command exits 0 and reports zero drift for this condition: Target blacklist and both locale entries are generated or present.",
+        "test_ids": [
+          "targeting_asset_contract"
+        ]
+      }
+    ],
+    "tests": [
+      {
+        "id": "target_priority_rules",
+        "kind": "performance",
+        "command": [
+          "python",
+          ".agents/run.py",
+          ".agents/gates/gametest_gate.py",
+          "--require-tests",
+          "--run"
+        ],
+        "covers": [
+          "All five normalized dimensions honor positive, negative and zero weights.",
+          "Score ties are deterministic."
+        ],
+        "required": true,
+        "expected": "Target scoring vectors and an entity fixture pass.",
+        "timeout_seconds": 900
+      },
+      {
+        "id": "target_priority_defaults",
+        "kind": "gametest",
+        "command": [
+          "python",
+          ".agents/run.py",
+          ".agents/gates/gametest_gate.py",
+          "--require-tests",
+          "--run"
+        ],
+        "covers": [
+          "Every turret definition has a valid five-entry default profile."
+        ],
+        "required": true,
+        "expected": "Every turret definition exposes a non-null default priority profile.",
+        "timeout_seconds": 900,
+        "test_ref": "omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#targetPriorityRules"
+      },
+      {
+        "id": "target_protection_policy",
+        "kind": "gametest",
+        "command": [
+          "python",
+          ".agents/run.py",
+          ".agents/gates/gametest_gate.py",
+          "--require-tests",
+          "--run"
+        ],
+        "covers": [
+          "Owners, trusted players, team allies and their tameable pets are protected.",
+          "The damage_trusted_players switch applies consistently to trusted players and their tameable pets while owner and owner-team protection remains unconditional.",
+          "Creative and spectator players are never warned or targeted.",
+          "Entity types in target_blacklist are rejected."
+        ],
+        "required": true,
+        "expected": "Protection fixtures pass without client state.",
+        "timeout_seconds": 900,
+        "test_ref": "omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#targetProtectionPolicy"
+      },
+      {
+        "id": "multi_target_coordination",
+        "kind": "performance",
+        "command": [
+          "python",
+          ".agents/run.py",
+          ".agents/gates/gametest_gate.py",
+          "--require-tests",
+          "--run"
+        ],
+        "covers": [
+          "Disabled multi-target permits focus fire.",
+          "Enabled multi-target excludes targets already held by sibling heads."
+        ],
+        "required": true,
+        "expected": "Two-head acquisition fixtures match both modes.",
+        "timeout_seconds": 900
+      },
+      {
+        "id": "multi_target_rules",
+        "kind": "gametest",
+        "command": [
+          "python",
+          ".agents/run.py",
+          ".agents/gates/gametest_gate.py",
+          "--require-tests",
+          "--run"
+        ],
+        "covers": [
+          "Disabled multi-target permits focus fire.",
+          "Enabled multi-target excludes targets already held by sibling heads."
+        ],
+        "required": true,
+        "expected": "Sibling-head focus-fire and exclusion vectors pass in their respective modes.",
+        "timeout_seconds": 900,
+        "test_ref": "omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#multiTargetCoordination"
+      },
+      {
+        "id": "targeting_menu_state",
+        "kind": "gametest",
+        "command": [
+          "python",
+          ".agents/run.py",
+          ".agents/gates/gametest_gate.py",
+          "--require-tests",
+          "--run"
+        ],
+        "covers": [
+          "The menu synchronizes six bounded server-owned configuration values."
+        ],
+        "required": true,
+        "expected": "The menu exposes the bounded authoritative targeting values.",
+        "timeout_seconds": 900,
+        "test_ref": "omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#targetingMenuState"
+      },
+      {
+        "id": "targeting_network_authority",
+        "kind": "integration",
+        "command": [
+          "python",
+          ".agents/run.py",
+          ".agents/gates/gametest_gate.py",
+          "--require-tests",
+          "--run"
+        ],
+        "covers": [
+          "Unknown, out-of-range and unauthorized targeting commands do not mutate the base."
+        ],
+        "required": true,
+        "expected": "Only valid USE-authorized menu intents mutate targeting state.",
+        "timeout_seconds": 900
+      },
+      {
+        "id": "targeting_profile_schema_one",
+        "kind": "gametest",
+        "command": [
+          "python",
+          ".agents/run.py",
+          ".agents/gates/gametest_gate.py",
+          "--require-tests",
+          "--run"
+        ],
+        "covers": [
+          "Schema 1 Memory Cards decode with multi-target false."
+        ],
+        "required": true,
+        "expected": "A schema-one Memory Card migrates to the current schema with multi-target disabled.",
+        "timeout_seconds": 900,
+        "test_ref": "omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#targetingProfileMigration"
+      },
+      {
+        "id": "targeting_profile_migration",
+        "kind": "migration",
+        "command": [
+          "python",
+          ".agents/run.py",
+          ".agents/gates/contract_gate.py"
+        ],
+        "covers": [
+          "Schema 2 profiles round-trip all copied settings."
+        ],
+        "required": true,
+        "expected": "Data Component migration vectors pass.",
+        "timeout_seconds": 300
+      },
+      {
+        "id": "turret_priority_persistence",
+        "kind": "gametest",
+        "command": [
+          "python",
+          ".agents/run.py",
+          ".agents/gates/gametest_gate.py",
+          "--require-tests",
+          "--run"
+        ],
+        "covers": [
+          "Five per-head legacy priority weights survive block-entity save and load.",
+          "Older turret-head data without priority fields migrates to its turret definition defaults."
+        ],
+        "required": true,
+        "expected": "Custom profiles round-trip and schema-one fixtures receive exact defaults.",
+        "timeout_seconds": 900,
+        "test_ref": "omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#turretPriorityPersistence"
+      },
+      {
+        "id": "targeting_dedicated_server_boot",
+        "kind": "dedicated_server",
+        "command": [
+          "python",
+          ".agents/run.py",
+          ".agents/gates/compile_and_repair.py",
+          "--with-server"
+        ],
+        "covers": [
+          "Targeting and menu common code does not load client classes."
+        ],
+        "required": true,
+        "expected": "Dedicated server reaches Done.",
+        "timeout_seconds": 900
+      },
+      {
+        "id": "targeting_asset_contract",
+        "kind": "datagen",
+        "command": [
+          "python",
+          ".agents/run.py",
+          ".agents/gates/compile_and_repair.py",
+          "--with-data",
+          "--with-static",
+          "--with-assets"
+        ],
+        "covers": [
+          "Target blacklist and both locale entries are generated or present."
+        ],
+        "required": true,
+        "expected": "DataGen and asset reconciliation pass.",
+        "timeout_seconds": 900
+      }
+    ],
+    "manual_checks": [
+      {
+        "id": "target_configuration_screen",
+        "steps": [
+          "Open a base as a USE-authorized player on a dedicated server.",
+          "Toggle each target class and multi-target mode, then adjust range.",
+          "Reopen the menu after reconnecting."
+        ],
+        "expected": "Labels update from synchronized menu data and all settings persist."
+      },
+      {
+        "id": "player_warning_experience",
+        "steps": [
+          "Enable player targeting and approach an active base as an untrusted survival player.",
+          "Remain inside the warning area, leave, and re-enter before and after 12000 ticks."
+        ],
+        "expected": "One localized warning and sound occurs per cooldown window."
+      }
+    ],
+    "non_goals": [
+      "Final textured UI skin or final turret BER.",
+      "A new player-facing editor for the five priority weights, which did not exist in the 1.12.2 UI.",
+      "Third-party faction API integrations.",
+      "Changing registry IDs or the openmodularturrets mod id."
+    ]
+  }
+}

@@ -2,13 +2,13 @@
 status: verified
 pin_minecraft: 1.21.1
 pin_neo: 21.1.x
-last_verified: 2026-07-28
+last_verified: 2026-07-30
 ---
 # Standard Few-Shot Skeletons (可复用骨架)
 
 > [!IMPORTANT]
 > **占位符自适应规则**：
-> 下列骨架中的 `{{MOD_GROUP}}`、`{{MODID}}` 和 `{{MAIN_CLASS}}` 均为符号占位符。在将代码写入项目前，您**必须**先从 `gradle.properties` 和 `neoforge.mods.toml` 读取真实的包路径与 Mod ID，并将占位符替换为当前项目的真实命名空间，严禁机械化复制。
+> 下列骨架中的 `{{MOD_GROUP}}`、`{{MODID}}` 和 `{{MAIN_CLASS}}` 均为符号占位符。写入项目前，必须从 `gradle.properties` 获取 `mod_group_id` / `mod_id`，并以实际 `@Mod` 主类确认 package 与主类名，再替换为当前项目的真实命名空间。
 > *注：`references/` 目录下的所有 markdown 指南代码示例中的包名（如 `com.tutorial.tutorialmod`）一律视为示例，同样必须在写入前按当前项目进行替换。*
 > **详细设计与 API 细节，请以对应的 references/*.md 单项专题指南为准。**
 
@@ -244,7 +244,8 @@ public class MyJigsawStructure extends Structure {
             this.maxDistanceFromCenter,
             PoolAliasLookup.create(this.poolAliases, blockpos, context.seed()),
             this.dimensionPadding,
-            this.liquidSettings
+            this.liquidSettings,
+            false
         );
     }
 

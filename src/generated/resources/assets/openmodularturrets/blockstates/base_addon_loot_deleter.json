@@ -1,0 +1,27 @@
+{
+  "variants": {
+    "facing=down": {
+      "model": "openmodularturrets:block/base_addon_loot_deleter",
+      "x": 90
+    },
+    "facing=east": {
+      "model": "openmodularturrets:block/base_addon_loot_deleter",
+      "y": 90
+    },
+    "facing=north": {
+      "model": "openmodularturrets:block/base_addon_loot_deleter"
+    },
+    "facing=south": {
+      "model": "openmodularturrets:block/base_addon_loot_deleter",
+      "y": 180
+    },
+    "facing=up": {
+      "model": "openmodularturrets:block/base_addon_loot_deleter",
+      "x": 270
+    },
+    "facing=west": {
+      "model": "openmodularturrets:block/base_addon_loot_deleter",
+      "y": 270
+    }
+  }
+}

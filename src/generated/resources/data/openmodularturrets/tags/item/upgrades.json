@@ -1,0 +1,9 @@
+{
+  "values": [
+    "openmodularturrets:upgrade_accuracy",
+    "openmodularturrets:upgrade_efficiency",
+    "openmodularturrets:upgrade_fire_rate",
+    "openmodularturrets:upgrade_range",
+    "openmodularturrets:upgrade_scatter_shot"
+  ]
+}

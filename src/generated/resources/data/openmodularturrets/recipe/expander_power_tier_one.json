@@ -1,0 +1,27 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "redstone",
+  "key": {
+    "A": {
+      "tag": "c:cobblestones/normal"
+    },
+    "B": {
+      "tag": "minecraft:planks"
+    },
+    "C": {
+      "tag": "c:dusts/redstone"
+    },
+    "D": {
+      "item": "openmodularturrets:io_bus"
+    }
+  },
+  "pattern": [
+    "ABA",
+    "DCD",
+    "ADA"
+  ],
+  "result": {
+    "count": 1,
+    "id": "openmodularturrets:expander_power_tier_one"
+  }
+}

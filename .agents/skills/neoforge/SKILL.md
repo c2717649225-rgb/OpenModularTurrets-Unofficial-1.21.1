@@ -34,7 +34,7 @@ description: >
 * 修改 references/examples/playbooks 后跑：`python .agents/run.py .agents/gates/check_doc_index.py` 与 `python .agents/run.py .agents/gates/check_doc_meta.py`。
 * Major 功能须先落 `docs/features/*.json` 合同并通过 L0；实现后须有真实 `@GameTest` 并通过 L4，还须人工列出“变更/合同验收项 → `GameTestClass#method`”映射，因为 L4 不能自动判断测试相关性。可直接运行 `python .agents/run.py .agents/gates/pipeline.py --profile major`。
 * 发布声明须运行非 dry-run 的 `python .agents/run.py .agents/gates/pipeline.py --profile release` 全绿，或提供与其等价的 DataGen 零漂移、L3 与旗舰评测协议完整性证据。
-* 元数据唯一真源：宿主 `gradle.properties` 与 `neoforge.mods.toml`，禁止硬编码 Mod ID/包名。
+* 元数据真源：从宿主 `gradle.properties` 读取 `mod_id` / `mod_group_id` / 精确版本，并以实际 `@Mod` 主类交叉确认包名和 Mod ID；发布元数据读取宿主真实的 `src/main/templates/META-INF/neoforge.mods.toml` 或等价模板路径。禁止硬编码。
 * 宣称完成须附：变更路径 + 门禁通过输出（见 `AGENTS.md` 完成证据协议）。
 
 ---
@@ -50,7 +50,7 @@ description: >
 *   **StreamCodec 字段及容量限制**：`StreamCodec.composite` 最多只支持 6 个字段。当字段达到 7 个及以上时，必须手动使用 `StreamCodec.of(encoder, decoder)` 进行声明。在网络同步中传输 `ItemStack` 时，StreamCodec 的泛型必须声明为 `net.minecraft.network.RegistryFriendlyByteBuf` 而非 `ByteBuf`。
 
 ### 💡 占位符自适应规则
-下列 references 专题与骨架文档中的 `{{MOD_GROUP}}`、`{{MODID}}`、`{{MAIN_CLASS}}` 均为符号占位符。在写入代码前，必须先从 `gradle.properties` 和 `neoforge.mods.toml` 读取真实的包路径与 Mod ID 进行符号替换，严禁机械化复制。
+下列 references 专题与骨架文档中的 `{{MOD_GROUP}}`、`{{MODID}}`、`{{MAIN_CLASS}}` 均为符号占位符。写入代码前，必须从 `gradle.properties` 获取 `mod_group_id` / `mod_id`，并以实际 `@Mod` 主类确认包路径与主类名后再替换，严禁机械化复制。
 
 ---
 
@@ -62,10 +62,11 @@ description: >
 
 ## 📂 4. 100% 导航索引大表 (按需单篇查阅，禁止批量全部打开)
 
-### 🎯 设计拆解（用户给的是玩法愿景而非具体任务时，先读此篇）
+### 🎯 设计拆解与复杂模组 SOP（用户给的是玩法愿景而非具体任务时，先读此篇）
 | 任务类型 | 目标专题路径 (READ ONLY) |
 | :--- | :--- |
 | 玩法需求 → 平台能力拆解 SOP、任务清单模板（设计阶段读，不占实现限额） | [references/design_intake.md](references/design_intake.md) |
+| 复杂/大型模组 7 阶段自适应开发与移植 SOP（重型/多系统大模组必读） | [references/complex_mod_development_sop.md](references/complex_mod_development_sop.md) |
 
 ### 🧪 核心系统与注册项
 | 任务类型 | 目标专题路径 (READ ONLY) |

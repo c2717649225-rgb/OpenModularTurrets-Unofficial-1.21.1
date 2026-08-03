@@ -1,0 +1,27 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "equipment",
+  "key": {
+    "A": {
+      "item": "openmodularturrets:barrel_tier_five"
+    },
+    "B": {
+      "item": "openmodularturrets:chamber_tier_five"
+    },
+    "C": {
+      "tag": "c:obsidians/normal"
+    },
+    "D": {
+      "item": "openmodularturrets:io_bus"
+    }
+  },
+  "pattern": [
+    "CAC",
+    "CAC",
+    "DBD"
+  ],
+  "result": {
+    "count": 1,
+    "id": "openmodularturrets:rail_gun_turret"
+  }
+}

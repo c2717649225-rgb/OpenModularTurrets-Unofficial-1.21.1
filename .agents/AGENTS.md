@@ -8,7 +8,7 @@
 
 ## 📌 项目元数据自适应规范
 - **版本锚点**: Minecraft 1.21.1 + NeoForge 21.1.x（以宿主 `gradle.properties` 中的精确 `neo_version` 为准；21.1.x 内也存在 API 行为分界）。
-- **真元数据源**: 写码或生成资源前，**必须先读取**宿主工程的 `gradle.properties` 与 `neoforge.mods.toml`，获取真实 Mod ID 与 Java 包名；禁止写死模板默认值。
+- **真元数据源**: 写码或生成资源前，先从宿主 `gradle.properties` 读取 `mod_id`、`mod_group_id` 与精确版本，再以实际 `@Mod` 主类的 `package` / Mod ID 交叉确认；发布元数据与依赖范围读取 `src/main/templates/META-INF/neoforge.mods.toml`（若宿主使用其他 Gradle 元数据模板路径，则读取其真实配置）。禁止假定 TOML 位于项目根目录或写死模板默认值。
 
 ---
 

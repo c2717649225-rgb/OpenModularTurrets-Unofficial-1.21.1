@@ -1,0 +1,33 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "equipment",
+  "key": {
+    "A": {
+      "tag": "c:ingots/gold"
+    },
+    "B": {
+      "tag": "c:dusts/redstone"
+    },
+    "C": {
+      "tag": "c:ingots/iron"
+    },
+    "D": {
+      "item": "openmodularturrets:io_bus"
+    },
+    "E": {
+      "item": "minecraft:paper"
+    },
+    "F": {
+      "item": "minecraft:blue_dye"
+    }
+  },
+  "pattern": [
+    "BAB",
+    "CEC",
+    "FDF"
+  ],
+  "result": {
+    "count": 1,
+    "id": "openmodularturrets:memory_card"
+  }
+}

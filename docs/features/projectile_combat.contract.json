@@ -1,0 +1,469 @@
+{
+  "$schema": "../../.agents/contracts/major-feature-v2.schema.json",
+  "schema_version": 2,
+  "design_source": {
+    "path": "docs/porting/openmodularturrets-1.21.1-acceptance-design.md",
+    "revision": "confirmed-2026-08-01",
+    "sha256": "7594696d646d05ef287e4596f1383417a169282a01483fc18ed9eee56496f0d6"
+  },
+  "review_required": [],
+  "id": "openmodularturrets.projectile_combat",
+  "version": 2,
+  "summary": "Projectile turrets launch tracked server-authoritative entities whose travel, collision, damage and area effects match the intended turret family.",
+  "server_authority": {
+    "owner": "logical_server",
+    "authoritative_state": [
+      "TurretHeadBlockEntity alone decides whether a shot may be created after target, energy and ammunition validation.",
+      "TurretProjectileEntity owns projectile kind, damage, damage multiplier, source base position, target identity and lifetime.",
+      "Collision, homing, fire, explosions, damage and kill attribution are resolved only by the logical server."
+    ],
+    "client_input_policy": "intent_only",
+    "invalid_input_policy": "reject_and_log"
+  },
+  "persistence": {
+    "required": true,
+    "scope": "entity",
+    "schema": {
+      "version": 1,
+      "format": "value_io",
+      "owner": "TurretProjectileEntity",
+      "fields": [
+        "projectile_kind:string=disposable constrained to the declared ProjectileKind ids",
+        "damage:float=0 clamped to 0..2048",
+        "damage_multiplier:float=1 clamped to 0..16",
+        "source_base_pos:optional BlockPos used only for server-side access and kill attribution",
+        "target_uuid:optional UUID used only by homing projectiles",
+        "age is bounded by a hard maximum lifetime and projectiles discard safely after reload"
+      ]
+    },
+    "migration": {
+      "strategy": "custom",
+      "supported_from": [
+        1
+      ],
+      "fallback": "reject_incompatible",
+      "test_ids": [
+        "projectile_state"
+      ]
+    }
+  },
+  "network": {
+    "required": false,
+    "flows": []
+  },
+  "client_boundary": {
+    "common_code_client_imports": "forbidden",
+    "client_only_packages": [
+      "omtteam.openmodularturrets.client"
+    ],
+    "visual_state": "synced_server_state",
+    "dedicated_server_fallback": "Projectile simulation and damage remain fully functional without loading a renderer; vanilla entity tracking carries position and item appearance.",
+    "dedicated_server_test_id": "dedicated_server_boot"
+  },
+  "registries": {
+    "entries": [
+      {
+        "registry": "entity_type",
+        "ids": [
+          "openmodularturrets:disposable_item_projectile",
+          "openmodularturrets:potato_projectile",
+          "openmodularturrets:bullet_projectile",
+          "openmodularturrets:blazing_clay_projectile",
+          "openmodularturrets:grenade_projectile",
+          "openmodularturrets:rocket_projectile",
+          "openmodularturrets:plasma_projectile"
+        ],
+        "lifecycle": "static"
+      },
+      {
+        "registry": "damage_type",
+        "ids": [
+          "openmodularturrets:turret_projectile",
+          "openmodularturrets:turret_explosion",
+          "openmodularturrets:turret_fire",
+          "openmodularturrets:turret_armor_piercing"
+        ],
+        "lifecycle": "datapack"
+      }
+    ],
+    "tags": [
+      "minecraft:bypasses_armor",
+      "minecraft:is_projectile",
+      "minecraft:is_explosion",
+      "minecraft:is_fire"
+    ]
+  },
+  "assets": {
+    "generated": [
+      "DamageType JSON and damage-type tags."
+    ],
+    "manual": [
+      "Existing GPL-compatible OMT ammunition textures rendered through the vanilla thrown-item renderer."
+    ],
+    "locales": [
+      "en_us",
+      "zh_cn"
+    ],
+    "license_review": "complete",
+    "validation_test_ids": [
+      "projectile_assets"
+    ]
+  },
+  "performance": {
+    "budgets": [
+      {
+        "id": "projectile_lifetime_budget",
+        "metric": "entity_count",
+        "scope": "One hundred continuously active turrets after all earlier shots have exceeded their lifetime",
+        "limit": 300,
+        "unit": "count",
+        "measurement": "Run the representative load for 200 ticks and count live OMT projectile entities.",
+        "test_id": "projectile_lifetime"
+      }
+    ],
+    "hot_paths": [
+      "TurretProjectileEntity tick collision and rocket homing",
+      "Area-effect target filtering"
+    ],
+    "measurement_environment": "Java 21, fixed GameTest world, 100 firing turret heads and bounded projectile lifetime."
+  },
+  "dependencies": {
+    "features": [
+      "openmodularturrets.core_turret_loop"
+    ],
+    "mods": [
+      {
+        "id": "neoforge",
+        "requirement": "required",
+        "version_range": "[21.1,21.2)",
+        "fallback": "Projectile combat is unavailable outside the pinned NeoForge 21.1 line."
+      }
+    ]
+  },
+  "status": "verifying",
+  "acceptance": {
+    "criteria": [
+      {
+        "id": "criterion.cover_a139190312d889782bbbb54073c140e813750c08a533bc82a22beac29d03a2a0",
+        "risk": "P1",
+        "required": true,
+        "statement": "Projectile kind and bounded combat state survive an entity save/load round trip.",
+        "observation": "Projectile kind and bounded combat state survive an entity save/load round trip.",
+        "test_ids": [
+          "projectile_state",
+          "projectile_state_gametest"
+        ]
+      },
+      {
+        "id": "criterion.cover_6ddd3d9b3bf884e76cf4002a690f578c9089e91e098ae3efad7a6793b93a7b17",
+        "risk": "P1",
+        "required": true,
+        "statement": "A projectile shot creates a tracked entity instead of immediately damaging its target.",
+        "observation": "A projectile shot creates a tracked entity instead of immediately damaging its target.",
+        "test_ids": [
+          "projectile_behavior"
+        ]
+      },
+      {
+        "id": "criterion.cover_11e4fa570e0a8dce7def5ef4c479f3b624d75870987c7caabf5bf6b05c772dd1",
+        "risk": "P0",
+        "required": true,
+        "statement": "A direct projectile collision applies server-owned damage and discards the projectile after impact.",
+        "observation": "A server-spawned bullet crossing a zombie lowers its health and is removed within five ticks.",
+        "test_ids": [
+          "projectile_server_collision_gametest"
+        ]
+      },
+      {
+        "id": "criterion.cover_c90de2bf8d602100b7591a577277510c509a602c79e60dfd3aaba7233eb5cc76",
+        "risk": "P0",
+        "required": true,
+        "statement": "Turret heads, other OMT projectiles and protected living entities do not consume or detonate a projectile.",
+        "observation": "Turret heads, other OMT projectiles and protected living entities do not consume or detonate a projectile.",
+        "test_ids": [
+          "projectile_collision_policy_gametest"
+        ]
+      },
+      {
+        "id": "criterion.cover_3281310d036f226ea46002bcc10e210506759bea4e706e0ab2f50fe5901f5fc5",
+        "risk": "P1",
+        "required": true,
+        "statement": "Plasma advances by 0.8 of its current motion before its impact area resolves, and area boxes are centered at the legacy radius.",
+        "observation": "Plasma advances by 0.8 of its current motion before its impact area resolves, and area boxes are centered at the legacy radius.",
+        "test_ids": [
+          "projectile_behavior"
+        ]
+      },
+      {
+        "id": "criterion.cover_e2755b61eef43ca06e8b48b894988f442b54606db8941bc7e77611fe206b3c29",
+        "risk": "P1",
+        "required": true,
+        "statement": "Successful impacts reset vanilla damage immunity only after the projectile family's complete damage sequence.",
+        "observation": "Successful impacts reset vanilla damage immunity only after the projectile family's complete damage sequence.",
+        "test_ids": [
+          "projectile_behavior"
+        ]
+      },
+      {
+        "id": "criterion.cover_4482f0db9d0cead42936947cf0f5a9a106657ba72ec948c3fde32988035919d4",
+        "risk": "P0",
+        "required": true,
+        "statement": "Common projectile code loads without client renderer classes.",
+        "observation": "Common projectile code loads without client renderer classes.",
+        "test_ids": [
+          "dedicated_server_boot"
+        ]
+      },
+      {
+        "id": "criterion.cover_53e7708db804295f0f6a2debd0e807c3b9feafc4394e1db2ad00fe24d4eae936",
+        "risk": "P1",
+        "required": true,
+        "statement": "Projectile and armor-piercing DamageTypes are present in the runtime damage-type registry.",
+        "observation": "Registry lookup returns holders for both OMT projectile DamageType keys.",
+        "test_ids": [
+          "projectile_damage_types_gametest"
+        ]
+      },
+      {
+        "id": "criterion.cover_4b6ffed22e444cab36195e1bf57b8a9ea59156b163406f05778cd68bd62e4da7",
+        "risk": "P1",
+        "required": true,
+        "statement": "Every projectile family has a bounded lifetime and cannot accumulate indefinitely.",
+        "observation": "Every projectile family has a bounded lifetime and cannot accumulate indefinitely.",
+        "test_ids": [
+          "projectile_lifetime",
+          "projectile_lifetime_gametest"
+        ]
+      },
+      {
+        "id": "criterion.cover_b3e986df172390a70f7f5549e3afc85cbf886379e461e9fc721df22a1cd4c62a",
+        "risk": "P1",
+        "required": true,
+        "statement": "The grenade fuse resolves at age 39, plasma expires after age 30, and other projectiles expire after age 40.",
+        "observation": "The grenade fuse resolves at age 39, plasma expires after age 30, and other projectiles expire after age 40.",
+        "test_ids": [
+          "projectile_lifetime",
+          "projectile_lifetime_gametest"
+        ]
+      },
+      {
+        "id": "criterion.projectile_remaining_impact_policies",
+        "risk": "P0",
+        "required": true,
+        "statement": "Incendiary, explosive and armor-piercing impact policies are resolved by the server.",
+        "observation": "Dedicated server fixtures show fire, explosion and armor-piercing outcomes only after their authoritative hit or fuse path.",
+        "test_ids": [
+          "projectile_behavior"
+        ]
+      },
+      {
+        "id": "criterion.projectile_remaining_assets",
+        "risk": "P1",
+        "required": true,
+        "statement": "Projectile entity registrations, damage tags, item textures and locale keys reconcile.",
+        "observation": "Data and asset reconciliation reports no missing projectile registry, tag, texture or locale entry.",
+        "test_ids": [
+          "projectile_assets"
+        ]
+      }
+    ],
+    "tests": [
+      {
+        "id": "projectile_state",
+        "kind": "migration",
+        "command": [
+          "python",
+          ".agents/run.py",
+          ".agents/gates/gametest_gate.py",
+          "--require-tests",
+          "--run"
+        ],
+        "covers": [
+          "Projectile kind and bounded combat state survive an entity save/load round trip."
+        ],
+        "required": true,
+        "expected": "The restored projectile keeps only declared bounded state and remains safe to tick.",
+        "timeout_seconds": 900
+      },
+      {
+        "id": "projectile_behavior",
+        "kind": "integration",
+        "command": [
+          "python",
+          ".agents/run.py",
+          ".agents/gates/gametest_gate.py",
+          "--require-tests",
+          "--run"
+        ],
+        "covers": [
+          "A projectile shot creates a tracked entity instead of immediately damaging its target.",
+          "Plasma advances by 0.8 of its current motion before its impact area resolves, and area boxes are centered at the legacy radius.",
+          "Successful impacts reset vanilla damage immunity only after the projectile family's complete damage sequence.",
+          "Incendiary, explosive and armor-piercing impact policies are resolved by the server."
+        ],
+        "required": true,
+        "expected": "Resources are consumed once, effects occur only after collision or fuse expiry, and illegal targets are not damaged.",
+        "timeout_seconds": 900
+      },
+      {
+        "id": "dedicated_server_boot",
+        "kind": "dedicated_server",
+        "command": [
+          "python",
+          ".agents/run.py",
+          ".agents/gates/compile_and_repair.py",
+          "--with-server"
+        ],
+        "covers": [
+          "Common projectile code loads without client renderer classes."
+        ],
+        "required": true,
+        "expected": "Dedicated server reaches Done without client classloading failures.",
+        "timeout_seconds": 900
+      },
+      {
+        "id": "projectile_assets",
+        "kind": "datagen",
+        "command": [
+          "python",
+          ".agents/run.py",
+          ".agents/gates/compile_and_repair.py",
+          "--with-data",
+          "--with-static",
+          "--with-assets"
+        ],
+        "covers": [
+          "Projectile entity registrations, damage tags, item textures and locale keys reconcile."
+        ],
+        "required": true,
+        "expected": "DataGen and asset reconciliation report zero errors and zero warnings.",
+        "timeout_seconds": 900
+      },
+      {
+        "id": "projectile_lifetime",
+        "kind": "performance",
+        "command": [
+          "python",
+          ".agents/run.py",
+          ".agents/gates/gametest_gate.py",
+          "--require-tests",
+          "--run"
+        ],
+        "covers": [
+          "Every projectile family has a bounded lifetime and cannot accumulate indefinitely.",
+          "The grenade fuse resolves at age 39, plasma expires after age 30, and other projectiles expire after age 40."
+        ],
+        "required": true,
+        "expected": "No projectile survives its declared upper lifetime without an explicit valid reason.",
+        "timeout_seconds": 900
+      },
+      {
+        "id": "projectile_state_gametest",
+        "kind": "gametest",
+        "command": [
+          "python",
+          ".agents/run.py",
+          ".agents/gates/gametest_gate.py",
+          "--require-tests",
+          "--run"
+        ],
+        "test_ref": "omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#projectileStatePersistence",
+        "covers": [
+          "Projectile kind and bounded combat state survive an entity save/load round trip."
+        ],
+        "required": true,
+        "expected": "Projectile kind and launch-time bounded addon context survive the entity NBT round trip.",
+        "timeout_seconds": 900
+      },
+      {
+        "id": "projectile_lifetime_gametest",
+        "kind": "gametest",
+        "command": [
+          "python",
+          ".agents/run.py",
+          ".agents/gates/gametest_gate.py",
+          "--require-tests",
+          "--run"
+        ],
+        "test_ref": "omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#projectileLifetime",
+        "covers": [
+          "Every projectile family has a bounded lifetime and cannot accumulate indefinitely.",
+          "The grenade fuse resolves at age 39, plasma expires after age 30, and other projectiles expire after age 40."
+        ],
+        "required": true,
+        "expected": "Pure lifetime boundaries and a live grenade entity removal remain bounded.",
+        "timeout_seconds": 900
+      },
+      {
+        "id": "projectile_collision_policy_gametest",
+        "kind": "gametest",
+        "command": [
+          "python",
+          ".agents/run.py",
+          ".agents/gates/gametest_gate.py",
+          "--require-tests",
+          "--run"
+        ],
+        "test_ref": "omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#projectileCollisionPolicy",
+        "covers": [
+          "Turret heads, other OMT projectiles and protected living entities do not consume or detonate a projectile."
+        ],
+        "required": true,
+        "expected": "Owner, other OMT projectile and turret-head collisions are ignored while a legal hostile remains collidable.",
+        "timeout_seconds": 900
+      },
+      {
+        "id": "projectile_damage_types_gametest",
+        "kind": "gametest",
+        "command": [
+          "python",
+          ".agents/run.py",
+          ".agents/gates/gametest_gate.py",
+          "--require-tests",
+          "--run"
+        ],
+        "test_ref": "omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#projectileDamageTypes",
+        "covers": [
+          "Projectile and armor-piercing DamageTypes are present in the runtime damage-type registry."
+        ],
+        "required": true,
+        "expected": "Both required runtime DamageType holders are present.",
+        "timeout_seconds": 900
+      },
+      {
+        "id": "projectile_server_collision_gametest",
+        "kind": "gametest",
+        "command": [
+          "python",
+          ".agents/run.py",
+          ".agents/gates/gametest_gate.py",
+          "--require-tests",
+          "--run"
+        ],
+        "test_ref": "omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#projectileCollisionIsServerAuthoritative",
+        "covers": [
+          "A direct projectile collision applies server-owned damage and discards the projectile after impact."
+        ],
+        "required": true,
+        "expected": "A moving server projectile damages the target and is discarded after collision.",
+        "timeout_seconds": 900
+      }
+    ],
+    "manual_checks": [
+      {
+        "id": "projectile_playable_loop",
+        "steps": [
+          "Place and power machine-gun, incendiary, grenade, rocket and plasma turrets with valid ammunition where required.",
+          "Observe projectile travel, collision, area effects, rocket homing and client rendering from a second connected client.",
+          "Save and reload while projectiles are in flight, then repeat near protected players and the owning base."
+        ],
+        "expected": "Each projectile has its intended appearance and effect, never damages a forbidden target, and cannot duplicate damage or resources."
+      }
+    ],
+    "non_goals": [
+      "Ray-traced laser, rail-gun, relativistic and teleporter implementations.",
+      "Final turret BlockEntityRenderer models and barrel animations.",
+      "Config-screen exposure of every projectile tuning value."
+    ]
+  }
+}

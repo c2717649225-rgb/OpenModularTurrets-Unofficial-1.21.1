@@ -1,0 +1,425 @@
+{
+  "$schema": "../../.agents/contracts/major-feature-v2.schema.json",
+  "schema_version": 2,
+  "design_source": {
+    "path": "docs/porting/openmodularturrets-1.21.1-acceptance-design.md",
+    "revision": "confirmed-2026-08-01",
+    "sha256": "7594696d646d05ef287e4596f1383417a169282a01483fc18ed9eee56496f0d6"
+  },
+  "review_required": [],
+  "id": "openmodularturrets.survival_content_audio",
+  "version": 2,
+  "summary": "Players can craft the dependency-free Open Modular Turrets progression, feed turrets semantically valid ammunition, hear authoritative combat feedback and safely clear a memory card profile.",
+  "server_authority": {
+    "owner": "logical_server",
+    "authoritative_state": [
+      "Recipe and item-tag datapacks define the canonical survival acquisition and ammunition sets.",
+      "The logical server triggers positional launch and impact sounds after authoritative actions.",
+      "MemoryCardItem removes only the memory_card_profile Data Component on a valid clear interaction."
+    ],
+    "client_input_policy": "intent_only",
+    "invalid_input_policy": "reject_and_log"
+  },
+  "persistence": {
+    "required": true,
+    "scope": "item_stack",
+    "schema": {
+      "version": 1,
+      "format": "data_component",
+      "owner": "MemoryCardProfile",
+      "fields": [
+        "memory_card_profile remains the only custom persistent card field",
+        "clearing removes the profile component without replacing the ItemStack or deleting unrelated components"
+      ]
+    },
+    "migration": {
+      "strategy": "custom",
+      "supported_from": [
+        1
+      ],
+      "fallback": "reject_incompatible",
+      "test_ids": [
+        "memory_card_clear"
+      ]
+    }
+  },
+  "network": {
+    "required": false,
+    "flows": []
+  },
+  "client_boundary": {
+    "common_code_client_imports": "forbidden",
+    "client_only_packages": [
+      "omtteam.openmodularturrets.client"
+    ],
+    "visual_state": "synced_server_state",
+    "dedicated_server_fallback": "Recipes, tags, card interaction and sound event registration load without client-only classes; a headless server dispatches vanilla sound packets normally.",
+    "dedicated_server_test_id": "dedicated_server_boot"
+  },
+  "registries": {
+    "entries": [
+      {
+        "registry": "sound_event",
+        "ids": [
+          "openmodularturrets:amped",
+          "openmodularturrets:bullet_hit",
+          "openmodularturrets:disposable",
+          "openmodularturrets:grenade",
+          "openmodularturrets:incendiary",
+          "openmodularturrets:laser",
+          "openmodularturrets:laser_hit",
+          "openmodularturrets:machine_gun",
+          "openmodularturrets:plasma_launch",
+          "openmodularturrets:potato",
+          "openmodularturrets:rail_gun",
+          "openmodularturrets:rail_gun_hit",
+          "openmodularturrets:relativistic",
+          "openmodularturrets:rocket",
+          "openmodularturrets:teleport",
+          "openmodularturrets:turret_deploy",
+          "openmodularturrets:turret_retract",
+          "openmodularturrets:warning"
+        ],
+        "lifecycle": "static"
+      }
+    ],
+    "tags": [
+      "openmodularturrets:ammo/all",
+      "openmodularturrets:ammo/machine_gun",
+      "openmodularturrets:ammo/grenade",
+      "openmodularturrets:ammo/disposable"
+    ]
+  },
+  "assets": {
+    "generated": [
+      "Exactly 61 dependency-free recipes, recipe advancements, corrected item tags and en_us/zh_cn subtitle keys."
+    ],
+    "manual": [
+      "sounds.json and 18 legacy OMT ogg files with per-file source and hash recorded."
+    ],
+    "locales": [
+      "en_us",
+      "zh_cn"
+    ],
+    "license_review": "pending",
+    "validation_test_ids": [
+      "survival_assets"
+    ]
+  },
+  "performance": {
+    "budgets": [
+      {
+        "id": "sound_dispatch_budget",
+        "metric": "custom",
+        "scope": "One accepted turret shot and one resolved impact",
+        "limit": 2,
+        "unit": "count",
+        "measurement": "Count authoritative world sound dispatches for one non-area projectile shot and impact.",
+        "test_id": "sound_dispatch"
+      }
+    ],
+    "hot_paths": [
+      "TurretHeadBlockEntity shot sound dispatch",
+      "TurretProjectileEntity impact sound dispatch"
+    ],
+    "measurement_environment": "Java 21, fixed GameTest world, one turret, one projectile and one target."
+  },
+  "dependencies": {
+    "features": [
+      "openmodularturrets.core_turret_loop",
+      "openmodularturrets.projectile_combat"
+    ],
+    "mods": [
+      {
+        "id": "neoforge",
+        "requirement": "required",
+        "version_range": "[21.1,21.2)",
+        "fallback": "The feature is unavailable outside the pinned NeoForge 21.1 line."
+      }
+    ]
+  },
+  "status": "verifying",
+  "acceptance": {
+    "criteria": [
+      {
+        "id": "criterion.cover_cf576ace3aacd2392cfecf078cf66503460f025019ff09b8892cb266c1503c69",
+        "risk": "P0",
+        "required": true,
+        "statement": "Clearing a populated card removes only memory_card_profile and preserves unrelated ItemStack components.",
+        "observation": "After a crouching clear interaction, the same populated Memory Card stack has no memory_card_profile component and retains its unrelated custom name and components.",
+        "test_ids": [
+          "memory_card_clear_contract"
+        ]
+      },
+      {
+        "id": "criterion.cover_301c4b88927fcdced89e3d94056c6714e00242f98cbeb297b6d1c6c42873c385",
+        "risk": "P1",
+        "required": true,
+        "statement": "Exactly 61 intended recipes are generated and the five declared creative-only ids have none.",
+        "observation": "A clean generated-data run produces exactly 61 intended recipe files and no recipe for any of the five declared creative-only ids.",
+        "test_ids": [
+          "survival_assets"
+        ]
+      },
+      {
+        "id": "criterion.runtime_survival_recipe_contract",
+        "risk": "P1",
+        "required": true,
+        "statement": "The runtime recipe manager exposes all 61 intended recipes and none of the five declared creative-only recipe ids.",
+        "observation": "After datapack loading, querying the server recipe manager finds all 61 intended ids and finds no recipe for each declared creative-only id.",
+        "test_ids": [
+          "survival_recipe_contract"
+        ]
+      },
+      {
+        "id": "criterion.cover_60ad8bdb31d1385db8bd59c46ef50adc82b3a08d6390d6b89ceeb456de86c0a5",
+        "risk": "P0",
+        "required": true,
+        "statement": "Ammunition tags contain gameplay items rather than renderer tokens.",
+        "observation": "The generated ammunition tags contain the declared gameplay ammunition items and contain none of the internal renderer-token items.",
+        "test_ids": [
+          "survival_assets"
+        ]
+      },
+      {
+        "id": "criterion.cover_8ff002afd18311659a6157bae59ff83188c331a367db8a6311725324fb5a9fb4",
+        "risk": "P1",
+        "required": true,
+        "statement": "SoundEvent ids, sounds.json entries and ogg files reconcile one-to-one.",
+        "observation": "The asset gate finds a registered SoundEvent, sounds.json entry and readable OGG resource for every declared sound id, with no unmatched entry.",
+        "test_ids": [
+          "survival_assets"
+        ]
+      },
+      {
+        "id": "criterion.runtime_sound_registry_contract",
+        "risk": "P1",
+        "required": true,
+        "statement": "Every declared legacy combat sound id is present in the runtime SoundEvent registry.",
+        "observation": "After registry bootstrap, looking up every declared legacy combat sound ResourceLocation returns a registered SoundEvent.",
+        "test_ids": [
+          "sound_registry_contract"
+        ]
+      },
+      {
+        "id": "criterion.cover_d7d3bfae8b5894ee1ec8505c4e49d105acccdb83702d5e106ea9263e22651f24",
+        "risk": "P1",
+        "required": true,
+        "statement": "One accepted projectile launch dispatches exactly one positional launch sound from the logical server.",
+        "observation": "A server-side sound listener records exactly one launch event at the turret muzzle for one accepted projectile shot.",
+        "test_ids": [
+          "launch_sound_dispatch"
+        ]
+      },
+      {
+        "id": "criterion.bullet_impact_sound_dispatch",
+        "risk": "P1",
+        "required": true,
+        "statement": "One direct bullet impact dispatches exactly one positional impact sound from the logical server.",
+        "observation": "A server-side sound listener records exactly one bullet-hit event at the collision position for one direct bullet impact.",
+        "test_ids": [
+          "bullet_impact_sound_dispatch"
+        ]
+      },
+      {
+        "id": "criterion.sound_dispatch_budget",
+        "risk": "P1",
+        "required": true,
+        "statement": "One accepted projectile launch plus one resolved direct impact dispatch no more than two authoritative positional sounds in total.",
+        "observation": "The sound-dispatch budget measurement for one accepted launch and one resolved direct impact reports a total count of two or less.",
+        "test_ids": [
+          "sound_dispatch"
+        ]
+      },
+      {
+        "id": "criterion.cover_e8e3f6b21c497af8bc7c6d31934cc463bccc38627934c652deedcb544a06ee4d",
+        "risk": "P0",
+        "required": true,
+        "statement": "Sound registration and item interactions load without client classes.",
+        "observation": "A dedicated server reaches its ready state with sound registration and Memory Card interaction available and without loading client-only classes.",
+        "test_ids": [
+          "dedicated_server_boot"
+        ]
+      }
+    ],
+    "tests": [
+      {
+        "id": "memory_card_clear",
+        "kind": "migration",
+        "command": [
+          "python",
+          ".agents/run.py",
+          ".agents/gates/gametest_gate.py",
+          "--require-tests",
+          "--run"
+        ],
+        "covers": [
+          "Clearing a populated card removes only memory_card_profile and preserves unrelated ItemStack components."
+        ],
+        "required": true,
+        "expected": "The profile is absent after clear and the same stack retains its custom name.",
+        "timeout_seconds": 900
+      },
+      {
+        "id": "memory_card_clear_contract",
+        "kind": "gametest",
+        "command": [
+          "python",
+          ".agents/run.py",
+          ".agents/gates/gametest_gate.py",
+          "--require-tests",
+          "--run"
+        ],
+        "test_ref": "omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#memoryCardSneakUseClearsOnlyProfile",
+        "covers": [
+          "Clearing a populated card removes only memory_card_profile and preserves unrelated ItemStack components."
+        ],
+        "required": true,
+        "expected": "A crouching clear removes only the profile component and preserves unrelated stack components.",
+        "timeout_seconds": 900
+      },
+      {
+        "id": "survival_assets",
+        "kind": "datagen",
+        "command": [
+          "python",
+          ".agents/run.py",
+          ".agents/gates/compile_and_repair.py",
+          "--with-data",
+          "--with-static",
+          "--with-assets"
+        ],
+        "covers": [
+          "Exactly 61 intended recipes are generated and the five declared creative-only ids have none.",
+          "Ammunition tags contain gameplay items rather than renderer tokens.",
+          "SoundEvent ids, sounds.json entries and ogg files reconcile one-to-one."
+        ],
+        "required": true,
+        "expected": "DataGen and asset reconciliation report zero errors and zero warnings.",
+        "timeout_seconds": 900
+      },
+      {
+        "id": "survival_recipe_contract",
+        "kind": "gametest",
+        "command": [
+          "python",
+          ".agents/run.py",
+          ".agents/gates/gametest_gate.py",
+          "--require-tests",
+          "--run"
+        ],
+        "test_ref": "omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#survivalRecipeContract",
+        "covers": [
+          "The runtime recipe manager exposes all 61 intended recipes and none of the five declared creative-only recipe ids."
+        ],
+        "required": true,
+        "expected": "The runtime recipe manager exposes all 61 intended recipes and none of the five creative-only ids.",
+        "timeout_seconds": 900
+      },
+      {
+        "id": "sound_registry_contract",
+        "kind": "gametest",
+        "command": [
+          "python",
+          ".agents/run.py",
+          ".agents/gates/gametest_gate.py",
+          "--require-tests",
+          "--run"
+        ],
+        "test_ref": "omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#soundRegistryContract",
+        "covers": [
+          "Every declared legacy combat sound id is present in the runtime SoundEvent registry."
+        ],
+        "required": true,
+        "expected": "All declared legacy combat sound ids are present in the runtime SoundEvent registry.",
+        "timeout_seconds": 900
+      },
+      {
+        "id": "sound_dispatch",
+        "kind": "performance",
+        "command": [
+          "python",
+          ".agents/run.py",
+          ".agents/gates/gametest_gate.py",
+          "--require-tests",
+          "--run"
+        ],
+        "covers": [
+          "One accepted projectile launch plus one resolved direct impact dispatch no more than two authoritative positional sounds in total."
+        ],
+        "required": true,
+        "expected": "The measured launch-plus-impact sequence emits no more than two authoritative positional sounds.",
+        "timeout_seconds": 900
+      },
+      {
+        "id": "launch_sound_dispatch",
+        "kind": "gametest",
+        "command": [
+          "python",
+          ".agents/run.py",
+          ".agents/gates/gametest_gate.py",
+          "--require-tests",
+          "--run"
+        ],
+        "test_ref": "omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#launchSoundDispatchContract",
+        "covers": [
+          "One accepted projectile launch dispatches exactly one positional launch sound from the logical server."
+        ],
+        "required": true,
+        "expected": "One accepted projectile launch dispatches exactly one positional launch sound from the logical server.",
+        "timeout_seconds": 900
+      },
+      {
+        "id": "bullet_impact_sound_dispatch",
+        "kind": "gametest",
+        "command": [
+          "python",
+          ".agents/run.py",
+          ".agents/gates/gametest_gate.py",
+          "--require-tests",
+          "--run"
+        ],
+        "test_ref": "omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#bulletImpactSoundDispatchContract",
+        "covers": [
+          "One direct bullet impact dispatches exactly one positional impact sound from the logical server."
+        ],
+        "required": true,
+        "expected": "One direct bullet impact dispatches exactly one positional impact sound from the logical server.",
+        "timeout_seconds": 900
+      },
+      {
+        "id": "dedicated_server_boot",
+        "kind": "dedicated_server",
+        "command": [
+          "python",
+          ".agents/run.py",
+          ".agents/gates/compile_and_repair.py",
+          "--with-server"
+        ],
+        "covers": [
+          "Sound registration and item interactions load without client classes."
+        ],
+        "required": true,
+        "expected": "Dedicated server reaches Done without client classloading failures.",
+        "timeout_seconds": 900
+      }
+    ],
+    "manual_checks": [
+      {
+        "id": "survival_and_audio_loop",
+        "steps": [
+          "Craft the tier chain and five formal ammunition types in survival mode.",
+          "Fire projectile and ray turrets while listening from near and far positions.",
+          "Rename a populated memory card, clear it while crouching in air, and inspect its remaining name."
+        ],
+        "expected": "Crafting outputs match legacy counts, sounds play once with spatial falloff, and card clearing preserves unrelated components."
+      }
+    ],
+    "non_goals": [
+      "Mekanism and EnderIO recipe variants.",
+      "A new recipe for plasma_turret, addon_potentia or internal renderer-token items.",
+      "windup.ogg and unfinished crank animation audio.",
+      "Final publication approval for legacy audio before per-file provenance review is closed."
+    ]
+  }
+}

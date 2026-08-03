@@ -144,6 +144,52 @@ class TestGatesAndWorkspace(unittest.TestCase):
             for finding in findings
         ))
 
+    def test_asset_gate_detects_legacy_plural_textures(self):
+        """Legacy plural block/item directories and model references must fail."""
+        main = self.test_dir / "src" / "main" / "resources"
+        for kind in ("blocks", "items"):
+            legacy_png = (
+                main / "assets" / "testmod" / "textures" / kind / f"old_{kind}.png"
+            )
+            legacy_png.parent.mkdir(parents=True, exist_ok=True)
+            legacy_png.write_bytes(b"dummy")
+            legacy_model = (
+                main / "assets" / "testmod" / "models" / "item" / f"old_{kind}.json"
+            )
+            legacy_model.parent.mkdir(parents=True, exist_ok=True)
+            legacy_model.write_text(
+                json.dumps({"textures": {"layer0": f"testmod:{kind}/old_{kind}"}}),
+                encoding="utf-8",
+            )
+
+        view = asset_gate.ResourceView(self.test_dir)
+        findings = asset_gate.check_model_references(view, "testmod")
+        rule_ids = {f.rule_id for f in findings}
+        self.assertIn("legacy_plural_texture_directory", rule_ids)
+        self.assertIn("legacy_plural_texture_reference", rule_ids)
+        severities = {f.rule_id: f.severity for f in findings}
+        self.assertEqual("warning", severities["legacy_plural_texture_directory"])
+        self.assertEqual("error", severities["legacy_plural_texture_reference"])
+
+    def test_asset_gate_allows_singular_texture_paths(self):
+        """Valid block/item texture directories and references must not be flagged."""
+        main = self.test_dir / "src" / "main" / "resources"
+        for kind in ("block", "item"):
+            texture = main / "assets" / "testmod" / "textures" / kind / "valid.png"
+            texture.parent.mkdir(parents=True, exist_ok=True)
+            texture.write_bytes(b"dummy")
+            model = main / "assets" / "testmod" / "models" / kind / "valid.json"
+            model.parent.mkdir(parents=True, exist_ok=True)
+            model.write_text(
+                json.dumps({"textures": {"layer0": f"testmod:{kind}/valid"}}),
+                encoding="utf-8",
+            )
+
+        findings = asset_gate.check_model_references(
+            asset_gate.ResourceView(self.test_dir), "testmod"
+        )
+        self.assertFalse(any(f.rule_id.startswith("legacy_plural_texture") for f in findings))
+
     def test_asset_gate_reports_bilingual_key_drift(self):
         """en_us and zh_cn must expose the same translation-key set."""
         lang_dir = (
@@ -339,6 +385,59 @@ class TestGatesAndWorkspace(unittest.TestCase):
         self.assertTrue(ok)
         self.assertIn("validated 1 JSON file", message)
 
+    def test_read_neo_version(self):
+        """Verify read_neo_version parses neo_version correctly from gradle.properties."""
+        props = self.test_dir / "gradle.properties"
+        props.write_text("neo_version=21.1.234\n", encoding="utf-8")
+        self.assertEqual("21.1.234", static_gate.read_neo_version(self.test_dir))
+        self.assertEqual(234, static_gate.parse_neo_patch_version("21.1.234"))
+
+    def test_eventbus_redundant_bus_param_version_boundary(self):
+        """Verify bus = Bus.MOD is only flagged as redundant on 21.1.181+, not on 21.1.180."""
+        file_path = self.test_dir / "src" / "main" / "java" / "com" / "example" / "MyEventSub.java"
+        file_path.parent.mkdir(parents=True, exist_ok=True)
+        content = (
+            "package com.example;\n"
+            "import net.neoforged.fml.common.EventBusSubscriber;\n"
+            "@EventBusSubscriber(bus = EventBusSubscriber.Bus.MOD)\n"
+            "public class MyEventSub {}\n"
+        )
+
+        findings_180 = static_gate.scan_file(
+            file_path, content, java_root=self.test_dir / "src" / "main" / "java", mod_id="testmod", neo_version="21.1.180"
+        )
+        self.assertFalse(any(f.rule_id == "eventbus_redundant_bus_param" for f in findings_180))
+
+        findings_181 = static_gate.scan_file(
+            file_path, content, java_root=self.test_dir / "src" / "main" / "java", mod_id="testmod", neo_version="21.1.181"
+        )
+        self.assertTrue(any(f.rule_id == "eventbus_redundant_bus_param" for f in findings_181))
+
+    def test_eventbus_redundant_bus_param_ignores_noncode_and_handles_nested_args(self):
+        """Comments/strings must not warn; balanced multiline annotations must warn."""
+        file_path = self.test_dir / "src" / "main" / "java" / "com" / "example" / "Nested.java"
+        java_root = self.test_dir / "src" / "main" / "java"
+        noncode = (
+            "// @EventBusSubscriber(bus = Bus.MOD)\n"
+            "class Nested { String value = \"@EventBusSubscriber(bus = Bus.MOD)\"; }\n"
+        )
+        findings = static_gate.scan_file(
+            file_path, noncode, java_root=java_root, mod_id="testmod", neo_version="21.1.234"
+        )
+        self.assertFalse(any(f.rule_id == "eventbus_redundant_bus_param" for f in findings))
+
+        annotation = (
+            "@EventBusSubscriber(\n"
+            "    modid = valueOf(\"testmod\"),\n"
+            "    bus = EventBusSubscriber.Bus.MOD\n"
+            ")\n"
+            "class Nested {}\n"
+        )
+        findings = static_gate.scan_file(
+            file_path, annotation, java_root=java_root, mod_id="testmod", neo_version="21.1.234"
+        )
+        self.assertTrue(any(f.rule_id == "eventbus_redundant_bus_param" for f in findings))
+
     def test_datagen_git_changes_are_scoped(self):
         """Reproducibility status ignores unrelated developer changes."""
         subprocess.run(
@@ -408,12 +507,10 @@ class TestGatesAndWorkspace(unittest.TestCase):
                 command,
             )
         else:
-            with (
-                mock.patch.object(compile_and_repair.os, "getpgid", return_value=4242),
-                mock.patch.object(compile_and_repair.os, "killpg") as killpg,
-            ):
-                compile_and_repair.terminate_process_tree(process)
-            killpg.assert_called_once()
+            with mock.patch.object(compile_and_repair.os, "getpgid", return_value=4242):
+                with mock.patch.object(compile_and_repair.os, "killpg") as killpg:
+                    compile_and_repair.terminate_process_tree(process)
+                    killpg.assert_called_once()
 
     def test_init_workspace_system_namespaces_protection(self):
         """Verify assets/minecraft and data/minecraft are never renamed into the mod_id."""

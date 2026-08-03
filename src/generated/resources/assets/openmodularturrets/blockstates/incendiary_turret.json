@@ -1,0 +1,10 @@
+{
+  "variants": {
+    "concealed=false": {
+      "model": "openmodularturrets:block/incendiary_turret"
+    },
+    "concealed=true": {
+      "model": "openmodularturrets:block/incendiary_turret"
+    }
+  }
+}

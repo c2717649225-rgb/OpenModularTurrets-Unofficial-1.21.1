@@ -1,0 +1,11 @@
+{
+  "values": [
+    "#openmodularturrets:ammo/machine_gun",
+    "#openmodularturrets:ammo/grenade",
+    "#openmodularturrets:ammo/rocket",
+    "#openmodularturrets:ammo/rail_gun",
+    "#openmodularturrets:ammo/incendiary",
+    "#openmodularturrets:ammo/potato",
+    "#openmodularturrets:ammo/disposable"
+  ]
+}

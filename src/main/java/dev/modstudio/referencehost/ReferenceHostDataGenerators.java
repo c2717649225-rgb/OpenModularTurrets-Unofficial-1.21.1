@@ -3,7 +3,7 @@ package dev.modstudio.referencehost;
 import java.nio.file.Path;
 import java.util.List;
 
-import com.tutorial.tutorialmod.TutorialMod;
+import omtteam.openmodularturrets.OpenModularTurrets;
 
 import net.minecraft.data.DataGenerator;
 import net.minecraft.data.structures.SnbtToNbt;
@@ -18,7 +18,7 @@ import net.neoforged.neoforge.data.event.GatherDataEvent;
  * so the workspace's {@code minimal} profile can remove example content while
  * retaining the tooling self-check.</p>
  */
-@EventBusSubscriber(modid = TutorialMod.MODID)
+@EventBusSubscriber(modid = OpenModularTurrets.MOD_ID)
 public final class ReferenceHostDataGenerators {
     private ReferenceHostDataGenerators() {
     }

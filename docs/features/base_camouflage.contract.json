@@ -1,0 +1,334 @@
+{
+  "$schema": "../../.agents/contracts/major-feature-v2.schema.json",
+  "schema_version": 2,
+  "design_source": {
+    "path": "docs/porting/openmodularturrets-1.21.1-acceptance-design.md",
+    "revision": "confirmed-2026-08-01",
+    "sha256": "7594696d646d05ef287e4596f1383417a169282a01483fc18ed9eee56496f0d6"
+  },
+  "review_required": [],
+  "id": "openmodularturrets.base_camouflage",
+  "version": 2,
+  "summary": "Owner-authorized turret bases persist and synchronize a bounded visual camouflage block state with configurable light emission and opacity.",
+  "server_authority": {
+    "owner": "logical_server",
+    "authoritative_state": [
+      "Camouflage block state, light emission and light opacity belong to TurretBaseBlockEntity.",
+      "The base BlockState contains only derived camouflaged and light-level render properties."
+    ],
+    "client_input_policy": "intent_only",
+    "invalid_input_policy": "reject"
+  },
+  "persistence": {
+    "required": true,
+    "scope": "block_entity",
+    "schema": {
+      "version": 4,
+      "format": "codec",
+      "owner": "TurretBaseBlockEntity",
+      "fields": [
+        "camouflage_state",
+        "camouflage_light_value",
+        "camouflage_light_opacity"
+      ]
+    },
+    "migration": {
+      "strategy": "custom",
+      "supported_from": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "fallback": "reject_incompatible",
+      "test_ids": [
+        "base_camouflage_persistence"
+      ]
+    }
+  },
+  "network": {
+    "required": true,
+    "flows": [
+      {
+        "id": "camouflage_control",
+        "direction": "c2s",
+        "purpose": "Adjust bounded camouflage light values or clear camouflage in the currently open base session.",
+        "validation": [
+          "The current TurretBaseMenu, containerId, position, dimension, distance, loaded BlockEntity identity and owner must match.",
+          "Light operands are integers in the inclusive range 0 through 15."
+        ],
+        "rate_limit": {
+          "strategy": "token_bucket",
+          "max_per_second": 20,
+          "burst": 20,
+          "key": "player"
+        },
+        "max_payload_bytes": 40,
+        "test_ids": [
+          "base_camouflage_state_gametest"
+        ]
+      }
+    ]
+  },
+  "client_boundary": {
+    "common_code_client_imports": "forbidden",
+    "client_only_packages": [
+      "omtteam.openmodularturrets.client"
+    ],
+    "visual_state": "synced_server_state",
+    "dedicated_server_fallback": "Camouflage persistence, validation and light behavior remain available without loading the renderer.",
+    "dedicated_server_test_id": "base_camouflage_server_boot"
+  },
+  "registries": {
+    "entries": [],
+    "tags": []
+  },
+  "assets": {
+    "generated": [
+      "en_us and zh_cn camouflage controls and feedback"
+    ],
+    "manual": [
+      "Existing GPL-compatible turret base and configure GUI textures"
+    ],
+    "locales": [
+      "en_us",
+      "zh_cn"
+    ],
+    "license_review": "complete",
+    "validation_test_ids": [
+      "base_camouflage_assets"
+    ]
+  },
+  "performance": {
+    "budgets": [
+      {
+        "id": "camouflage_render_cost",
+        "metric": "custom",
+        "scope": "One visible camouflaged base per frame",
+        "limit": 1,
+        "unit": "count",
+        "measurement": "One copied block model render with cached renderer and random source; no world scan.",
+        "test_id": "base_camouflage_render_contract"
+      }
+    ],
+    "hot_paths": [
+      "TurretBaseBlockEntityRenderer render",
+      "TurretBaseBlock getLightBlock"
+    ],
+    "measurement_environment": "Java 21, NeoForge 21.1.234 client and GameTest server."
+  },
+  "dependencies": {
+    "features": [
+      "openmodularturrets.base_control_gui",
+      "openmodularturrets.client_visuals"
+    ],
+    "mods": [
+      {
+        "id": "neoforge",
+        "requirement": "required",
+        "version_range": "[21.1,21.2)",
+        "fallback": "The mod refuses to load outside the pinned NeoForge 21.1 line."
+      }
+    ]
+  },
+  "status": "verifying",
+  "acceptance": {
+    "criteria": [
+      {
+        "id": "criterion.cover_400028a7b8a61a129b7d875e678c32251ea33b30fa006619ee4bc1aba910047f",
+        "risk": "P1",
+        "required": true,
+        "statement": "Camouflage block state survives save/load, while data without camouflage fields defaults to no camouflage, light value 0 and opacity 15.",
+        "observation": "A stone-camouflaged base reloads as stone; removing the three camouflage fields before load produces empty camouflage with light 0 and opacity 15.",
+        "test_ids": [
+          "base_camouflage_persistence",
+          "base_camouflage_state_gametest"
+        ]
+      },
+      {
+        "id": "criterion.cover_6ae2be37f57ebbfc4ebec434e170086c529400dbffa68bd5a42b459c8a986950",
+        "risk": "P0",
+        "required": true,
+        "statement": "Only the owner can set or clear camouflage, and air, block-entity blocks and partial blocks are rejected.",
+        "observation": "A non-owner set attempt and each invalid-state attempt return false; the owner can apply stone and clear it.",
+        "test_ids": [
+          "base_camouflage_state_gametest"
+        ]
+      },
+      {
+        "id": "criterion.cover_3f67a936599e8c69a542e71c62dfd418721d7729cb38b9ede0ebaf58df303c73",
+        "risk": "P2",
+        "required": true,
+        "statement": "Derived camouflaged and light-level BlockState values and opacity lookup.",
+        "observation": "Derived camouflaged and light-level BlockState values and opacity lookup.",
+        "test_ids": [
+          "base_camouflage_render_contract"
+        ]
+      },
+      {
+        "id": "criterion.cover_a52258ad3ee479321d9373ed4e186b9bee77b5f6930f38146f2b397f0b729d0f",
+        "risk": "P2",
+        "required": true,
+        "statement": "All new locale keys and existing GUI/model resources resolve.",
+        "observation": "All new locale keys and existing GUI/model resources resolve.",
+        "test_ids": [
+          "base_camouflage_assets"
+        ]
+      },
+      {
+        "id": "criterion.cover_718c3ece5c14c0fdc9857c910dc69ddd3060913bae458e76203a13a7a06c6399",
+        "risk": "P0",
+        "required": true,
+        "statement": "No camouflage renderer class loads on a dedicated server.",
+        "observation": "No camouflage renderer class loads on a dedicated server.",
+        "test_ids": [
+          "base_camouflage_server_boot"
+        ]
+      },
+      {
+        "id": "criterion.base_camouflage_light_authority",
+        "risk": "P0",
+        "required": true,
+        "statement": "Only a tier-five owner can set camouflage light value and opacity within 0 through 15.",
+        "observation": "Tier-five owner calls accept boundary values and mirror LIGHT_LEVEL; out-of-range values and tier-three calls return false without changing defaults.",
+        "test_ids": [
+          "base_camouflage_light_gametest"
+        ]
+      },
+      {
+        "id": "criterion.base_camouflage_light_persistence",
+        "risk": "P1",
+        "required": true,
+        "statement": "Schema 4 camouflage light value and opacity survive a save/load round trip.",
+        "observation": "After reloading a base saved with non-default camouflage light fields, both decoded values equal the values present before save.",
+        "test_ids": [
+          "base_camouflage_persistence"
+        ]
+      }
+    ],
+    "tests": [
+      {
+        "id": "base_camouflage_persistence",
+        "kind": "migration",
+        "command": [
+          "python",
+          ".agents/run.py",
+          ".agents/gates/gametest_gate.py",
+          "--require-tests",
+          "--run"
+        ],
+        "covers": [
+          "Camouflage block state survives save/load, while data without camouflage fields defaults to no camouflage, light value 0 and opacity 15.",
+          "Schema 4 camouflage light value and opacity survive a save/load round trip."
+        ],
+        "required": true,
+        "expected": "A valid camouflage survives reload and malformed or legacy data resolves to safe defaults.",
+        "timeout_seconds": 900
+      },
+      {
+        "id": "base_camouflage_state_gametest",
+        "kind": "gametest",
+        "command": [
+          "python",
+          ".agents/run.py",
+          ".agents/gates/gametest_gate.py",
+          "--require-tests",
+          "--run"
+        ],
+        "test_ref": "omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#baseCamouflagePersistenceAndValidation",
+        "covers": [
+          "Camouflage block state survives save/load, while data without camouflage fields defaults to no camouflage, light value 0 and opacity 15.",
+          "Only the owner can set or clear camouflage, and air, block-entity blocks and partial blocks are rejected."
+        ],
+        "required": true,
+        "expected": "Owner validation, block-state validation, clear behavior, persistence and legacy defaults all pass.",
+        "timeout_seconds": 900
+      },
+      {
+        "id": "base_camouflage_render_contract",
+        "kind": "performance",
+        "command": [
+          "python",
+          ".agents/run.py",
+          ".agents/gates/gametest_gate.py",
+          "--require-tests",
+          "--run"
+        ],
+        "covers": [
+          "Derived camouflaged and light-level BlockState values and opacity lookup."
+        ],
+        "required": true,
+        "expected": "Derived render and light state remains bounded and synchronized.",
+        "timeout_seconds": 900
+      },
+      {
+        "id": "base_camouflage_assets",
+        "kind": "datagen",
+        "command": [
+          "python",
+          ".agents/run.py",
+          ".agents/gates/compile_and_repair.py",
+          "--with-data",
+          "--with-static",
+          "--with-assets"
+        ],
+        "covers": [
+          "All new locale keys and existing GUI/model resources resolve."
+        ],
+        "required": true,
+        "expected": "DataGen and asset reconciliation pass without warnings.",
+        "timeout_seconds": 900
+      },
+      {
+        "id": "base_camouflage_server_boot",
+        "kind": "dedicated_server",
+        "command": [
+          "python",
+          ".agents/run.py",
+          ".agents/gates/compile_and_repair.py",
+          "--with-server"
+        ],
+        "covers": [
+          "No camouflage renderer class loads on a dedicated server."
+        ],
+        "required": true,
+        "expected": "Dedicated server reaches Done.",
+        "timeout_seconds": 900
+      },
+      {
+        "id": "base_camouflage_light_gametest",
+        "kind": "gametest",
+        "command": [
+          "python",
+          ".agents/run.py",
+          ".agents/gates/gametest_gate.py",
+          "--require-tests",
+          "--run"
+        ],
+        "test_ref": "omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#baseCamouflageLightContract",
+        "covers": [
+          "Only a tier-five owner can set camouflage light value and opacity within 0 through 15."
+        ],
+        "required": true,
+        "expected": "Tier and operand bounds gate light controls and the accepted light value reaches the authoritative BlockState.",
+        "timeout_seconds": 900
+      }
+    ],
+    "manual_checks": [
+      {
+        "id": "base_camouflage_visual_matrix",
+        "steps": [
+          "Apply stone, glass and a tinted full block to tier 1 and tier 5 bases.",
+          "Inspect every face, breaking overlay, biome tint and light values 0 and 15.",
+          "Clear camouflage while sneaking with an empty hand."
+        ],
+        "expected": "The copied model is stable with no missing texture or recursive render and the original base returns after clear."
+      }
+    ],
+    "non_goals": [
+      "Copied collision, block-entity behavior, random ticks, drops or interaction",
+      "Fluid, multipart or entity-animated camouflage",
+      "Restoring the standalone OMLib model loader"
+    ]
+  }
+}

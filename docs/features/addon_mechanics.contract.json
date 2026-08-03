@@ -1,0 +1,524 @@
+{
+  "$schema": "../../.agents/contracts/major-feature-v2.schema.json",
+  "schema_version": 2,
+  "design_source": {
+    "path": "docs/porting/openmodularturrets-1.21.1-acceptance-design.md",
+    "revision": "confirmed-2026-08-01",
+    "sha256": "7594696d646d05ef287e4596f1383417a169282a01483fc18ed9eee56496f0d6"
+  },
+  "review_required": [],
+  "id": "openmodularturrets.addon_mechanics",
+  "version": 2,
+  "summary": "Tiered bases and turret heads implement server-authoritative energy, recycler, damage, loot and concealment addon rules; Fake Drops restores the legacy fixed-profile FakePlayer loot context without persistent victim tags.",
+  "server_authority": {
+    "owner": "logical_server",
+    "authoritative_state": [
+      "TurretBaseBlockEntity owns addon inventory, energy generation, fuel consumption and recycler rolls.",
+      "TurretHeadBlockEntity snapshots combat addon context when it fires.",
+      "TurretDamageSource carries immutable per-hit context and, for Fake Drops levels 0-3, a server-scoped fixed-profile FakePlayer causing entity into the vanilla death-loot pipeline.",
+      "TurretHeadBlockState carries the derived concealed flag."
+    ],
+    "client_input_policy": "intent_only",
+    "invalid_input_policy": "reject_and_log"
+  },
+  "persistence": {
+    "required": true,
+    "scope": "block_entity",
+    "schema": {
+      "version": 1,
+      "format": "value_io",
+      "owner": "TurretBaseBlockEntity and TurretProjectileEntity",
+      "fields": [
+        "Base addon levels remain derived from the stable 13-slot inventory payload.",
+        "Projectiles persist source base position, amp level, fake-drops level and suppress-loot snapshot.",
+        "Concealed state is derived and is not duplicated in BlockEntity NBT."
+      ]
+    },
+    "migration": {
+      "strategy": "custom",
+      "supported_from": [
+        1
+      ],
+      "fallback": "backup_and_reset",
+      "test_ids": [
+        "addon_projectile_context"
+      ]
+    }
+  },
+  "network": {
+    "required": false,
+    "flows": []
+  },
+  "client_boundary": {
+    "common_code_client_imports": "forbidden",
+    "client_only_packages": [
+      "omtteam.openmodularturrets.client"
+    ],
+    "visual_state": "synced_server_state",
+    "dedicated_server_fallback": "All addon mechanics run without client classes; concealment uses a vanilla BlockState property.",
+    "dedicated_server_test_id": "dedicated_server_boot"
+  },
+  "registries": {
+    "entries": [],
+    "tags": [
+      "openmodularturrets:addons",
+      "openmodularturrets:ammunition"
+    ]
+  },
+  "assets": {
+    "generated": [
+      "Turret blockstates contain concealed false and true variants backed by the existing models."
+    ],
+    "manual": [],
+    "locales": [
+      "en_us",
+      "zh_cn"
+    ],
+    "license_review": "not_applicable",
+    "validation_test_ids": [
+      "addon_asset_contract"
+    ]
+  },
+  "performance": {
+    "budgets": [
+      {
+        "id": "addon_neighbor_scan",
+        "metric": "custom",
+        "scope": "One reactor inventory or loot-deleter lookup",
+        "limit": 6,
+        "unit": "count",
+        "measurement": "Count the six Direction values visited by adjacent attachment or expander scans.",
+        "test_id": "addon_energy_rules"
+      }
+    ],
+    "hot_paths": [
+      "TurretBaseBlockEntity server tick",
+      "TurretProjectileEntity damage resolution",
+      "LivingDropsEvent turret attribution"
+    ],
+    "measurement_environment": "Java 21, NeoForge 21.1.234 GameTest server."
+  },
+  "dependencies": {
+    "features": [
+      "openmodularturrets.base_rules_upgrades",
+      "openmodularturrets.projectile_combat"
+    ],
+    "mods": [
+      {
+        "id": "neoforge",
+        "requirement": "required",
+        "version_range": "[21.1,21.2)",
+        "fallback": "The mod refuses to load outside the pinned NeoForge 21.1 line."
+      }
+    ]
+  },
+  "status": "verifying",
+  "acceptance": {
+    "criteria": [
+      {
+        "id": "criterion.cover_4b3f102566d8ac7db0e7a67c9ea7a32a394cabd9ca3456a73c6c9d1273e4937d",
+        "risk": "P1",
+        "required": true,
+        "statement": "A Solar Panel adds exactly 10 FE during clear daytime with sky visibility and adds no FE after the sky is obstructed.",
+        "observation": "The server fixture gains exactly 10 FE on the clear-sky tick, then its stored energy remains unchanged on the obstructed-sky tick.",
+        "test_ids": [
+          "addon_solar_gametest"
+        ]
+      },
+      {
+        "id": "criterion.cover_aec24c8dc5c71f3e9267ba6b83152e615b987e2dcb6928b43e6462d39b32a366",
+        "risk": "P1",
+        "required": true,
+        "statement": "The reactor prefers redstone blocks, enforces strict free-capacity boundaries, consumes one selected fuel item and bypasses external receive-rate limits.",
+        "observation": "Boundary vectors select block above 14400 FE free, dust at 14400 FE, and none below dust capacity; a real cycle consumes one block and stores exactly the block yield.",
+        "test_ids": [
+          "addon_rule_vectors_gametest",
+          "addon_reactor_cycle_gametest"
+        ]
+      },
+      {
+        "id": "criterion.cover_9027c3b5e2eb79966fde29234606bbf414d03e40aa37adee2620b02027c3a226",
+        "risk": "P1",
+        "required": true,
+        "statement": "Neither energy addon stacks with duplicate copies.",
+        "observation": "Neither energy addon stacks with duplicate copies.",
+        "test_ids": [
+          "addon_energy_rules"
+        ]
+      },
+      {
+        "id": "criterion.cover_826f1c3548362cc0a3b3784796d46fdd439b52ac58ff2e57a0e166b06be419f6",
+        "risk": "P1",
+        "required": true,
+        "statement": "Recycler uses a bounded 10 percent whole-volley preservation rule without partial mutation.",
+        "observation": "Recycler uses a bounded 10 percent whole-volley preservation rule without partial mutation.",
+        "test_ids": [
+          "addon_recycler_volley_gametest"
+        ]
+      },
+      {
+        "id": "criterion.cover_1b8ae8eb2aaf6b33fb86c75a7303c331a8e1a9c52cca1ac5de1288a561c953bf",
+        "risk": "P1",
+        "required": true,
+        "statement": "Damage Amp uses target current health, turret-specific coefficients and the snapshotted addon level.",
+        "observation": "Damage Amp uses target current health, turret-specific coefficients and the snapshotted addon level.",
+        "test_ids": [
+          "addon_rule_vectors_gametest"
+        ]
+      },
+      {
+        "id": "criterion.cover_13a69038f2d9a165b60bcc68e7d73f0dd6918d66753bc082e9be38fe42e0a54f",
+        "risk": "P1",
+        "required": true,
+        "statement": "Zero-coefficient turret families never receive damage amplification.",
+        "observation": "Zero-coefficient turret families never receive damage amplification.",
+        "test_ids": [
+          "addon_rule_vectors_gametest"
+        ]
+      },
+      {
+        "id": "criterion.cover_ac9b27ae0b51233c0825f2ce4ca6807162fbfa1975e582578688ca52912f03d8",
+        "risk": "P1",
+        "required": true,
+        "statement": "Only a lethal TurretDamageSource can suppress drops; Fake Drops augmentation is produced by vanilla player-attributed Looting and Luck processing.",
+        "observation": "Only a lethal TurretDamageSource can suppress drops; Fake Drops augmentation is produced by vanilla player-attributed Looting and Luck processing.",
+        "test_ids": [
+          "addon_loot_and_concealment"
+        ]
+      },
+      {
+        "id": "criterion.cover_b84dfcefa769bd97691988e3ff6dcd4f73f848fd71e0bbdc04aa2828a7e2ac38",
+        "risk": "P1",
+        "required": true,
+        "statement": "Fake Drops level -1 has no causing player, while levels 0-3 use the legacy fixed-profile FakePlayer with matching Luck and Looting levels.",
+        "observation": "Fake Drops level -1 has no causing player, while levels 0-3 use the legacy fixed-profile FakePlayer with matching Luck and Looting levels.",
+        "test_ids": [
+          "addon_fake_drops_gametest"
+        ]
+      },
+      {
+        "id": "criterion.cover_d42512fefca30a7a7070bbdfdf26252480facffe5f60ed27566d218df4f29b99",
+        "risk": "P1",
+        "required": true,
+        "statement": "A nearby Loot Deleter snapshot suppresses guaranteed drops while a generic-damage control does not.",
+        "observation": "A nearby Loot Deleter snapshot suppresses guaranteed drops while a generic-damage control does not.",
+        "test_ids": [
+          "addon_loot_gametest"
+        ]
+      },
+      {
+        "id": "criterion.cover_04ae87d65f551d9e341c6080035aaf4775ad2fde04bcfa6dfe34626dcb5b791c",
+        "risk": "P1",
+        "required": true,
+        "statement": "Concealer enters its state at 40 idle ticks and expands immediately when invalidated.",
+        "observation": "Concealer enters its state at 40 idle ticks and expands immediately when invalidated.",
+        "test_ids": [
+          "addon_concealment_gametest"
+        ]
+      },
+      {
+        "id": "criterion.cover_48bcb39e3d4a6b9b960b63596ad126a4bc142cddccb8a572f4c61c03e20a9335",
+        "risk": "P1",
+        "required": true,
+        "statement": "Projectile addon snapshots survive save and load.",
+        "observation": "Projectile addon snapshots survive save and load.",
+        "test_ids": [
+          "addon_projectile_context"
+        ]
+      },
+      {
+        "id": "criterion.cover_4fa72b457747e699ca708da71a016f70d1df87346ddcd021a4576f16a804cf29",
+        "risk": "P1",
+        "required": true,
+        "statement": "Missing legacy snapshot fields use conservative defaults.",
+        "observation": "Missing legacy snapshot fields use conservative defaults.",
+        "test_ids": [
+          "addon_projectile_context"
+        ]
+      },
+      {
+        "id": "criterion.cover_04a7839c52c045ee2a6a46f75a609f120672d64859e7f389d4a381a4273bc0b2",
+        "risk": "P0",
+        "required": true,
+        "statement": "Damage attribution, drop events and concealed state load without client classes.",
+        "observation": "Damage attribution, drop events and concealed state load without client classes.",
+        "test_ids": [
+          "dedicated_server_boot"
+        ]
+      },
+      {
+        "id": "criterion.cover_b089e7f0c7fcace1d1ff867b6c2cc3221c888999536bfa545aed1fad4528042d",
+        "risk": "P2",
+        "required": true,
+        "statement": "Both concealed BlockState variants resolve to valid generated turret models.",
+        "observation": "Both concealed BlockState variants resolve to valid generated turret models.",
+        "test_ids": [
+          "addon_asset_contract"
+        ]
+      },
+      {
+        "id": "criterion.addon_solar_rain_gate",
+        "risk": "P1",
+        "required": true,
+        "statement": "A Solar Panel produces no energy while the server level is raining.",
+        "observation": "Across the scheduled rain fixture, stored base energy remains unchanged while the Solar Panel is installed.",
+        "test_ids": [
+          "addon_energy_rules"
+        ]
+      },
+      {
+        "id": "criterion.addon_reactor_interval",
+        "risk": "P1",
+        "required": true,
+        "statement": "The redstone reactor evaluates fuel generation only on its 20-tick schedule.",
+        "observation": "Stored energy and fuel remain unchanged before the twentieth tick, then exactly one eligible reactor cycle is observable at the boundary.",
+        "test_ids": [
+          "addon_energy_rules"
+        ]
+      }
+    ],
+    "tests": [
+      {
+        "id": "addon_energy_rules",
+        "kind": "performance",
+        "command": [
+          "python",
+          ".agents/run.py",
+          ".agents/gates/gametest_gate.py",
+          "--require-tests",
+          "--run"
+        ],
+        "covers": [
+          "Neither energy addon stacks with duplicate copies.",
+          "A Solar Panel produces no energy while the server level is raining.",
+          "The redstone reactor evaluates fuel generation only on its 20-tick schedule."
+        ],
+        "required": true,
+        "expected": "All deterministic energy and fuel boundary vectors pass.",
+        "timeout_seconds": 900
+      },
+      {
+        "id": "addon_rule_vectors_gametest",
+        "kind": "gametest",
+        "command": [
+          "python",
+          ".agents/run.py",
+          ".agents/gates/gametest_gate.py",
+          "--require-tests",
+          "--run"
+        ],
+        "test_ref": "omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#addonRuleVectors",
+        "covers": [
+          "The reactor prefers redstone blocks, enforces strict free-capacity boundaries, consumes one selected fuel item and bypasses external receive-rate limits.",
+          "Damage Amp uses target current health, turret-specific coefficients and the snapshotted addon level.",
+          "Zero-coefficient turret families never receive damage amplification."
+        ],
+        "required": true,
+        "expected": "Reactor boundary selection, Damage Amp arithmetic and zero-coefficient families match the legacy vectors.",
+        "timeout_seconds": 900
+      },
+      {
+        "id": "addon_loot_and_concealment",
+        "kind": "integration",
+        "command": [
+          "python",
+          ".agents/run.py",
+          ".agents/gates/gametest_gate.py",
+          "--require-tests",
+          "--run"
+        ],
+        "covers": [
+          "Only a lethal TurretDamageSource can suppress drops; Fake Drops augmentation is produced by vanilla player-attributed Looting and Luck processing."
+        ],
+        "required": true,
+        "expected": "No persistent victim tags are written; a server-scoped fixed-profile FakePlayer supplies the same player, Luck and Looting context used by 1.12.2.",
+        "timeout_seconds": 900
+      },
+      {
+        "id": "addon_projectile_context",
+        "kind": "migration",
+        "command": [
+          "python",
+          ".agents/run.py",
+          ".agents/gates/gametest_gate.py",
+          "--require-tests",
+          "--run"
+        ],
+        "covers": [
+          "Projectile addon snapshots survive save and load.",
+          "Missing legacy snapshot fields use conservative defaults."
+        ],
+        "required": true,
+        "expected": "Saved projectiles retain deterministic addon behavior without BlockEntity references.",
+        "timeout_seconds": 900
+      },
+      {
+        "id": "dedicated_server_boot",
+        "kind": "dedicated_server",
+        "command": [
+          "python",
+          ".agents/run.py",
+          ".agents/gates/compile_and_repair.py",
+          "--with-server"
+        ],
+        "covers": [
+          "Damage attribution, drop events and concealed state load without client classes."
+        ],
+        "required": true,
+        "expected": "Dedicated server reaches Done without client classloading failures.",
+        "timeout_seconds": 900
+      },
+      {
+        "id": "addon_asset_contract",
+        "kind": "datagen",
+        "command": [
+          "python",
+          ".agents/run.py",
+          ".agents/gates/compile_and_repair.py",
+          "--with-data",
+          "--with-static",
+          "--with-assets"
+        ],
+        "covers": [
+          "Both concealed BlockState variants resolve to valid generated turret models."
+        ],
+        "required": true,
+        "expected": "DataGen and asset reconciliation report no differences or warnings.",
+        "timeout_seconds": 900
+      },
+      {
+        "id": "addon_solar_gametest",
+        "kind": "gametest",
+        "command": [
+          "python",
+          ".agents/run.py",
+          ".agents/gates/gametest_gate.py",
+          "--require-tests",
+          "--run"
+        ],
+        "test_ref": "omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#addonSolarRules",
+        "covers": [
+          "A Solar Panel adds exactly 10 FE during clear daytime with sky visibility and adds no FE after the sky is obstructed."
+        ],
+        "required": true,
+        "expected": "Clear-sky generation and obstructed-sky suppression match the server energy delta.",
+        "timeout_seconds": 900
+      },
+      {
+        "id": "addon_reactor_cycle_gametest",
+        "kind": "gametest",
+        "command": [
+          "python",
+          ".agents/run.py",
+          ".agents/gates/gametest_gate.py",
+          "--require-tests",
+          "--run"
+        ],
+        "test_ref": "omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#addonEnergyRules",
+        "covers": [
+          "The reactor prefers redstone blocks, enforces strict free-capacity boundaries, consumes one selected fuel item and bypasses external receive-rate limits."
+        ],
+        "required": true,
+        "expected": "A real reactor cycle consumes the preferred block and stores its full yield.",
+        "timeout_seconds": 900
+      },
+      {
+        "id": "addon_recycler_volley_gametest",
+        "kind": "gametest",
+        "command": [
+          "python",
+          ".agents/run.py",
+          ".agents/gates/gametest_gate.py",
+          "--require-tests",
+          "--run"
+        ],
+        "test_ref": "omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#addonRecyclerVolleyRules",
+        "covers": [
+          "Recycler uses a bounded 10 percent whole-volley preservation rule without partial mutation."
+        ],
+        "required": true,
+        "expected": "Successful recycling preserves all scatter rounds; the boundary failure consumes the whole paid volley without partial mutation.",
+        "timeout_seconds": 900
+      },
+      {
+        "id": "addon_fake_drops_gametest",
+        "kind": "gametest",
+        "command": [
+          "python",
+          ".agents/run.py",
+          ".agents/gates/gametest_gate.py",
+          "--require-tests",
+          "--run"
+        ],
+        "test_ref": "omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#addonFakeDropsAttribution",
+        "covers": [
+          "Fake Drops level -1 has no causing player, while levels 0-3 use the legacy fixed-profile FakePlayer with matching Luck and Looting levels."
+        ],
+        "required": true,
+        "expected": "Levels -1, 0 and 3 expose the declared causing-player, fixed profile, Luck and Looting attribution.",
+        "timeout_seconds": 900
+      },
+      {
+        "id": "addon_loot_gametest",
+        "kind": "gametest",
+        "command": [
+          "python",
+          ".agents/run.py",
+          ".agents/gates/gametest_gate.py",
+          "--require-tests",
+          "--run"
+        ],
+        "test_ref": "omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#addonLootAttribution",
+        "covers": [
+          "A nearby Loot Deleter snapshot suppresses guaranteed drops while a generic-damage control does not."
+        ],
+        "required": true,
+        "expected": "Loot Deleter clears the deterministic turret-drop fixture while generic damage leaves it unchanged.",
+        "timeout_seconds": 900
+      },
+      {
+        "id": "addon_concealment_gametest",
+        "kind": "gametest",
+        "command": [
+          "python",
+          ".agents/run.py",
+          ".agents/gates/gametest_gate.py",
+          "--require-tests",
+          "--run"
+        ],
+        "test_ref": "omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#addonConcealmentState",
+        "covers": [
+          "Concealer enters its state at 40 idle ticks and expands immediately when invalidated."
+        ],
+        "required": true,
+        "expected": "The turret conceals after the legacy idle delay and expands after addon removal.",
+        "timeout_seconds": 900
+      }
+    ],
+    "manual_checks": [
+      {
+        "id": "addon_survival_loop",
+        "steps": [
+          "Operate a tier-five base with each energy and combat addon in survival.",
+          "Observe fuel, ammunition, energy, damage and drops across several volleys.",
+          "Remove a Loot Deleter after a projectile launches and before it kills its target."
+        ],
+        "expected": "Server-owned resources remain atomic and the projectile keeps its launch-time loot snapshot."
+      },
+      {
+        "id": "concealment_visual_placeholder",
+        "steps": [
+          "Let a turret idle for 40 ticks, then move a legal target into range.",
+          "Inspect blockstate transitions with the debug screen."
+        ],
+        "expected": "The concealed property toggles correctly; final retract/deploy geometry remains a documented later-phase item."
+      }
+    ],
+    "non_goals": [
+      "Target priorities, team and pet policy, multi-target selection or warning behavior.",
+      "Final addon geometry, turret BER models or concealment animation.",
+      "Universal emulation of third-party player-only loot predicates.",
+      "Changing the openmodularturrets mod id, Java package or registry ids."
+    ]
+  }
+}

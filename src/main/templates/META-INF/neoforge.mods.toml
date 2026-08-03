@@ -39,14 +39,15 @@ displayName="${mod_name}" #mandatory
 #logoFile="examplemod.png" #optional
 
 # A text field displayed in the mod UI
-#credits="" #optional
+credits="Original Open Modular Turrets by OpenModularTurretsTeam" #optional
 
 # The authors of the mod, displayed in the mod UI (optional)
-authors="TutorialMod Developer"
+authors="OpenModularTurrets-Unofficial contributors"
 
 # The description text for the mod (multi line!) (#mandatory)
 description='''
-TutorialMod for Minecraft 1.21.1 NeoForge.
+An unofficial NeoForge 1.21.1 port of Open Modular Turrets.
+This project is not affiliated with or endorsed by the original team.
 '''
 
 # The [[mixins]] block allows you to declare your mixin config to FML so that it gets loaded.

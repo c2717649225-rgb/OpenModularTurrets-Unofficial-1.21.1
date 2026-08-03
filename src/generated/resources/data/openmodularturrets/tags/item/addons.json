@@ -1,0 +1,12 @@
+{
+  "values": [
+    "openmodularturrets:addon_concealer",
+    "openmodularturrets:addon_damage_amp",
+    "openmodularturrets:addon_potentia",
+    "openmodularturrets:addon_recycler",
+    "openmodularturrets:addon_redstone_reactor",
+    "openmodularturrets:addon_serial_port",
+    "openmodularturrets:addon_solar_panel",
+    "openmodularturrets:addon_fake_drops"
+  ]
+}

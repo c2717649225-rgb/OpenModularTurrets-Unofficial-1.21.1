@@ -62,6 +62,24 @@ def read_mod_id(project_root: Path) -> str:
     return "tutorialmod"
 
 
+def read_neo_version(project_root: Path) -> str:
+    props = project_root / "gradle.properties"
+    if not props.is_file():
+        return "21.1.0"
+    for line in props.read_text(encoding="utf-8", errors="replace").splitlines():
+        line = line.strip()
+        if line.startswith("neo_version=") or line.startswith("neo_version ="):
+            return line.split("=", 1)[1].strip()
+    return "21.1.0"
+
+
+def parse_neo_patch_version(neo_version: str) -> int:
+    match = re.search(r"21\.1\.(\d+)", neo_version)
+    if match:
+        return int(match.group(1))
+    return 0
+
+
 def iter_host_java_files(project_root: Path) -> List[Path]:
     java_root = project_root / "src" / "main" / "java"
     if not java_root.is_dir():
@@ -524,9 +542,12 @@ def scan_file(
     *,
     java_root: Path,
     mod_id: str,
+    neo_version: str = "21.1.0",
 ) -> List[Finding]:
     findings: List[Finding] = []
     rel = path
+    patch_ver = parse_neo_patch_version(neo_version)
+    masked_text = mask_java_comments_and_literals(text)
 
     # --- client_import_in_common ---
     # Exempt: path under **/client/** OR file explicitly Dist.CLIENT-isolated
@@ -666,6 +687,32 @@ def scan_file(
                     "(Instance methods via addListener / EVENT_BUS.register(this) are OK outside this annotation.)",
                 )
             )
+
+    # --- eventbus_redundant_bus_param: NeoForge 21.1.181+ redundant bus = Bus.MOD ---
+    if patch_ver >= 181:
+        for m in re.finditer(r"@EventBusSubscriber\s*\(", masked_text):
+            depth = 1
+            cursor = m.end()
+            while cursor < len(masked_text) and depth:
+                if masked_text[cursor] == "(":
+                    depth += 1
+                elif masked_text[cursor] == ")":
+                    depth -= 1
+                cursor += 1
+            if depth:
+                continue
+            params = masked_text[m.end():cursor - 1]
+            if re.search(r"\bbus\s*=\s*(?:EventBusSubscriber\.)?Bus\.MOD\b", params):
+                findings.append(
+                    Finding(
+                        "eventbus_redundant_bus_param",
+                        "warning",
+                        rel,
+                        line_of(text, m.start()),
+                        f"In NeoForge {neo_version} (>= 21.1.181), @EventBusSubscriber automatically routes IModBusEvent handlers. "
+                        "Specifying `bus = Bus.MOD` is redundant and should be omitted.",
+                    )
+                )
 
     # --- static_registry_get: P0-5, eager .get() in static initializers ---
     # Single-line heuristic: a `static` field assignment whose initializer calls
@@ -841,6 +888,7 @@ def run_gate(project_root: Path) -> Tuple[int, List[Finding]]:
         return 2, []
 
     mod_id = read_mod_id(project_root)
+    neo_version = read_neo_version(project_root)
     files = iter_host_java_files(project_root)
     all_findings: List[Finding] = []
     for f in files:
@@ -850,7 +898,7 @@ def run_gate(project_root: Path) -> Tuple[int, List[Finding]]:
             print(f"WARNING: cannot read {f}: {e}")
             continue
         all_findings.extend(
-            scan_file(f, text, java_root=java_root, mod_id=mod_id)
+            scan_file(f, text, java_root=java_root, mod_id=mod_id, neo_version=neo_version)
         )
 
     return 0, all_findings

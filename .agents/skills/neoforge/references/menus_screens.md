@@ -88,10 +88,16 @@ public class MyMachineMenu extends AbstractContainerMenu {
             }
         }
 
-        // 3. 绑定玩家的快捷栏 (共 9 格，索引 0-8)
+        // 3. 绑定玩家的快捷栏 (Hotbar, 1 行 9 格，索引 0-8)
         for (int col = 0; col < 9; ++col) {
             this.addSlot(new Slot(playerInv, col, 8 + col * 18, 142));
         }
+
+        // 4. 使用 DataSlot 同步能量/进度等整型数据 (替换 1.12.2 旧版 IContainerListener)
+        this.addDataSlot(new DataSlot() {
+            @Override public int get() { return blockEntity.getEnergyStored(); }
+            @Override public void set(int value) { blockEntity.setEnergyStored(value); }
+        });
     }
 
     @Override
@@ -403,135 +409,3 @@ protected void renderBg(GuiGraphics graphics, float partialTick, int mouseX, int
 }
 ```
 通过这种**位移和遮罩防污染拆分方案**，可以完全免去手写网络发包的麻烦，实现对高达 2,147,483,647 大数值的动态零延迟同步。
-
----
-
-## 7. 高性能机器工作状态 (LIT) 切换规范
-
-科技或熔炼机器在工作时（如发电机燃烧、熔炉冶炼），需要改变方块外观（如发出亮光、正面材质发红、冒烟）。在 Minecraft 中，这通过方块状态属性 `BlockStateProperties.LIT`（是否点亮）实现。
-
-> [!WARNING]
-> **性能致命红线**：
-> 改变方块状态（`level.setBlock`）会强制客户端**重新渲染当前区块（Chunk Redraw）**。
-> 如果您在方块实体的 `tick()` 逻辑中，每 tick 都无条件调用 `level.setBlock` 切换状态，**会导致客户端帧率（FPS）瞬间跌个位数，产生极其严重的卡顿！**
-> 必须使用以下**“差值防抖切换算法”**：仅在状态真正发生变化（如从工作切换为停机，或反之）的 tick，才调用一次 `setBlock`。
-
-### 7.1 朝向与 LIT 机器方块定义
-
-在方块类中，除了注册 `FACING`（朝向），还要注册 `LIT`（状态），并根据 `LIT` 值动态调整方块发光度：
-
-```java
-package com.tutorial.tutorialmod.block;
-
-import net.minecraft.core.BlockPos;
-import net.minecraft.core.Direction;
-import net.minecraft.core.particles.ParticleTypes;
-import net.minecraft.sounds.SoundEvents;
-import net.minecraft.sounds.SoundSource;
-import net.minecraft.util.RandomSource;
-import net.minecraft.world.level.Level;
-import net.minecraft.world.level.block.Block;
-import net.minecraft.world.level.block.HorizontalDirectionalBlock;
-import net.minecraft.world.level.block.state.BlockBehaviour;
-import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.level.block.state.StateDefinition;
-import net.minecraft.world.level.block.state.properties.BlockStateProperties;
-import net.minecraft.world.level.block.state.properties.BooleanProperty;
-
-public class MyMachineBlock extends Block {
-    public static final DirectionProperty FACING = HorizontalDirectionalBlock.FACING;
-    // 1. 声明 LIT 状态属性
-    public static final BooleanProperty LIT = BlockStateProperties.LIT;
-
-    public MyMachineBlock(Properties properties) {
-        // 在属性构建中：根据 LIT 状态动态返回亮度值。若 LIT 为 true 提供 13 级光照，否则为 0
-        super(properties.lightLevel(state -> state.getValue(LIT) ? 13 : 0));
-        this.registerDefaultState(this.stateDefinition.any().setValue(FACING, Direction.NORTH).setValue(LIT, false));
-    }
-
-    @Override
-    protected void createBlockStateDefinition(StateDefinition.Builder<Block, BlockState> builder) {
-        builder.add(FACING, LIT); // 同时注入两个状态
-    }
-
-    // 2. 客户端粒子特效渲染 (仅在物理客户端触发，高频 tick)
-    @Override
-    public void animateTick(BlockState state, Level level, BlockPos pos, RandomSource random) {
-        // 仅当机器处于点亮（工作）状态时，才在正面生成燃烧烟雾粒子
-        if (state.getValue(LIT)) {
-            double x = pos.getX() + 0.5D;
-            double y = pos.getY();
-            double z = pos.getZ() + 0.5D;
-
-            if (random.nextDouble() < 0.1D) {
-                // 播放温和的炉子噼啪声
-                level.playLocalSound(x, y, z, SoundEvents.FURNACE_FIRE_CRACKLE, SoundSource.BLOCKS, 1.0F, 1.0F, false);
-            }
-
-            Direction direction = state.getValue(FACING);
-            Direction.Axis axis = direction.getAxis();
-            double offset = random.nextDouble() * 0.6D - 0.3D;
-            
-            // 根据朝向，计算正面面板的位置偏移，生成烟雾与小火花粒子
-            double offX = axis == Direction.Axis.X ? direction.getStepX() * 0.52D : offset;
-            double offY = random.nextDouble() * 6.0D / 16.0D;
-            double offZ = axis == Direction.Axis.Z ? direction.getStepZ() * 0.52D : offset;
-
-            level.addParticle(ParticleTypes.SMOKE, x + offX, y + offY, z + offZ, 0.0D, 0.0D, 0.0D);
-            level.addParticle(ParticleTypes.FLAME, x + offX, y + offY, z + offZ, 0.0D, 0.0D, 0.0D);
-        }
-    }
-}
-```
-
-### 7.2 方块实体端的“防抖状态切换”
-
-在机器的 Tick 逻辑中，实现性能安全的切换代码：
-
-```java
-package com.tutorial.tutorialmod.block.entity;
-
-import com.tutorial.tutorialmod.block.MyMachineBlock;
-import net.minecraft.core.BlockPos;
-import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.level.block.entity.BlockEntity;
-
-public class MyMachineBlockEntity extends BlockEntity {
-    private int burnTime = 0; // 剩余工作时间
-
-    public MyMachineBlockEntity(BlockPos pos, BlockState state) {
-        super(MyBlockEntities.MY_MACHINE_TYPE.get(), pos, state);
-    }
-
-    public void tickServer() {
-        boolean isWorking = this.burnTime > 0;
-        boolean hasChanged = false; // 用于追踪内部数据是否发生变化
-        
-        if (isWorking) {
-            this.burnTime--;
-            hasChanged = true; // 只要消耗了燃料/进度，就必须标记变化！
-        }
-
-        BlockState currentState = this.getBlockState();
-        
-        // 性能防抖核心：仅当“当前 BlockState 中的 LIT 状态”与“机器实际运行状态 (isWorking)”不一致时，才调用一次 setBlock
-        if (currentState.getValue(MyMachineBlock.LIT) != isWorking) {
-            
-            // 标志位 3 代表：同步给客户端，且通知周围方块更新，同时触发区块重绘
-            this.level.setBlock(
-                    this.worldPosition, 
-                    currentState.setValue(MyMachineBlock.LIT, isWorking), 
-                    3
-            );
-            hasChanged = true;
-        }
-
-        // 严重警告：如果内部变量（如 burnTime）发生了变化，必须调用 setChanged()！
-        // 否则如果在此时区块卸载或服务器重启，burnTime 的消耗将不会保存到磁盘，导致刷燃料/刷电刷进度的恶性 Bug！
-        if (hasChanged) {
-            this.setChanged(); 
-        }
-    }
-}
-```
-通过这种**状态属性对比切换算法**，您的机器不仅拥有完美的火焰音效和冒烟粒子，还能保障服务器和客户端 100% 毫无卡顿地运行。

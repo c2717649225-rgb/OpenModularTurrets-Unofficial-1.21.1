@@ -1,0 +1,30 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "equipment",
+  "key": {
+    "A": {
+      "tag": "c:gems/diamond"
+    },
+    "B": {
+      "item": "openmodularturrets:sensor_tier_four"
+    },
+    "C": {
+      "item": "minecraft:ender_eye"
+    },
+    "D": {
+      "item": "openmodularturrets:io_bus"
+    },
+    "E": {
+      "tag": "c:gems/quartz"
+    }
+  },
+  "pattern": [
+    "CEC",
+    "ABA",
+    "CDC"
+  ],
+  "result": {
+    "count": 1,
+    "id": "openmodularturrets:teleporter_turret"
+  }
+}

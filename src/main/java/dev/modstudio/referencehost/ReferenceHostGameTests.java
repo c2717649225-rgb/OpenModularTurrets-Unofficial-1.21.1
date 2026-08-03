@@ -12,7 +12,7 @@ import net.neoforged.neoforge.gametest.GameTestHolder;
  * GameTestServer, and the toolkit's exact-symbol reporter work together. It is
  * not a gameplay-quality claim and must not replace feature-specific tests.</p>
  */
-@GameTestHolder("tutorialmod")
+@GameTestHolder("openmodularturrets")
 public final class ReferenceHostGameTests {
     private ReferenceHostGameTests() {
     }

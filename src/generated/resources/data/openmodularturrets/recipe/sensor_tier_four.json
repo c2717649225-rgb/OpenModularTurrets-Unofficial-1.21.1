@@ -1,0 +1,30 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "A": {
+      "tag": "c:ingots/gold"
+    },
+    "B": {
+      "item": "openmodularturrets:sensor_tier_three"
+    },
+    "C": {
+      "item": "openmodularturrets:io_bus"
+    },
+    "D": {
+      "tag": "c:gems/diamond"
+    },
+    "E": {
+      "tag": "c:gems/quartz"
+    }
+  },
+  "pattern": [
+    "ADA",
+    "CBC",
+    "EDE"
+  ],
+  "result": {
+    "count": 1,
+    "id": "openmodularturrets:sensor_tier_four"
+  }
+}

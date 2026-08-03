@@ -1,0 +1,10 @@
+{
+  "variants": {
+    "concealed=false": {
+      "model": "openmodularturrets:block/rocket_turret"
+    },
+    "concealed=true": {
+      "model": "openmodularturrets:block/rocket_turret"
+    }
+  }
+}

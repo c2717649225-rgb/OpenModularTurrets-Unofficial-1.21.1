@@ -1,0 +1,16 @@
+{
+  "variants": {
+    "facing=east": {
+      "model": "openmodularturrets:block/lever_block"
+    },
+    "facing=north": {
+      "model": "openmodularturrets:block/lever_block"
+    },
+    "facing=south": {
+      "model": "openmodularturrets:block/lever_block"
+    },
+    "facing=west": {
+      "model": "openmodularturrets:block/lever_block"
+    }
+  }
+}

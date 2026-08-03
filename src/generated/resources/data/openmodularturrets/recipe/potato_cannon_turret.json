@@ -1,0 +1,27 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "equipment",
+  "key": {
+    "A": {
+      "item": "openmodularturrets:barrel_tier_one"
+    },
+    "B": {
+      "item": "openmodularturrets:chamber_tier_one"
+    },
+    "C": {
+      "tag": "c:cobblestones/normal"
+    },
+    "D": {
+      "tag": "c:dusts/redstone"
+    }
+  },
+  "pattern": [
+    "CAC",
+    "CAC",
+    "DBD"
+  ],
+  "result": {
+    "count": 1,
+    "id": "openmodularturrets:potato_cannon_turret"
+  }
+}

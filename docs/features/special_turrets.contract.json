@@ -1,0 +1,300 @@
+{
+  "$schema": "../../.agents/contracts/major-feature-v2.schema.json",
+  "schema_version": 2,
+  "design_source": {
+    "path": "docs/porting/openmodularturrets-1.21.1-acceptance-design.md",
+    "revision": "confirmed-2026-08-01",
+    "sha256": "7594696d646d05ef287e4596f1383417a169282a01483fc18ed9eee56496f0d6"
+  },
+  "review_required": [],
+  "id": "openmodularturrets.special_turrets",
+  "version": 2,
+  "summary": "Laser, rail gun, relativistic and teleporter turrets implement their distinct server-authoritative armor, effect, beam and safe-destination rules.",
+  "server_authority": {
+    "owner": "logical_server",
+    "authoritative_state": [
+      "TurretHeadBlockEntity resolves ray damage, potion effects and teleport destinations.",
+      "TurretBaseBlockEntity resolves permissions, energy, ammunition and addon context.",
+      "BeamEffectPayload carries cosmetic state only after server resolution."
+    ],
+    "client_input_policy": "not_applicable",
+    "invalid_input_policy": "reject_and_log"
+  },
+  "persistence": {
+    "required": false,
+    "scope": "none",
+    "schema": {
+      "version": 1,
+      "format": "none",
+      "owner": "No additional persistent state",
+      "fields": []
+    },
+    "migration": {
+      "strategy": "none",
+      "supported_from": [],
+      "fallback": "not_applicable",
+      "test_ids": []
+    }
+  },
+  "network": {
+    "required": true,
+    "flows": [
+      {
+        "id": "special_beam_effect",
+        "direction": "s2c",
+        "purpose": "Render a bounded cosmetic laser or rail beam after server damage resolution.",
+        "validation": [
+          "Client only applies particles in its current loaded level.",
+          "The server chooses start, end and one of the declared beam colors."
+        ],
+        "rate_limit": {
+          "strategy": "fixed_window",
+          "max_per_second": 40,
+          "burst": 40,
+          "key": "dimension"
+        },
+        "max_payload_bytes": 80,
+        "test_ids": [
+          "special_turret_rules"
+        ]
+      }
+    ]
+  },
+  "client_boundary": {
+    "common_code_client_imports": "forbidden",
+    "client_only_packages": [
+      "omtteam.openmodularturrets.client"
+    ],
+    "visual_state": "synced_server_state",
+    "dedicated_server_fallback": "All special turret outcomes work without renderer classes.",
+    "dedicated_server_test_id": "special_turret_server_boot"
+  },
+  "registries": {
+    "entries": [],
+    "tags": [
+      "minecraft:bypasses_armor",
+      "minecraft:is_projectile"
+    ]
+  },
+  "assets": {
+    "generated": [],
+    "manual": [],
+    "locales": [
+      "en_us",
+      "zh_cn"
+    ],
+    "license_review": "not_applicable",
+    "validation_test_ids": [
+      "special_turret_asset_contract"
+    ]
+  },
+  "performance": {
+    "budgets": [
+      {
+        "id": "teleport_candidate_budget",
+        "metric": "custom",
+        "scope": "One teleporter shot",
+        "limit": 27,
+        "unit": "count",
+        "measurement": "Fixed ordered candidate positions inspected around the turret base.",
+        "test_id": "teleport_candidate_budget"
+      }
+    ],
+    "hot_paths": [
+      "TurretHeadBlockEntity fire",
+      "Teleporter safe destination lookup"
+    ],
+    "measurement_environment": "Java 21, NeoForge 21.1.234 GameTest server."
+  },
+  "dependencies": {
+    "features": [
+      "openmodularturrets.projectile_combat",
+      "openmodularturrets.targeting_control"
+    ],
+    "mods": [
+      {
+        "id": "neoforge",
+        "requirement": "required",
+        "version_range": "[21.1,21.2)",
+        "fallback": "The mod refuses to load outside the pinned NeoForge 21.1 line."
+      }
+    ]
+  },
+  "status": "verifying",
+  "acceptance": {
+    "criteria": [
+      {
+        "id": "criterion.cover_070e933db8104e7c59b86cd1ce39c8ccee90d658ac100958cab110cd39504e4f",
+        "risk": "P1",
+        "required": true,
+        "statement": "Laser damage decreases with armor while rail damage increases and bypasses armor.",
+        "observation": "Laser damage decreases with armor while rail damage increases and bypasses armor.",
+        "test_ids": [
+          "special_turret_rules"
+        ]
+      },
+      {
+        "id": "criterion.cover_5755ef5aae6c258310998baedae9b0bc04e83233454ac49b60121d70bb15f74b",
+        "risk": "P2",
+        "required": true,
+        "statement": "Beam colors are stable per turret definition.",
+        "observation": "Beam colors are stable per turret definition.",
+        "test_ids": [
+          "special_turret_rules"
+        ]
+      },
+      {
+        "id": "criterion.cover_3728eac8e391434b651620ebe1a16803af31cefcaacb6aa9835a17a7b389f6d8",
+        "risk": "P1",
+        "required": true,
+        "statement": "Relativistic rejects already-slowed entities.",
+        "observation": "Relativistic rejects already-slowed entities.",
+        "test_ids": [
+          "special_turret_rules"
+        ]
+      },
+      {
+        "id": "criterion.cover_fea8235d269b9e6ccc62b88777c74eac60742ca8fc84fd8ba1c17be6d162fe52",
+        "risk": "P1",
+        "required": true,
+        "statement": "Teleporter safety search is bounded and deterministic.",
+        "observation": "Teleporter safety search is bounded and deterministic.",
+        "test_ids": [
+          "special_turret_rules"
+        ]
+      },
+      {
+        "id": "criterion.cover_e65f94710f36f88c7d352f7eef1a81d3c168ccbe2e16b69c804988eed964c92b",
+        "risk": "P1",
+        "required": true,
+        "statement": "The ordered safe-destination list never exceeds 26 positions.",
+        "observation": "The ordered safe-destination list never exceeds 26 positions.",
+        "test_ids": [
+          "teleport_candidate_budget"
+        ]
+      },
+      {
+        "id": "criterion.cover_261370fd510676bd7ab060e58509be50f33e0b436c4008d651622f21abf746c8",
+        "risk": "P0",
+        "required": true,
+        "statement": "Special turret common code loads without client classes.",
+        "observation": "Special turret common code loads without client classes.",
+        "test_ids": [
+          "special_turret_server_boot"
+        ]
+      },
+      {
+        "id": "criterion.cover_40a29d9d23be9a8d94e970b5ae2dfc8657e47bde6909b313b9c42cddf9823f8e",
+        "risk": "P2",
+        "required": true,
+        "statement": "Existing beam, sound and damage-type resources still reconcile.",
+        "observation": "Existing beam, sound and damage-type resources still reconcile.",
+        "test_ids": [
+          "special_turret_asset_contract"
+        ]
+      },
+      {
+        "id": "criterion.scatter_special_action_once",
+        "risk": "P1",
+        "required": true,
+        "statement": "Scatter multiplies paid special-turret energy but executes Teleporter and Relativistic special actions exactly once per paid volley.",
+        "observation": "With Scatter level four, the rule vector reports one Teleporter execution and one Relativistic execution, while ordinary and beam turrets report four executions.",
+        "test_ids": [
+          "special_turret_rules"
+        ]
+      }
+    ],
+    "tests": [
+      {
+        "id": "special_turret_rules",
+        "kind": "gametest",
+        "command": [
+          "python",
+          ".agents/run.py",
+          ".agents/gates/gametest_gate.py",
+          "--require-tests",
+          "--run"
+        ],
+        "covers": [
+          "Laser damage decreases with armor while rail damage increases and bypasses armor.",
+          "Beam colors are stable per turret definition.",
+          "Relativistic rejects already-slowed entities.",
+          "Teleporter safety search is bounded and deterministic.",
+          "Scatter multiplies paid special-turret energy but executes Teleporter and Relativistic special actions exactly once per paid volley."
+        ],
+        "required": true,
+        "expected": "Rule vectors and server fixtures pass.",
+        "timeout_seconds": 900,
+        "test_ref": "omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#specialTurretRules"
+      },
+      {
+        "id": "teleport_candidate_budget",
+        "kind": "performance",
+        "command": [
+          "python",
+          ".agents/run.py",
+          ".agents/gates/gametest_gate.py",
+          "--require-tests",
+          "--run"
+        ],
+        "covers": [
+          "The ordered safe-destination list never exceeds 26 positions."
+        ],
+        "required": true,
+        "expected": "The pure candidate vector remains bounded.",
+        "timeout_seconds": 900
+      },
+      {
+        "id": "special_turret_server_boot",
+        "kind": "dedicated_server",
+        "command": [
+          "python",
+          ".agents/run.py",
+          ".agents/gates/compile_and_repair.py",
+          "--with-server"
+        ],
+        "covers": [
+          "Special turret common code loads without client classes."
+        ],
+        "required": true,
+        "expected": "Dedicated server reaches Done.",
+        "timeout_seconds": 900
+      },
+      {
+        "id": "special_turret_asset_contract",
+        "kind": "datagen",
+        "command": [
+          "python",
+          ".agents/run.py",
+          ".agents/gates/compile_and_repair.py",
+          "--with-data",
+          "--with-static",
+          "--with-assets"
+        ],
+        "covers": [
+          "Existing beam, sound and damage-type resources still reconcile."
+        ],
+        "required": true,
+        "expected": "DataGen and asset reconciliation pass.",
+        "timeout_seconds": 900
+      }
+    ],
+    "manual_checks": [
+      {
+        "id": "special_turret_visuals",
+        "steps": [
+          "Fire Laser and Rail Gun at armored targets on a dedicated server.",
+          "Use Relativistic twice against the same group.",
+          "Block the Teleporter's preferred destination and fire it."
+        ],
+        "expected": "Distinct beams, effects and safe teleport behavior are observable."
+      }
+    ],
+    "non_goals": [
+      "Rail Gun block destruction without an explicit server configuration.",
+      "Final BER geometry and barrel animation.",
+      "Cross-dimensional teleportation.",
+      "New network payload types."
+    ]
+  }
+}

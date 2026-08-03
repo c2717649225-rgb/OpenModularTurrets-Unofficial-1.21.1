@@ -1,0 +1,27 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "building",
+  "key": {
+    "A": {
+      "tag": "c:ingots/gold"
+    },
+    "B": {
+      "item": "openmodularturrets:turret_base_tier_two"
+    },
+    "C": {
+      "item": "openmodularturrets:sensor_tier_three"
+    },
+    "D": {
+      "item": "openmodularturrets:io_bus"
+    }
+  },
+  "pattern": [
+    "ABA",
+    "DCD",
+    "ADA"
+  ],
+  "result": {
+    "count": 1,
+    "id": "openmodularturrets:turret_base_tier_three"
+  }
+}

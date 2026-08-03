@@ -1,0 +1,21 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "A": {
+      "tag": "c:gems/quartz"
+    },
+    "B": {
+      "item": "openmodularturrets:io_bus"
+    }
+  },
+  "pattern": [
+    " A ",
+    "BAB",
+    " A "
+  ],
+  "result": {
+    "count": 1,
+    "id": "openmodularturrets:addon_serial_port"
+  }
+}

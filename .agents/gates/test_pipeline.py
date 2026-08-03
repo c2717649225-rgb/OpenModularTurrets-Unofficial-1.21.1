@@ -295,6 +295,115 @@ class TestPipeline(unittest.TestCase):
             )
             self.fail(f"detached descendant {detached_pid} survived timeout")
 
+    def _run_pipeline_with_mock_steps(self, profile, report, ledger_env=None):
+        report = Path(report)
+        if ledger_env is not None:
+            self.addCleanup(os.environ.pop, pipeline.LEDGER_ENV_VAR, None)
+            os.environ[pipeline.LEDGER_ENV_VAR] = str(ledger_env)
+        argv = [
+            "--project-dir",
+            str(self.temp_dir),
+            "--profile",
+            profile,
+            "--json-report",
+            str(report),
+        ]
+        with mock.patch.object(
+            pipeline, "run_step", side_effect=_passed_step
+        ) as run_step:
+            code = pipeline.main(argv)
+        return code, run_step
+
+    def test_ledger_event_appended_when_env_var_set(self):
+        report = self.temp_dir / "reports" / "pipeline.json"
+        ledger = self.temp_dir / "ledger" / "journal.jsonl"
+        code, _ = self._run_pipeline_with_mock_steps(
+            "fast", report, ledger_env=ledger
+        )
+        self.assertEqual(0, code)
+        self.assertTrue(ledger.exists())
+        events = [
+            json.loads(line)
+            for line in ledger.read_text(encoding="utf-8").splitlines()
+        ]
+        self.assertEqual(1, len(events))
+        event = events[0]
+        self.assertEqual("PIPELINE_RESULT", event["event_type"])
+        self.assertEqual("fast", event["profile"])
+        self.assertEqual("passed", event["status"])
+        self.assertTrue(event["passed"])
+        self.assertEqual(
+            pipeline.sha256_file(report), event["report_sha256"]
+        )
+        self.assertEqual(str(self.temp_dir), event["project_dir"])
+
+    def test_dry_run_never_touches_ledger(self):
+        report = self.temp_dir / "reports" / "pipeline.json"
+        ledger = self.temp_dir / "ledger" / "journal.jsonl"
+        self.addCleanup(os.environ.pop, pipeline.LEDGER_ENV_VAR, None)
+        os.environ[pipeline.LEDGER_ENV_VAR] = str(ledger)
+        argv = [
+            "--project-dir",
+            str(self.temp_dir),
+            "--profile",
+            "fast",
+            "--dry-run",
+            "--json-report",
+            str(report),
+        ]
+        with mock.patch.object(pipeline, "run_step") as run_step:
+            code = pipeline.main(argv)
+        self.assertEqual(0, code)
+        run_step.assert_not_called()
+        self.assertTrue(report.exists())
+        self.assertFalse(ledger.exists())
+
+    def test_release_without_ledger_warns_but_passes(self):
+        report = self.temp_dir / "reports" / "pipeline.json"
+        code, _ = self._run_pipeline_with_mock_steps(
+            "release", report, ledger_env=None
+        )
+        self.assertEqual(0, code)
+        self.assertTrue(report.exists())
+
+    def test_ledger_appends_across_runs(self):
+        report = self.temp_dir / "reports" / "pipeline.json"
+        ledger = self.temp_dir / "ledger" / "journal.jsonl"
+        code, _ = self._run_pipeline_with_mock_steps(
+            "fast", report, ledger_env=ledger
+        )
+        self.assertEqual(0, code)
+        code, _ = self._run_pipeline_with_mock_steps(
+            "fast", report, ledger_env=ledger
+        )
+        self.assertEqual(0, code)
+        events = [
+            line for line in ledger.read_text(encoding="utf-8").splitlines()
+        ]
+        self.assertEqual(2, len(events))
+
+    def test_unwritable_ledger_never_changes_exit_code(self):
+        report = self.temp_dir / "reports" / "pipeline.json"
+        # A directory where a file is expected: append raises OSError
+        ledger_dir = self.temp_dir / "ledger"
+        ledger_dir.mkdir()
+        code, _ = self._run_pipeline_with_mock_steps(
+            "fast", report, ledger_env=ledger_dir
+        )
+        self.assertEqual(0, code)
+        self.assertTrue(report.exists())
+
+
+def _passed_step(*args, **kwargs):
+    return pipeline.StepResult(
+        name="step",
+        command=[],
+        returncode=0,
+        duration_seconds=0.1,
+        status="passed",
+        output_tail=[],
+    )
+
 
 if __name__ == "__main__":
     unittest.main()

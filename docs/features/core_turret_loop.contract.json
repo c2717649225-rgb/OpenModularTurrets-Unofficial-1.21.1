@@ -1,0 +1,440 @@
+{
+  "$schema": "../../.agents/contracts/major-feature-v2.schema.json",
+  "schema_version": 2,
+  "design_source": {
+    "path": "docs/porting/openmodularturrets-1.21.1-acceptance-design.md",
+    "revision": "confirmed-2026-08-01",
+    "sha256": "7594696d646d05ef287e4596f1383417a169282a01483fc18ed9eee56496f0d6"
+  },
+  "review_required": [],
+  "id": "openmodularturrets.core_turret_loop",
+  "version": 2,
+  "summary": "Players can own, power, load and configure modular turret bases whose attached turret heads acquire legal targets and fire using server-authoritative state.",
+  "server_authority": {
+    "owner": "logical_server",
+    "authoritative_state": [
+      "TurretBaseBlockEntity owns energy, inventory, owner UUID, local trust, target rules, range, activity and kill statistics.",
+      "TurretHeadBlockEntity owns target acquisition, cooldown, aim, ammunition and energy consumption.",
+      "SecuritySavedData owns global and shared trust mappings.",
+      "Clients submit bounded intents and never author damage, energy, inventory, ownership or target selection."
+    ],
+    "client_input_policy": "intent_only",
+    "invalid_input_policy": "reject_and_log"
+  },
+  "persistence": {
+    "required": true,
+    "scope": "block_entity",
+    "schema": {
+      "version": 1,
+      "format": "codec",
+      "owner": "TurretBaseBlockEntity, TurretHeadBlockEntity, InventoryExpanderBlockEntity, SecuritySavedData and MemoryCardProfile",
+      "fields": [
+        "schema_version:int=1 and unsupported future versions are rejected",
+        "base owner UUID, energy, 13-slot inventory, target flags, range, active state, trust entries and statistics",
+        "turret cooldown, auto-fire, concealment, targeting priorities and minimal render aim",
+        "inventory expander 9-slot inventory",
+        "memory card Data Component containing bounded copyable base settings without energy, inventory or ownership"
+      ]
+    },
+    "migration": {
+      "strategy": "custom",
+      "supported_from": [
+        1
+      ],
+      "fallback": "reject_incompatible",
+      "test_ids": [
+        "state_persistence"
+      ]
+    }
+  },
+  "network": {
+    "required": true,
+    "flows": [
+      {
+        "id": "base_command",
+        "direction": "c2s",
+        "purpose": "Apply a bounded base setting intent while the sender has the matching menu open.",
+        "validation": [
+          "Loaded block entity, same dimension, interaction distance and matching open menu.",
+          "Sender access level authorizes the selected action.",
+          "Enum id and operand are clamped to server-owned limits."
+        ],
+        "rate_limit": {
+          "strategy": "fixed_window",
+          "max_per_second": 20,
+          "burst": 20,
+          "key": "player"
+        },
+        "max_payload_bytes": 64,
+        "test_ids": [
+          "network_authority"
+        ]
+      },
+      {
+        "id": "trust_command",
+        "direction": "c2s",
+        "purpose": "Mutate a bounded local or owner-global trust entry.",
+        "validation": [
+          "Sender UUID is derived from payload context and is never supplied by the payload.",
+          "Local changes require an owned loaded base in interaction range.",
+          "Target UUID, access id and entry count are bounded."
+        ],
+        "rate_limit": {
+          "strategy": "fixed_window",
+          "max_per_second": 10,
+          "burst": 10,
+          "key": "player"
+        },
+        "max_payload_bytes": 128,
+        "test_ids": [
+          "network_authority"
+        ]
+      },
+      {
+        "id": "trust_snapshot",
+        "direction": "s2c",
+        "purpose": "Expose at most 64 authorized trust entries to the current menu viewer.",
+        "validation": [
+          "Client accepts only bounded entries associated with the currently viewed base."
+        ],
+        "rate_limit": {
+          "strategy": "coalesced",
+          "max_per_second": 10,
+          "burst": 1,
+          "key": "player"
+        },
+        "max_payload_bytes": 8192,
+        "test_ids": [
+          "network_authority"
+        ]
+      },
+      {
+        "id": "turret_aim",
+        "direction": "s2c",
+        "purpose": "Synchronize bounded authoritative yaw and pitch for rendering.",
+        "validation": [
+          "Client verifies a loaded turret block entity exists at the supplied position."
+        ],
+        "rate_limit": {
+          "strategy": "coalesced",
+          "max_per_second": 10,
+          "burst": 1,
+          "key": "dimension"
+        },
+        "max_payload_bytes": 32,
+        "test_ids": [
+          "network_authority"
+        ]
+      },
+      {
+        "id": "beam_effect",
+        "direction": "s2c",
+        "purpose": "Render a bounded cosmetic beam after the server has resolved damage.",
+        "validation": [
+          "Client clamps duration and ignores effects outside the loaded level."
+        ],
+        "rate_limit": {
+          "strategy": "fixed_window",
+          "max_per_second": 40,
+          "burst": 40,
+          "key": "dimension"
+        },
+        "max_payload_bytes": 80,
+        "test_ids": [
+          "network_authority"
+        ]
+      }
+    ]
+  },
+  "client_boundary": {
+    "common_code_client_imports": "forbidden",
+    "client_only_packages": [
+      "omtteam.openmodularturrets.client"
+    ],
+    "visual_state": "synced_server_state",
+    "dedicated_server_fallback": "All authoritative targeting, energy, ammunition and damage behavior runs without loading client classes.",
+    "dedicated_server_test_id": "dedicated_server_boot"
+  },
+  "registries": {
+    "entries": [
+      {
+        "registry": "block_entity_type",
+        "ids": [
+          "openmodularturrets:turret_base",
+          "openmodularturrets:turret_head",
+          "openmodularturrets:inventory_expander"
+        ],
+        "lifecycle": "static"
+      },
+      {
+        "registry": "data_component_type",
+        "ids": [
+          "openmodularturrets:memory_card_profile"
+        ],
+        "lifecycle": "static"
+      },
+      {
+        "registry": "menu",
+        "ids": [
+          "openmodularturrets:turret_base_menu",
+          "openmodularturrets:inventory_expander_menu"
+        ],
+        "lifecycle": "static"
+      }
+    ],
+    "tags": [
+      "openmodularturrets:ammo/all",
+      "openmodularturrets:ammo/machine_gun",
+      "openmodularturrets:ammo/incendiary",
+      "openmodularturrets:ammo/grenade",
+      "openmodularturrets:ammo/rocket",
+      "openmodularturrets:ammo/rail_gun",
+      "openmodularturrets:ammo/disposable"
+    ]
+  },
+  "assets": {
+    "generated": [
+      "Blockstates, block/item models, loot tables, recipes, item/block tags and en_us/zh_cn language JSON."
+    ],
+    "manual": [
+      "GPL-compatible legacy OMT textures and sounds with retained OMLib MIT notice."
+    ],
+    "locales": [
+      "en_us",
+      "zh_cn"
+    ],
+    "license_review": "complete",
+    "validation_test_ids": [
+      "asset_contract"
+    ]
+  },
+  "performance": {
+    "budgets": [
+      {
+        "id": "hundred_turrets",
+        "metric": "server_tick_time",
+        "scope": "100 loaded idle turret heads staggered across search phases",
+        "limit": 5,
+        "unit": "ms_per_tick",
+        "measurement": "Warm for 200 ticks and sample 1000 server ticks with target searches staggered by position.",
+        "test_id": "targeting_budget"
+      }
+    ],
+    "hot_paths": [
+      "TurretHeadBlockEntity server tick target acquisition",
+      "TurretBaseBlockEntity adjacent expander capacity calculation",
+      "Payload validation and menu state synchronization"
+    ],
+    "measurement_environment": "Java 21, 1 GiB heap, fixed GameTest world, 100 turret heads and 100 hostile entities."
+  },
+  "dependencies": {
+    "features": [],
+    "mods": [
+      {
+        "id": "neoforge",
+        "requirement": "required",
+        "version_range": "[21.1,21.2)",
+        "fallback": "The mod refuses to load outside the pinned NeoForge 21.1 line."
+      }
+    ]
+  },
+  "status": "verifying",
+  "acceptance": {
+    "criteria": [
+      {
+        "id": "criterion.cover_9801dadc76082be37ebc31130d356ae9db3cbf1deba39820df82c82efb73f4fe",
+        "risk": "P0",
+        "required": true,
+        "statement": "Base settings, energy and inventories survive a BlockEntity save/load round trip.",
+        "observation": "The migration acceptance command exits 0 after demonstrating this condition: Base settings, energy and inventories survive a BlockEntity save/load round trip.",
+        "test_ids": [
+          "state_persistence"
+        ]
+      },
+      {
+        "id": "criterion.cover_f9d39a5482d59b90c9981fe039e8b3a00d9d34332d769c10aebd5b45f541bd43",
+        "risk": "P0",
+        "required": true,
+        "statement": "Memory card profiles use Data Components and exclude authority and inventory.",
+        "observation": "The migration acceptance command exits 0 after demonstrating this condition: Memory card profiles use Data Components and exclude authority and inventory.",
+        "test_ids": [
+          "state_persistence"
+        ]
+      },
+      {
+        "id": "criterion.cover_61233b84a40bd971378ef61b8fe850e6beafcb4b57d680487c31e15833561f3a",
+        "risk": "P0",
+        "required": true,
+        "statement": "Unauthorized or out-of-range base commands do not change server-owned state.",
+        "observation": "The integration acceptance command exits 0 after demonstrating this condition: Unauthorized or out-of-range base commands do not change server-owned state.",
+        "test_ids": [
+          "network_authority"
+        ]
+      },
+      {
+        "id": "criterion.cover_634537f63ced10e22d8eac932f31fc7d382de70f640e04b753532f69d3fb74cf",
+        "risk": "P1",
+        "required": true,
+        "statement": "Aim and beam messages contain only bounded presentation state.",
+        "observation": "The integration acceptance command exits 0 after demonstrating this condition: Aim and beam messages contain only bounded presentation state.",
+        "test_ids": [
+          "network_authority"
+        ]
+      },
+      {
+        "id": "criterion.cover_dd0b2009f88e7c3250b507fa5c2ff1d8907190983cb1bfc1ef06ad8b8bf4a29d",
+        "risk": "P0",
+        "required": true,
+        "statement": "Common code loads without client-only classes.",
+        "observation": "The dedicated-server command exits 0 and the server log reaches `Done` without violating this condition: Common code loads without client-only classes.",
+        "test_ids": [
+          "dedicated_server_boot"
+        ]
+      },
+      {
+        "id": "criterion.cover_b5ea27082d03cef335e7e3dbba4ee004d32aec3b75a4df42942fe6f32213b8dc",
+        "risk": "P2",
+        "required": true,
+        "statement": "All declared registries, tags, models, loot tables and locales reconcile.",
+        "observation": "The DataGen/static/asset reconciliation command exits 0 and reports zero drift for this condition: All declared registries, tags, models, loot tables and locales reconcile.",
+        "test_ids": [
+          "asset_contract"
+        ]
+      },
+      {
+        "id": "criterion.cover_180e08ef826bb6b71423d8fb415e82cbcf6070d00a0ddd9e6f1045d6103012cc",
+        "risk": "P1",
+        "required": true,
+        "statement": "Target acquisition work is staggered and bounded for 100 loaded turret heads.",
+        "observation": "GameTest `omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#targetingBudget` passes after asserting that target acquisition work is staggered and bounded for 100 loaded turret heads.",
+        "test_ids": [
+          "targeting_budget_gametest"
+        ]
+      }
+    ],
+    "tests": [
+      {
+        "id": "state_persistence",
+        "kind": "migration",
+        "command": [
+          "python",
+          ".agents/run.py",
+          ".agents/gates/gametest_gate.py",
+          "--require-tests",
+          "--run"
+        ],
+        "covers": [
+          "Base settings, energy and inventories survive a BlockEntity save/load round trip.",
+          "Memory card profiles use Data Components and exclude authority and inventory."
+        ],
+        "required": true,
+        "expected": "The round-tripped semantic state equals the saved state and excluded fields remain excluded.",
+        "timeout_seconds": 900
+      },
+      {
+        "id": "network_authority",
+        "kind": "integration",
+        "command": [
+          "python",
+          ".agents/run.py",
+          ".agents/gates/gametest_gate.py",
+          "--require-tests",
+          "--run"
+        ],
+        "covers": [
+          "Unauthorized or out-of-range base commands do not change server-owned state.",
+          "Aim and beam messages contain only bounded presentation state."
+        ],
+        "required": true,
+        "expected": "Invalid intents are rejected and valid owner intents are clamped and applied once.",
+        "timeout_seconds": 900
+      },
+      {
+        "id": "dedicated_server_boot",
+        "kind": "dedicated_server",
+        "command": [
+          "python",
+          ".agents/run.py",
+          ".agents/gates/compile_and_repair.py",
+          "--with-server"
+        ],
+        "covers": [
+          "Common code loads without client-only classes."
+        ],
+        "required": true,
+        "expected": "Dedicated server reaches Done without client classloading failures.",
+        "timeout_seconds": 900
+      },
+      {
+        "id": "asset_contract",
+        "kind": "datagen",
+        "command": [
+          "python",
+          ".agents/run.py",
+          ".agents/gates/compile_and_repair.py",
+          "--with-data",
+          "--with-static",
+          "--with-assets"
+        ],
+        "covers": [
+          "All declared registries, tags, models, loot tables and locales reconcile."
+        ],
+        "required": true,
+        "expected": "DataGen succeeds and L2/L2.5 report zero errors and zero warnings.",
+        "timeout_seconds": 900
+      },
+      {
+        "id": "targeting_budget",
+        "kind": "performance",
+        "command": [
+          "python",
+          ".agents/run.py",
+          ".agents/gates/gametest_gate.py",
+          "--require-tests",
+          "--run"
+        ],
+        "covers": [
+          "Target acquisition work is staggered and bounded for 100 loaded turret heads."
+        ],
+        "required": true,
+        "expected": "No turret performs an unbounded search and the declared tick budget is met.",
+        "timeout_seconds": 900
+      },
+      {
+        "id": "targeting_budget_gametest",
+        "kind": "gametest",
+        "command": [
+          "python",
+          ".agents/run.py",
+          ".agents/gates/gametest_gate.py",
+          "--require-tests",
+          "--run"
+        ],
+        "covers": [
+          "Target acquisition work is staggered and bounded for 100 loaded turret heads."
+        ],
+        "required": true,
+        "expected": "The 100-head fixture schedules no more than 20 scans on one tick.",
+        "timeout_seconds": 900,
+        "test_ref": "omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#targetingBudget"
+      }
+    ],
+    "manual_checks": [
+      {
+        "id": "playable_loop",
+        "steps": [
+          "Place a tiered base and attach a compatible turret head.",
+          "Supply energy and tagged ammunition, then enable hostile targeting.",
+          "Save and reload the world, reconnect, and inspect the base and turret state."
+        ],
+        "expected": "The turret fires only at legal visible targets, consumes server-owned resources, and preserves its configuration."
+      }
+    ],
+    "non_goals": [
+      "Direct loading or in-place DataFixerUpper migration of Minecraft 1.12 worlds.",
+      "ComputerCraft, OpenComputers, IC2, Tesla, old RF, Waila, Jade or JEI integration.",
+      "Standalone OMLib publication, debug_tool, multi_tool, fake_sword and Potentia fluid restoration.",
+      "Legacy network cable and external controller APIs."
+    ]
+  }
+}

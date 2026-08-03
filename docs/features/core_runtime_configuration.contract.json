@@ -1,0 +1,365 @@
+{
+  "$schema": "../../.agents/contracts/major-feature-v2.schema.json",
+  "schema_version": 2,
+  "design_source": {
+    "path": "docs/porting/openmodularturrets-1.21.1-acceptance-design.md",
+    "revision": "confirmed-2026-08-01",
+    "sha256": "7594696d646d05ef287e4596f1383417a169282a01483fc18ed9eee56496f0d6"
+  },
+  "review_required": [],
+  "id": "openmodularturrets.core_runtime_configuration",
+  "version": 2,
+  "summary": "Server-owned NeoForge configuration exposes the active 1.12.2 base, turret, expander and addon tuning values without changing registry identity or defaults.",
+  "server_authority": {
+    "owner": "logical_server",
+    "authoritative_state": [
+      "NeoForge SERVER config owns gameplay tuning values and the logical server reads them at use time.",
+      "All blocks, items, entities, menus and data components remain registered independently of configuration.",
+      "Default values reproduce the OpenModularTurrets 1.12.2 defaults used by the current port."
+    ],
+    "client_input_policy": "read_only",
+    "invalid_input_policy": "reject_and_log"
+  },
+  "persistence": {
+    "required": false,
+    "scope": "none",
+    "schema": {
+      "version": 1,
+      "format": "none",
+      "owner": "NeoForge ModConfig SERVER configuration",
+      "fields": []
+    },
+    "migration": {
+      "strategy": "none",
+      "supported_from": [],
+      "fallback": "not_applicable",
+      "test_ids": []
+    }
+  },
+  "network": {
+    "required": false,
+    "flows": []
+  },
+  "client_boundary": {
+    "common_code_client_imports": "forbidden",
+    "client_only_packages": [
+      "omtteam.openmodularturrets.client"
+    ],
+    "visual_state": "not_applicable",
+    "dedicated_server_fallback": "All tuning and validation remain functional without loading client classes.",
+    "dedicated_server_test_id": "dedicated_server_config_boot"
+  },
+  "registries": {
+    "entries": [],
+    "tags": []
+  },
+  "assets": {
+    "generated": [
+      "No generated game assets are changed by runtime configuration."
+    ],
+    "manual": [],
+    "locales": [
+      "en_us",
+      "zh_cn"
+    ],
+    "license_review": "not_applicable",
+    "validation_test_ids": [
+      "config_asset_stability"
+    ]
+  },
+  "performance": {
+    "budgets": [
+      {
+        "id": "config_hot_path_lookup",
+        "metric": "custom",
+        "scope": "One turret tick or resource formula evaluation",
+        "limit": 32,
+        "unit": "count",
+        "measurement": "Count bounded scalar SERVER config lookups during one turret decision cycle.",
+        "test_id": "legacy_config_defaults"
+      }
+    ],
+    "hot_paths": [
+      "Turret target scanning and firing",
+      "Base energy receive and capacity queries",
+      "Addon energy generation",
+      "Upgrade formula evaluation"
+    ],
+    "measurement_environment": "Java 21 and NeoForge 21.1.234 dedicated GameTest server."
+  },
+  "dependencies": {
+    "features": [
+      "openmodularturrets.core_turret_loop",
+      "openmodularturrets.base_rules_upgrades",
+      "openmodularturrets.addon_mechanics"
+    ],
+    "mods": [
+      {
+        "id": "neoforge",
+        "requirement": "required",
+        "version_range": "[21.1,21.2)",
+        "fallback": "The mod refuses to load outside the pinned NeoForge 21.1 line."
+      }
+    ]
+  },
+  "status": "verifying",
+  "acceptance": {
+    "criteria": [
+      {
+        "id": "criterion.cover_8222e8a4f3842e4f1e4a87202278d5e94860384abdf37cfe9ef27f39ddf1396a",
+        "risk": "P1",
+        "required": true,
+        "statement": "Five base tiers, five power expanders, addon generators and all eleven turret definitions expose the declared 1.12.2 defaults.",
+        "observation": "GameTest `omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#legacyConfigDefaults` passes after asserting that five base tiers, five power expanders, addon generators and all eleven turret definitions expose the declared 1.12.2 defaults.",
+        "test_ids": [
+          "legacy_config_defaults_gametest"
+        ]
+      },
+      {
+        "id": "criterion.cover_c76841b40d6562e8168b758da01f0a50a2db8d99c30cb8d413c362a1c370eb67",
+        "risk": "P1",
+        "required": true,
+        "statement": "Accuracy, efficiency and recycler tuning remain independently configurable for all eleven turret definitions with legacy defaults 0.2, 0.08 and 0.10.",
+        "observation": "GameTest `omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#legacyConfigDefaults` passes after asserting that accuracy, efficiency and recycler tuning remain independently configurable for all eleven turret definitions with legacy defaults 0.2, 0.08 and 0.10.",
+        "test_ids": [
+          "legacy_config_defaults_gametest"
+        ]
+      },
+      {
+        "id": "criterion.cover_b594614fac1c5efb9ae50b22364a4e1cc1c77498888c3a2d8515479ba90755f6",
+        "risk": "P1",
+        "required": true,
+        "statement": "Upgrade formulas, recycler rolls and placement limits consume runtime config values rather than duplicated constants.",
+        "observation": "The integration acceptance command exits 0 after demonstrating this condition: Upgrade formulas, recycler rolls and placement limits consume runtime config values rather than duplicated constants.",
+        "test_ids": [
+          "runtime_config_consumers"
+        ]
+      },
+      {
+        "id": "criterion.cover_28367fd726ef758ac844cfe84a4c6f08744b2a7ca3aec8c5f3065261300eb94e",
+        "risk": "P0",
+        "required": true,
+        "statement": "No configuration value conditionally creates or removes a registry entry.",
+        "observation": "The DataGen/static/asset reconciliation command exits 0 and reports zero drift for this condition: No configuration value conditionally creates or removes a registry entry.",
+        "test_ids": [
+          "config_asset_stability"
+        ]
+      },
+      {
+        "id": "criterion.cover_2354c88f3d4b05979543bcbf851c6efc2312a15040a544552d6a481a3dfa888e",
+        "risk": "P1",
+        "required": true,
+        "statement": "Bases use tier-specific hardness and blast resistance when enabled and remain directly unbreakable by default.",
+        "observation": "The integration acceptance command exits 0 after demonstrating this condition: Bases use tier-specific hardness and blast resistance when enabled and remain directly unbreakable by default.",
+        "test_ids": [
+          "legacy_durability_rules"
+        ]
+      },
+      {
+        "id": "criterion.cover_963b92cf56d4cfab4c0a11c36f02ca7062912ae616a9599a6422bd266ca167db",
+        "risk": "P1",
+        "required": true,
+        "statement": "Turret heads remain unbreakable, attachments honor the legacy turretBreakable switch, and the manual charger remains breakable.",
+        "observation": "The integration acceptance command exits 0 after demonstrating this condition: Turret heads remain unbreakable, attachments honor the legacy turretBreakable switch, and the manual charger remains breakable.",
+        "test_ids": [
+          "legacy_durability_rules"
+        ]
+      },
+      {
+        "id": "criterion.cover_af69eb621f20350725c7d19794546e07724f0153e9e92484812782c6a9705825",
+        "risk": "P1",
+        "required": true,
+        "statement": "Rocket homing uses the legacy 0.24 velocity and discards an orphaned homing rocket.",
+        "observation": "The integration acceptance command exits 0 after demonstrating this condition: Rocket homing uses the legacy 0.24 velocity and discards an orphaned homing rocket.",
+        "test_ids": [
+          "optional_projectile_rules"
+        ]
+      },
+      {
+        "id": "criterion.cover_98a7446ce3f96756082715f345d346281466fbf49c5a2c6fd150a183b11219b8",
+        "risk": "P1",
+        "required": true,
+        "statement": "Enabled rocket and grenade terrain explosions use strengths 2.3 and 1.4.",
+        "observation": "The integration acceptance command exits 0 after demonstrating this condition: Enabled rocket and grenade terrain explosions use strengths 2.3 and 1.4.",
+        "test_ids": [
+          "optional_projectile_rules"
+        ]
+      },
+      {
+        "id": "criterion.cover_90818e8072709317d86842516aae70bc6d150a01b9410e08d66f2982f04122b8",
+        "risk": "P1",
+        "required": true,
+        "statement": "Enabled railgun terrain interaction destroys only blocks below hardness 200.",
+        "observation": "The integration acceptance command exits 0 after demonstrating this condition: Enabled railgun terrain interaction destroys only blocks below hardness 200.",
+        "test_ids": [
+          "optional_projectile_rules"
+        ]
+      },
+      {
+        "id": "criterion.cover_968e5efd6e0f3212ddf92f493b8f13accfa37764b7b1299d2f23638d235b7b8e",
+        "risk": "P0",
+        "required": true,
+        "statement": "SERVER config registration and common gameplay access load without client classes.",
+        "observation": "The dedicated-server command exits 0 and the server log reaches `Done` without violating this condition: SERVER config registration and common gameplay access load without client classes.",
+        "test_ids": [
+          "dedicated_server_config_boot"
+        ]
+      },
+      {
+        "id": "criterion.cover_4669147a75d9642c102bd447810643f2b5cfd5dd5b3d9b364145dd2f99c9b24d",
+        "risk": "P2",
+        "required": true,
+        "statement": "Configuration does not alter generated registry resources or introduce asset drift.",
+        "observation": "The DataGen/static/asset reconciliation command exits 0 and reports zero drift for this condition: Configuration does not alter generated registry resources or introduce asset drift.",
+        "test_ids": [
+          "config_asset_stability"
+        ]
+      }
+    ],
+    "tests": [
+      {
+        "id": "legacy_config_defaults",
+        "kind": "performance",
+        "command": [
+          "python",
+          ".agents/run.py",
+          ".agents/gates/gametest_gate.py",
+          "--require-tests",
+          "--run"
+        ],
+        "covers": [
+          "Five base tiers, five power expanders, addon generators and all eleven turret definitions expose the declared 1.12.2 defaults.",
+          "Accuracy, efficiency and recycler tuning remain independently configurable for all eleven turret definitions with legacy defaults 0.2, 0.08 and 0.10."
+        ],
+        "required": true,
+        "expected": "All defaults and representative formula consumers match the legacy values exactly.",
+        "timeout_seconds": 900
+      },
+      {
+        "id": "legacy_config_defaults_gametest",
+        "kind": "gametest",
+        "command": [
+          "python",
+          ".agents/run.py",
+          ".agents/gates/gametest_gate.py",
+          "--require-tests",
+          "--run"
+        ],
+        "covers": [
+          "Five base tiers, five power expanders, addon generators and all eleven turret definitions expose the declared 1.12.2 defaults.",
+          "Accuracy, efficiency and recycler tuning remain independently configurable for all eleven turret definitions with legacy defaults 0.2, 0.08 and 0.10."
+        ],
+        "required": true,
+        "expected": "Legacy base, expander, addon and turret defaults match the asserted values.",
+        "timeout_seconds": 900,
+        "test_ref": "omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#legacyConfigDefaults"
+      },
+      {
+        "id": "runtime_config_consumers",
+        "kind": "integration",
+        "command": [
+          "python",
+          ".agents/run.py",
+          ".agents/gates/gametest_gate.py",
+          "--require-tests",
+          "--run"
+        ],
+        "covers": [
+          "Upgrade formulas, recycler rolls and placement limits consume runtime config values rather than duplicated constants."
+        ],
+        "required": true,
+        "expected": "Representative upgrade, recycler and placement consumers read the current server config values.",
+        "timeout_seconds": 900
+      },
+      {
+        "id": "legacy_durability_rules",
+        "kind": "integration",
+        "command": [
+          "python",
+          ".agents/run.py",
+          ".agents/gates/gametest_gate.py",
+          "--require-tests",
+          "--run"
+        ],
+        "covers": [
+          "Bases use tier-specific hardness and blast resistance when enabled and remain directly unbreakable by default.",
+          "Turret heads remain unbreakable, attachments honor the legacy turretBreakable switch, and the manual charger remains breakable."
+        ],
+        "required": true,
+        "expected": "Default destroy progress and explosion resistance match the legacy policy.",
+        "timeout_seconds": 900
+      },
+      {
+        "id": "optional_projectile_rules",
+        "kind": "integration",
+        "command": [
+          "python",
+          ".agents/run.py",
+          ".agents/gates/gametest_gate.py",
+          "--require-tests",
+          "--run"
+        ],
+        "covers": [
+          "Rocket homing uses the legacy 0.24 velocity and discards an orphaned homing rocket.",
+          "Enabled rocket and grenade terrain explosions use strengths 2.3 and 1.4.",
+          "Enabled railgun terrain interaction destroys only blocks below hardness 200."
+        ],
+        "required": true,
+        "expected": "Pure rule vectors and default-off configuration values match 1.12.2.",
+        "timeout_seconds": 900
+      },
+      {
+        "id": "dedicated_server_config_boot",
+        "kind": "dedicated_server",
+        "command": [
+          "python",
+          ".agents/run.py",
+          ".agents/gates/compile_and_repair.py",
+          "--with-server"
+        ],
+        "covers": [
+          "SERVER config registration and common gameplay access load without client classes."
+        ],
+        "required": true,
+        "expected": "Dedicated server reaches Done and creates the server configuration without registry errors.",
+        "timeout_seconds": 900
+      },
+      {
+        "id": "config_asset_stability",
+        "kind": "datagen",
+        "command": [
+          "python",
+          ".agents/run.py",
+          ".agents/gates/compile_and_repair.py",
+          "--with-data",
+          "--with-static",
+          "--with-assets"
+        ],
+        "covers": [
+          "Configuration does not alter generated registry resources or introduce asset drift."
+        ],
+        "required": true,
+        "expected": "DataGen, static analysis and asset reconciliation pass without differences or warnings.",
+        "timeout_seconds": 900
+      }
+    ],
+    "manual_checks": [
+      {
+        "id": "server_config_reload_boundary",
+        "steps": [
+          "Create a world and inspect openmodularturrets-server.toml.",
+          "Stop the server, change one base capacity and one turret range value, then restart.",
+          "Inspect existing bases and turrets without replacing them."
+        ],
+        "expected": "Existing machines use the new server-owned values after restart while every registry id remains stable."
+      }
+    ],
+    "non_goals": [
+      "Conditional registration or removal of blocks, items, entities, recipes or data components.",
+      "Third-party Ender IO, Mekanism, IC2, ComputerCraft or OpenComputers recipe and integration switches.",
+      "Editable per-base target priority state, which is covered by a separate migration phase.",
+      "Rendering, model, texture and current GUI interaction defect repair.",
+      "Direct loading or conversion of Minecraft 1.12.2 world saves."
+    ]
+  }
+}

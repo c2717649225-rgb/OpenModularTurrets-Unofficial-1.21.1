@@ -1,0 +1,92 @@
+{
+  "amped": {
+    "category": "block",
+    "subtitle": "subtitles.openmodularturrets.amped",
+    "sounds": ["openmodularturrets:amped"]
+  },
+  "bullet_hit": {
+    "category": "block",
+    "subtitle": "subtitles.openmodularturrets.bullet_hit",
+    "sounds": ["openmodularturrets:bullet_hit"]
+  },
+  "disposable": {
+    "category": "block",
+    "subtitle": "subtitles.openmodularturrets.disposable",
+    "sounds": ["openmodularturrets:disposable"]
+  },
+  "grenade": {
+    "category": "block",
+    "subtitle": "subtitles.openmodularturrets.grenade",
+    "sounds": ["openmodularturrets:grenade"]
+  },
+  "incendiary": {
+    "category": "block",
+    "subtitle": "subtitles.openmodularturrets.incendiary",
+    "sounds": ["openmodularturrets:incendiary"]
+  },
+  "laser": {
+    "category": "block",
+    "subtitle": "subtitles.openmodularturrets.laser",
+    "sounds": ["openmodularturrets:laser"]
+  },
+  "laser_hit": {
+    "category": "block",
+    "subtitle": "subtitles.openmodularturrets.laser_hit",
+    "sounds": ["openmodularturrets:laser_hit"]
+  },
+  "machine_gun": {
+    "category": "block",
+    "subtitle": "subtitles.openmodularturrets.machine_gun",
+    "sounds": ["openmodularturrets:machine_gun"]
+  },
+  "plasma_launch": {
+    "category": "block",
+    "subtitle": "subtitles.openmodularturrets.plasma_launch",
+    "sounds": ["openmodularturrets:plasma_launch"]
+  },
+  "potato": {
+    "category": "block",
+    "subtitle": "subtitles.openmodularturrets.potato",
+    "sounds": ["openmodularturrets:potato"]
+  },
+  "rail_gun": {
+    "category": "block",
+    "subtitle": "subtitles.openmodularturrets.rail_gun",
+    "sounds": ["openmodularturrets:rail_gun"]
+  },
+  "rail_gun_hit": {
+    "category": "block",
+    "subtitle": "subtitles.openmodularturrets.rail_gun_hit",
+    "sounds": ["openmodularturrets:rail_gun_hit"]
+  },
+  "relativistic": {
+    "category": "block",
+    "subtitle": "subtitles.openmodularturrets.relativistic",
+    "sounds": ["openmodularturrets:relativistic"]
+  },
+  "rocket": {
+    "category": "block",
+    "subtitle": "subtitles.openmodularturrets.rocket",
+    "sounds": ["openmodularturrets:rocket"]
+  },
+  "teleport": {
+    "category": "block",
+    "subtitle": "subtitles.openmodularturrets.teleport",
+    "sounds": ["openmodularturrets:teleport"]
+  },
+  "turret_deploy": {
+    "category": "block",
+    "subtitle": "subtitles.openmodularturrets.turret_deploy",
+    "sounds": ["openmodularturrets:turret_deploy"]
+  },
+  "turret_retract": {
+    "category": "block",
+    "subtitle": "subtitles.openmodularturrets.turret_retract",
+    "sounds": ["openmodularturrets:turret_retract"]
+  },
+  "warning": {
+    "category": "block",
+    "subtitle": "subtitles.openmodularturrets.warning",
+    "sounds": ["openmodularturrets:warning"]
+  }
+}

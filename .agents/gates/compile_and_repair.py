@@ -1,5 +1,14 @@
 import os
 import sys
+
+if sys.version_info < (3, 10):
+    sys.stderr.write(
+        f"[ERROR] Python 3.10 or higher is required to run gate scripts. "
+        f"Current Python: {sys.version_info.major}.{sys.version_info.minor}\n"
+        "Please use: python .agents/run.py ...\n"
+    )
+    sys.exit(1)
+
 import subprocess
 import re
 import json
@@ -542,6 +551,18 @@ def main():
         sys.exit(1)
         
     print("Step 1 SUCCESS: Compilation passed 100%! No syntax errors.")
+
+    full_output = result.stdout + "\n" + result.stderr
+    if re.search(
+        r"Note:\s+.*?\buses or overrides a deprecated API\b",
+        full_output,
+        re.IGNORECASE,
+    ):
+        print(
+            "[info] Deprecation Warning: javac reported deprecated API usage; "
+            "the summary note does not provide a reliable occurrence count. "
+            "Rerun with -Xlint:deprecation/-Xlint:removal for file-level diagnostics."
+        )
 
     step = 2
     # L2 static gate (only when requested; never widens scan beyond src/main/java)

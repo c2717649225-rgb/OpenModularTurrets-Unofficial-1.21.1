@@ -1,5 +1,10 @@
 # NeoForge 1.21.1 材质、模型与掉落表数据生成 (DataGen) 指南
 
+> [!IMPORTANT]
+> **1.21.1 纹理路径规范**：
+> 方块与物品纹理使用单数目录 `textures/block/` 与 `textures/item/`。
+> 老模组移植时，将旧版复数路径 `textures/blocks/`、`textures/items/` 迁移为单数目录，并同步修改模型与 DataGen 引用，否则客户端会产生 missing texture / atlas 警告。
+
 > [!WARNING]
 > **⚠️ 示例包名禁原样粘贴**：
 > 下方所有示例及 references 中的 `com.tutorial.tutorialmod` 均为占位。写入前必须通过读取 `gradle.properties`（获取真实 Group/MOD ID）并执行 `init_workspace.py` 动态重构为当前项目的真实命名空间，严禁硬编码提交。
@@ -45,6 +50,11 @@ public class ModBlockStateProvider extends BlockStateProvider {
         // 2. 生成带朝向状态的自定义机器方块模型 (如粉碎机 Crusher)
         // 假设机器的前面、侧面、顶部贴图分别为：crusher_front, crusher_side, crusher_top
         registerCrusher(ModBlocks.CRUSHER.get());
+
+        // 3. 生成柱状/上下异色方块 (如柱状机器底座 Turret Base)
+        // 使用 models().cubeColumn 或 models().cubeBottomTop
+        ModelFile columnModel = models().cubeColumn("turret_base", modLoc("block/turret_base_side"), modLoc("block/turret_base_top"));
+        simpleBlockWithItem(ModBlocks.TURRET_BASE.get(), columnModel);
     }
 
     private void registerCrusher(Block block) {

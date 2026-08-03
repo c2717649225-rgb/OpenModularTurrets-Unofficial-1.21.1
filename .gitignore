@@ -57,3 +57,6 @@ minecraft_mod_design.md
 
 # Local agent worktrees / session state
 .claude/
+.lkg_tmp/
+.reasonix/
+reasonix.toml

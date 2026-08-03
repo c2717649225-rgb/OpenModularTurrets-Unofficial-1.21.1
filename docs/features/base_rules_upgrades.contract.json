@@ -1,0 +1,392 @@
+{
+  "$schema": "../../.agents/contracts/major-feature-v2.schema.json",
+  "schema_version": 2,
+  "design_source": {
+    "path": "docs/porting/openmodularturrets-1.21.1-acceptance-design.md",
+    "revision": "confirmed-2026-08-01",
+    "sha256": "7594696d646d05ef287e4596f1383417a169282a01483fc18ed9eee56496f0d6"
+  },
+  "review_required": [],
+  "id": "openmodularturrets.base_rules_upgrades",
+  "version": 2,
+  "summary": "Tiered turret bases enforce their legacy inventory, upgrade stacking, resource formulas and adjacent turret limits on the logical server.",
+  "server_authority": {
+    "owner": "logical_server",
+    "authoritative_state": [
+      "TurretBaseBlockEntity owns the stable 13-slot inventory and decides which slots are enabled by its tier.",
+      "Upgrade levels are derived from server-owned ItemStack counts in enabled upgrade slots.",
+      "TurretHeadBlockEntity uses server-derived shared dynamic range, accuracy, scatter, energy and fire interval values.",
+      "Turret attachment legality is computed from the six blocks adjacent to the owning base."
+    ],
+    "client_input_policy": "intent_only",
+    "invalid_input_policy": "reject_and_log"
+  },
+  "persistence": {
+    "required": true,
+    "scope": "block_entity",
+    "schema": {
+      "version": 1,
+      "format": "value_io",
+      "owner": "TurretBaseBlockEntity",
+      "fields": [
+        "inventory:CompoundTag remains a stable 13-slot ItemStackHandler payload",
+        "slot enablement is derived from the registered BaseTier and is not duplicated in NBT",
+        "upgrade levels are derived from ItemStack counts and are not cached in NBT"
+      ]
+    },
+    "migration": {
+      "strategy": "custom",
+      "supported_from": [
+        1
+      ],
+      "fallback": "reject_incompatible",
+      "test_ids": [
+        "tiered_inventory_recovery"
+      ]
+    }
+  },
+  "network": {
+    "required": false,
+    "flows": []
+  },
+  "client_boundary": {
+    "common_code_client_imports": "forbidden",
+    "client_only_packages": [
+      "omtteam.openmodularturrets.client"
+    ],
+    "visual_state": "synced_server_state",
+    "dedicated_server_fallback": "Inventory rules, upgrade formulas, resource consumption and attachment limits require no client classes.",
+    "dedicated_server_test_id": "dedicated_server_boot"
+  },
+  "registries": {
+    "entries": [],
+    "tags": [
+      "openmodularturrets:addons",
+      "openmodularturrets:ammunition",
+      "openmodularturrets:upgrades"
+    ]
+  },
+  "assets": {
+    "generated": [
+      "Updated en_us and zh_cn creative-tab display names."
+    ],
+    "manual": [],
+    "locales": [
+      "en_us",
+      "zh_cn"
+    ],
+    "license_review": "not_applicable",
+    "validation_test_ids": [
+      "asset_contract"
+    ]
+  },
+  "performance": {
+    "budgets": [
+      {
+        "id": "adjacent_limit_check",
+        "metric": "custom",
+        "scope": "One turret survival or placement validation",
+        "limit": 6,
+        "unit": "count",
+        "measurement": "Count the six Direction values visited by the adjacency scan.",
+        "test_id": "turret_attachment_limits"
+      }
+    ],
+    "hot_paths": [
+      "TurretHeadBlock survival validation",
+      "TurretBaseBlockEntity upgrade level lookup",
+      "Atomic scatter resource consumption"
+    ],
+    "measurement_environment": "Java 21, NeoForge GameTest server and a six-neighbor base fixture."
+  },
+  "dependencies": {
+    "features": [
+      "openmodularturrets.core_turret_loop",
+      "openmodularturrets.projectile_combat"
+    ],
+    "mods": [
+      {
+        "id": "neoforge",
+        "requirement": "required",
+        "version_range": "[21.1,21.2)",
+        "fallback": "The mod refuses to load outside the pinned NeoForge 21.1 line."
+      }
+    ]
+  },
+  "status": "verifying",
+  "acceptance": {
+    "criteria": [
+      {
+        "id": "criterion.cover_f58c6e5bfc94b7d569a014a8346632727d6d5640adb5bd52dfc49268c384cc8f",
+        "risk": "P1",
+        "required": true,
+        "statement": "Tier one exposes no addon or upgrade slots, tiers two through four expose two addon and one upgrade slot, and tier five exposes two of each.",
+        "observation": "GameTest `omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#tieredInventoryRules` passes after asserting that tier one exposes no addon or upgrade slots, tiers two through four expose two addon and one upgrade slot, and tier five exposes two of each.",
+        "test_ids": [
+          "tiered_inventory_rules"
+        ]
+      },
+      {
+        "id": "criterion.cover_3c25e799291f03f1664c82ff9e06c3d36ba8ad9f47d9914fd9ec68d143007590",
+        "risk": "P0",
+        "required": true,
+        "statement": "Upgrade levels sum ItemStack counts only from enabled slots and disabled legacy contents remain persisted and recoverable when the base is removed.",
+        "observation": "The migration acceptance command exits 0 after demonstrating this condition: Upgrade levels sum ItemStack counts only from enabled slots and disabled legacy contents remain persisted and recoverable when the base is removed.",
+        "test_ids": [
+          "tiered_inventory_recovery"
+        ]
+      },
+      {
+        "id": "criterion.cover_34d4bf792fdde89de62ba779c3c8e0843eecca7578e0a24bd2e07b9d6055078f",
+        "risk": "P1",
+        "required": true,
+        "statement": "Fire interval, efficiency, shared dynamic range, accuracy and scatter formulas match the declared legacy defaults.",
+        "observation": "GameTest `omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#upgradeFormulaRules` passes after asserting that fire interval, efficiency, shared dynamic range, accuracy and scatter formulas match the declared legacy defaults.",
+        "test_ids": [
+          "upgrade_formula_rules"
+        ]
+      },
+      {
+        "id": "criterion.cover_1af37878de226201e644cb5d05cf82744fb5aff0c4ae0813e2d81bb10957a13f",
+        "risk": "P0",
+        "required": true,
+        "statement": "Energy and ammunition account for every projectile in a scatter volley.",
+        "observation": "GameTest `omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#upgradeFormulaRules` passes after asserting that energy and ammunition account for every projectile in a scatter volley.",
+        "test_ids": [
+          "upgrade_formula_rules"
+        ]
+      },
+      {
+        "id": "criterion.cover_23eaac4c6adcafdc342fa4ea76d83522ea281eeb3f202cd880131057a0cd8627",
+        "risk": "P1",
+        "required": true,
+        "statement": "A base rejects an over-tier turret, a turret above the total limit, and a turret above its per-kind limit.",
+        "observation": "GameTest `omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#turretAttachmentLimits` passes after asserting that a base rejects an over-tier turret, a turret above the total limit, and a turret above its per-kind limit.",
+        "test_ids": [
+          "turret_attachment_rules"
+        ]
+      },
+      {
+        "id": "criterion.cover_009f6c4113396b0e358193a2725b1576b538cc619de27674d5caba1dfc969d6c",
+        "risk": "P1",
+        "required": true,
+        "statement": "An already attached turret is not counted twice during survival validation.",
+        "observation": "GameTest `omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#turretAttachmentLimits` passes after asserting that an already attached turret is not counted twice during survival validation.",
+        "test_ids": [
+          "turret_attachment_rules"
+        ]
+      },
+      {
+        "id": "criterion.cover_d1ce4c67c5b5b0a4f9c7c1852b7204a666a2437f3e2945e9a715b97a51861e45",
+        "risk": "P1",
+        "required": true,
+        "statement": "The block ItemHandler capability exposes exactly nine ammunition slots.",
+        "observation": "GameTest `omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#capabilityAmmoBoundary` passes after asserting that the block ItemHandler capability exposes exactly nine ammunition slots.",
+        "test_ids": [
+          "capability_ammo_boundary"
+        ]
+      },
+      {
+        "id": "criterion.cover_8b964af0c604889d3ddd51457bb6beac0fb954893d94867a25aa61ab26fdb083",
+        "risk": "P0",
+        "required": true,
+        "statement": "Automation cannot insert addon or upgrade items through the ammunition capability.",
+        "observation": "GameTest `omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#capabilityAmmoBoundary` passes after asserting that automation cannot insert addon or upgrade items through the ammunition capability.",
+        "test_ids": [
+          "capability_ammo_boundary"
+        ]
+      },
+      {
+        "id": "criterion.cover_6afc53e7256029df2de2aec3d0be7e3015f2d91e3489a831442c3d0be951a693",
+        "risk": "P0",
+        "required": true,
+        "statement": "Common inventory and upgrade code loads without client classes.",
+        "observation": "The dedicated-server command exits 0 and the server log reaches `Done` without violating this condition: Common inventory and upgrade code loads without client classes.",
+        "test_ids": [
+          "dedicated_server_boot"
+        ]
+      },
+      {
+        "id": "criterion.cover_1bd35036682082323005b2a4879127ccbf859e52a79f01f244618d7a27ed4700",
+        "risk": "P2",
+        "required": true,
+        "statement": "The unofficial display name is generated consistently for both supported locales.",
+        "observation": "The DataGen/static/asset reconciliation command exits 0 and reports zero drift for this condition: The unofficial display name is generated consistently for both supported locales.",
+        "test_ids": [
+          "asset_contract"
+        ]
+      }
+    ],
+    "tests": [
+      {
+        "id": "tiered_inventory_rules",
+        "kind": "gametest",
+        "command": [
+          "python",
+          ".agents/run.py",
+          ".agents/gates/gametest_gate.py",
+          "--require-tests",
+          "--run"
+        ],
+        "covers": [
+          "Tier one exposes no addon or upgrade slots, tiers two through four expose two addon and one upgrade slot, and tier five exposes two of each."
+        ],
+        "required": true,
+        "expected": "All tier slot and stack-count assertions pass without changing the persisted inventory layout.",
+        "timeout_seconds": 900,
+        "test_ref": "omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#tieredInventoryRules"
+      },
+      {
+        "id": "tiered_inventory_recovery",
+        "kind": "migration",
+        "command": [
+          "python",
+          ".agents/run.py",
+          ".agents/gates/gametest_gate.py",
+          "--require-tests",
+          "--run"
+        ],
+        "covers": [
+          "Upgrade levels sum ItemStack counts only from enabled slots and disabled legacy contents remain persisted and recoverable when the base is removed."
+        ],
+        "required": true,
+        "expected": "Enabled-slot counts and recoverable disabled legacy contents remain correct.",
+        "timeout_seconds": 900
+      },
+      {
+        "id": "upgrade_formula_rules",
+        "kind": "gametest",
+        "command": [
+          "python",
+          ".agents/run.py",
+          ".agents/gates/gametest_gate.py",
+          "--require-tests",
+          "--run"
+        ],
+        "covers": [
+          "Fire interval, efficiency, shared dynamic range, accuracy and scatter formulas match the declared legacy defaults.",
+          "Energy and ammunition account for every projectile in a scatter volley."
+        ],
+        "required": true,
+        "expected": "Representative ordinary, Laser and Plasma test vectors match exact bounded values, and the legacy base-hardness values are never treated as range caps.",
+        "timeout_seconds": 900,
+        "test_ref": "omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#upgradeFormulaRules"
+      },
+      {
+        "id": "turret_attachment_limits",
+        "kind": "performance",
+        "command": [
+          "python",
+          ".agents/run.py",
+          ".agents/gates/gametest_gate.py",
+          "--require-tests",
+          "--run"
+        ],
+        "covers": [
+          "A base rejects an over-tier turret, a turret above the total limit, and a turret above its per-kind limit.",
+          "An already attached turret is not counted twice during survival validation."
+        ],
+        "required": true,
+        "expected": "All six-neighbor attachment cases produce the declared legal or illegal result.",
+        "timeout_seconds": 900
+      },
+      {
+        "id": "turret_attachment_rules",
+        "kind": "gametest",
+        "command": [
+          "python",
+          ".agents/run.py",
+          ".agents/gates/gametest_gate.py",
+          "--require-tests",
+          "--run"
+        ],
+        "covers": [
+          "A base rejects an over-tier turret, a turret above the total limit, and a turret above its per-kind limit.",
+          "An already attached turret is not counted twice during survival validation."
+        ],
+        "required": true,
+        "expected": "Tier, total, per-kind, and already-attached validation vectors pass.",
+        "timeout_seconds": 900,
+        "test_ref": "omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#turretAttachmentLimits"
+      },
+      {
+        "id": "capability_ammo_boundary",
+        "kind": "gametest",
+        "command": [
+          "python",
+          ".agents/run.py",
+          ".agents/gates/gametest_gate.py",
+          "--require-tests",
+          "--run"
+        ],
+        "covers": [
+          "The block ItemHandler capability exposes exactly nine ammunition slots.",
+          "Automation cannot insert addon or upgrade items through the ammunition capability."
+        ],
+        "required": true,
+        "expected": "Capability queries cannot observe or mutate addon and upgrade slots.",
+        "timeout_seconds": 900,
+        "test_ref": "omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#capabilityAmmoBoundary"
+      },
+      {
+        "id": "dedicated_server_boot",
+        "kind": "dedicated_server",
+        "command": [
+          "python",
+          ".agents/run.py",
+          ".agents/gates/compile_and_repair.py",
+          "--with-server"
+        ],
+        "covers": [
+          "Common inventory and upgrade code loads without client classes."
+        ],
+        "required": true,
+        "expected": "Dedicated server reaches Done without client classloading failures.",
+        "timeout_seconds": 900
+      },
+      {
+        "id": "asset_contract",
+        "kind": "datagen",
+        "command": [
+          "python",
+          ".agents/run.py",
+          ".agents/gates/compile_and_repair.py",
+          "--with-data",
+          "--with-static",
+          "--with-assets"
+        ],
+        "covers": [
+          "The unofficial display name is generated consistently for both supported locales."
+        ],
+        "required": true,
+        "expected": "DataGen and asset reconciliation report no differences or warnings.",
+        "timeout_seconds": 900
+      }
+    ],
+    "manual_checks": [
+      {
+        "id": "tier_menu_layout",
+        "steps": [
+          "Open each of the five base tiers in survival.",
+          "Shift-click ammunition, addons and every upgrade type in and out.",
+          "Inspect disabled-slot behavior after loading a deliberately old inventory payload."
+        ],
+        "expected": "Only enabled slots are interactive, shift-click chooses a semantically valid slot, and no stored item is lost."
+      },
+      {
+        "id": "scatter_feedback",
+        "steps": [
+          "Install scatter upgrades in a tier-five base.",
+          "Fire projectile and beam turret families with exactly enough and one-less-than-enough resources."
+        ],
+        "expected": "Each legal volley creates the expected number of shots and consumes matching resources; an underfunded volley does not partially consume."
+      }
+    ],
+    "non_goals": [
+      "Solar, redstone reactor, recycler, concealment, fake-drop or loot-deleter behavior.",
+      "Target priority editing, multi-target selection, warnings or team policy expansion.",
+      "Final legacy GUI textures, BER models or addon visual geometry.",
+      "Changing the openmodularturrets mod id, Java package or registry ids."
+    ]
+  }
+}

@@ -65,6 +65,18 @@ def main():
             "interpreter was found.\n"
         )
         return 1
+    if command[0] != sys.executable:
+        # The default `python` is too old; a fallback interpreter was
+        # selected.  One-time hint so the environment can be fixed at the
+        # source instead of relying on the bootstrap forever.
+        sys.stderr.write(
+            "[hint] The default `python` is older than 3.10, so a fallback "
+            "interpreter was used for this command.\n"
+            "       Fix the environment once: set PY_PYTHON=3.10 (py "
+            "launcher) and reorder PATH so `python` resolves to 3.10+.\n"
+            "       Run  python .agents/run.py .agents/gates/"
+            "environment_check.py  for a diagnosis and exact steps.\n"
+        )
     return subprocess.call(command + sys.argv[1:])
 
 

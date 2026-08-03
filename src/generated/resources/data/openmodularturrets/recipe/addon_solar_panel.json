@@ -1,0 +1,30 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "A": {
+      "tag": "c:glass_panes/colorless"
+    },
+    "B": {
+      "tag": "c:gems/lapis"
+    },
+    "C": {
+      "tag": "c:dusts/redstone"
+    },
+    "D": {
+      "tag": "c:ingots/iron"
+    },
+    "E": {
+      "item": "openmodularturrets:io_bus"
+    }
+  },
+  "pattern": [
+    "AAA",
+    "CBC",
+    "DED"
+  ],
+  "result": {
+    "count": 1,
+    "id": "openmodularturrets:addon_solar_panel"
+  }
+}

@@ -1,0 +1,454 @@
+{
+  "$schema": "../../.agents/contracts/major-feature-v2.schema.json",
+  "schema_version": 2,
+  "design_source": {
+    "path": "docs/porting/openmodularturrets-1.21.1-acceptance-design.md",
+    "revision": "confirmed-2026-08-01",
+    "sha256": "7594696d646d05ef287e4596f1383417a169282a01483fc18ed9eee56496f0d6"
+  },
+  "review_required": [],
+  "id": "openmodularturrets.base_control_gui",
+  "version": 2,
+  "summary": "Legacy base modes, redstone control, scoped trust management and textured base GUIs are restored through session-bound server-authoritative menus and payloads.",
+  "server_authority": {
+    "owner": "logical_server",
+    "authoritative_state": [
+      "Base mode, redstone signal, effective active state, targeting settings, statistics and trust scope are server-owned.",
+      "Trust membership, access levels and revisions are mutated only after validating the currently open base menu."
+    ],
+    "client_input_policy": "intent_only",
+    "invalid_input_policy": "reject"
+  },
+  "persistence": {
+    "required": true,
+    "scope": "block_entity",
+    "schema": {
+      "version": 3,
+      "format": "saved_data",
+      "owner": "TurretBaseBlockEntity and SecuritySavedData",
+      "fields": [
+        "mode_id",
+        "redstone_powered",
+        "use_global_trust",
+        "local_trust",
+        "local_trust_revision",
+        "global trust entries and revisions",
+        "kills",
+        "player_kills",
+        "shots_fired"
+      ]
+    },
+    "migration": {
+      "strategy": "custom",
+      "supported_from": [
+        1,
+        2,
+        3
+      ],
+      "fallback": "backup_and_reset",
+      "test_ids": [
+        "base_state_migration"
+      ]
+    }
+  },
+  "network": {
+    "required": true,
+    "flows": [
+      {
+        "id": "base_control",
+        "direction": "c2s",
+        "purpose": "Apply a bounded base setting or destructive owner action to the currently open base.",
+        "validation": [
+          "containerId, menu type, position, dimension, distance, loaded BlockEntity identity and stillValid must match.",
+          "Command operands and required VIEW, USE or ADMIN access are validated per command."
+        ],
+        "rate_limit": {
+          "strategy": "token_bucket",
+          "max_per_second": 20,
+          "burst": 20,
+          "key": "player"
+        },
+        "max_payload_bytes": 40,
+        "test_ids": [
+          "base_command_authority"
+        ]
+      },
+      {
+        "id": "trust_control",
+        "direction": "c2s",
+        "purpose": "Request or mutate a bounded local or global trust list for the current menu session.",
+        "validation": [
+          "The request is bound to the current base menu session.",
+          "Only local ADMIN may mutate local trust and only the owner may mutate global trust.",
+          "Names, UUIDs, access ids, operations, revisions and the 64-entry limit are strict."
+        ],
+        "rate_limit": {
+          "strategy": "token_bucket",
+          "max_per_second": 10,
+          "burst": 10,
+          "key": "player"
+        },
+        "max_payload_bytes": 4096,
+        "test_ids": [
+          "trust_command_authority",
+          "trust_snapshot_session"
+        ]
+      },
+      {
+        "id": "trust_snapshot",
+        "direction": "s2c",
+        "purpose": "Return a bounded, revisioned authoritative trust snapshot for one menu session and scope.",
+        "validation": [
+          "Client menu containerId, position, owner and scope must match.",
+          "Snapshots with a revision older than the current scope revision are ignored."
+        ],
+        "rate_limit": {
+          "strategy": "coalesced",
+          "max_per_second": 10,
+          "burst": 10,
+          "key": "player"
+        },
+        "max_payload_bytes": 4096,
+        "test_ids": [
+          "trust_snapshot_session"
+        ]
+      }
+    ]
+  },
+  "client_boundary": {
+    "common_code_client_imports": "forbidden",
+    "client_only_packages": [
+      "omtteam.openmodularturrets.client"
+    ],
+    "visual_state": "synced_server_state",
+    "dedicated_server_fallback": "All base and trust behavior remains available without loading screen classes.",
+    "dedicated_server_test_id": "base_gui_dedicated_server_boot"
+  },
+  "registries": {
+    "entries": [],
+    "tags": []
+  },
+  "assets": {
+    "generated": [
+      "en_us and zh_cn base control, mode, trust and tooltip translations"
+    ],
+    "manual": [
+      "Five preserved base GUI textures",
+      "Preserved configure, trusted players and inventory expander textures"
+    ],
+    "locales": [
+      "en_us",
+      "zh_cn"
+    ],
+    "license_review": "complete",
+    "validation_test_ids": [
+      "base_gui_asset_contract"
+    ]
+  },
+  "performance": {
+    "budgets": [
+      {
+        "id": "trust_snapshot_bound",
+        "metric": "custom",
+        "scope": "One trust scope snapshot",
+        "limit": 64,
+        "unit": "count",
+        "measurement": "Codec and server snapshot construction both reject or cap entries before allocation.",
+        "test_id": "trust_snapshot_bound"
+      }
+    ],
+    "hot_paths": [
+      "TurretBaseBlockEntity redstone refresh",
+      "Base command validation",
+      "Trust snapshot reducer"
+    ],
+    "measurement_environment": "Java 21, NeoForge 21.1.234 client and GameTest server."
+  },
+  "dependencies": {
+    "features": [
+      "openmodularturrets.targeting_control",
+      "openmodularturrets.client_visuals"
+    ],
+    "mods": [
+      {
+        "id": "neoforge",
+        "requirement": "required",
+        "version_range": "[21.1,21.2)",
+        "fallback": "The mod refuses to load outside the pinned NeoForge 21.1 line."
+      }
+    ]
+  },
+  "status": "verifying",
+  "acceptance": {
+    "criteria": [
+      {
+        "id": "criterion.cover_e83ea75a72dd658205e3186f48c32406b9d52e0bf7239997028a5f7213cf64b3",
+        "risk": "P0",
+        "required": true,
+        "statement": "BlockEntity v1/v2/v3 and Memory Card schema 1/2/3 mode migration.",
+        "observation": "Loading schema 1, 2 and 3 base fixtures and schema 1, 2 and 3 Memory Card profiles yields the documented mode, owner and access state without reset or privilege gain.",
+        "test_ids": [
+          "base_state_migration"
+        ]
+      },
+      {
+        "id": "criterion.cover_b222762ec78bc3250d35aff076777c8e6eeb26e650c0503fe5ba5f082692da51",
+        "risk": "P0",
+        "required": true,
+        "statement": "Four-mode truth table, redstone changes, stable ids and v2/v3 persistence.",
+        "observation": "For each stable mode id, toggling the neighboring redstone signal produces the documented active state before and after save and reload.",
+        "test_ids": [
+          "base_mode_persistence"
+        ]
+      },
+      {
+        "id": "criterion.cover_7d3f5e4c0f9e38c4d8a401be33e2b18b2872fc45c4cac11af5e9a1d76615bb69",
+        "risk": "P0",
+        "required": true,
+        "statement": "Session binding, operand bounds, permission matrix and destructive commands.",
+        "observation": "A matching open-menu session accepts bounded authorized commands, while wrong session, position, distance, operand or access leaves the base unchanged; destructive commands affect only the validated base.",
+        "test_ids": [
+          "base_command_authority"
+        ]
+      },
+      {
+        "id": "criterion.cover_45b67849452cff5e60af1497c2d29552f7cf261e784c681ff896cc0dd98b57ac",
+        "risk": "P0",
+        "required": true,
+        "statement": "NONE membership, local/global scope, owner-only global writes, no-op revisions and caps.",
+        "observation": "Local and global trust mutations expose the documented membership and access levels, reject unauthorized global writes and over-cap inserts, and increment revisions only when state changes.",
+        "test_ids": [
+          "trust_command_authority"
+        ]
+      },
+      {
+        "id": "criterion.cover_f4b18331066d06ffa0f04d7eb89a4ffb96d712fe4622349ab725553475e494ba",
+        "risk": "P1",
+        "required": true,
+        "statement": "Initial snapshot, 64-entry bound, stable order, session key and monotonic revision reducer.",
+        "observation": "Opening a trust page returns at most 64 entries in stable order, and snapshots with the wrong session key or an older revision do not replace the visible page.",
+        "test_ids": [
+          "trust_snapshot_session"
+        ]
+      },
+      {
+        "id": "criterion.cover_1f80630763fb4ad1e13d9875c36efd3ddaabfdef01f368a5578703f54828d395",
+        "risk": "P0",
+        "required": true,
+        "statement": "Codec and snapshot construction enforce the 64-entry allocation bound.",
+        "observation": "Encoding, decoding and server construction reject or cap a trust snapshot before more than 64 entries are materialized or transmitted.",
+        "test_ids": [
+          "trust_snapshot_bound"
+        ]
+      },
+      {
+        "id": "criterion.cover_8c055517882ae5e35e589b86c7c503dc2a2b22f2dc1c72de9a5d1373e027d73e",
+        "risk": "P1",
+        "required": true,
+        "statement": "GUI textures and all locale keys resolve.",
+        "observation": "The asset gate resolves every base GUI texture and every en_us and zh_cn key referenced by the base and trust screens.",
+        "test_ids": [
+          "base_gui_asset_contract"
+        ]
+      },
+      {
+        "id": "criterion.cover_e625f12bd3649f82c561c2893f4ed0ec91c4a180fc596f7e0952dbd6cc053edb",
+        "risk": "P0",
+        "required": true,
+        "statement": "No screen or client snapshot class is loaded on a dedicated server.",
+        "observation": "A dedicated server reaches its ready state without loading any class from the base screen or client trust-snapshot packages.",
+        "test_ids": [
+          "base_gui_dedicated_server_boot"
+        ]
+      },
+      {
+        "id": "criterion.menu_wide_container_data_round_trip",
+        "risk": "P1",
+        "required": true,
+        "statement": "The open base menu round-trips every synchronized ContainerData field without truncating integers or long statistics.",
+        "observation": "After server values cross their low and high 32-bit boundaries, the open menu exposes the same tier, mode, flags, access, energy and full-width kill, player-kill and shot counters.",
+        "test_ids": [
+          "menu_wide_container_data_round_trip"
+        ]
+      }
+    ],
+    "tests": [
+      {
+        "id": "base_state_migration",
+        "kind": "migration",
+        "command": [
+          "python",
+          ".agents/run.py",
+          ".agents/gates/gametest_gate.py",
+          "--require-tests",
+          "--run"
+        ],
+        "covers": [
+          "BlockEntity v1/v2/v3 and Memory Card schema 1/2/3 mode migration."
+        ],
+        "required": true,
+        "expected": "Legacy active and mode fields migrate without granting access or changing the truth table.",
+        "timeout_seconds": 900
+      },
+      {
+        "id": "base_mode_persistence",
+        "kind": "gametest",
+        "command": [
+          "python",
+          ".agents/run.py",
+          ".agents/gates/gametest_gate.py",
+          "--require-tests",
+          "--run"
+        ],
+        "covers": [
+          "Four-mode truth table, redstone changes, stable ids and v2/v3 persistence."
+        ],
+        "required": true,
+        "expected": "Mode and effective active state match the legacy truth table after reload.",
+        "timeout_seconds": 900,
+        "test_ref": "omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#baseModePersistenceAndMigration"
+      },
+      {
+        "id": "base_command_authority",
+        "kind": "gametest",
+        "command": [
+          "python",
+          ".agents/run.py",
+          ".agents/gates/gametest_gate.py",
+          "--require-tests",
+          "--run"
+        ],
+        "covers": [
+          "Session binding, operand bounds, permission matrix and destructive commands."
+        ],
+        "required": true,
+        "expected": "Only a valid current menu session can mutate the base.",
+        "timeout_seconds": 900,
+        "test_ref": "omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#baseCommandAuthorityAndBounds"
+      },
+      {
+        "id": "trust_command_authority",
+        "kind": "gametest",
+        "command": [
+          "python",
+          ".agents/run.py",
+          ".agents/gates/gametest_gate.py",
+          "--require-tests",
+          "--run"
+        ],
+        "covers": [
+          "NONE membership, local/global scope, owner-only global writes, no-op revisions and caps."
+        ],
+        "required": true,
+        "expected": "Trust mutations preserve legacy membership semantics without privilege escalation.",
+        "timeout_seconds": 900,
+        "test_ref": "omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#trustScopeMembershipAndSecurityRevision"
+      },
+      {
+        "id": "trust_snapshot_session",
+        "kind": "gametest",
+        "command": [
+          "python",
+          ".agents/run.py",
+          ".agents/gates/gametest_gate.py",
+          "--require-tests",
+          "--run"
+        ],
+        "covers": [
+          "Initial snapshot, 64-entry bound, stable order, session key and monotonic revision reducer."
+        ],
+        "required": true,
+        "expected": "Late or unrelated snapshots cannot overwrite the current trust page.",
+        "timeout_seconds": 900,
+        "test_ref": "omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#clientTrustSnapshotReducerContract"
+      },
+      {
+        "id": "trust_snapshot_bound",
+        "kind": "performance",
+        "command": [
+          "python",
+          ".agents/run.py",
+          ".agents/gates/gametest_gate.py",
+          "--require-tests",
+          "--run"
+        ],
+        "covers": [
+          "Codec and snapshot construction enforce the 64-entry allocation bound."
+        ],
+        "required": true,
+        "expected": "No snapshot allocates or transmits more than 64 entries.",
+        "timeout_seconds": 900
+      },
+      {
+        "id": "base_gui_asset_contract",
+        "kind": "datagen",
+        "command": [
+          "python",
+          ".agents/run.py",
+          ".agents/gates/compile_and_repair.py",
+          "--with-data",
+          "--with-static",
+          "--with-assets"
+        ],
+        "covers": [
+          "GUI textures and all locale keys resolve."
+        ],
+        "required": true,
+        "expected": "DataGen and asset reconciliation pass without warnings.",
+        "timeout_seconds": 900
+      },
+      {
+        "id": "base_gui_dedicated_server_boot",
+        "kind": "dedicated_server",
+        "command": [
+          "python",
+          ".agents/run.py",
+          ".agents/gates/compile_and_repair.py",
+          "--with-server"
+        ],
+        "covers": [
+          "No screen or client snapshot class is loaded on a dedicated server."
+        ],
+        "required": true,
+        "expected": "Dedicated server reaches Done.",
+        "timeout_seconds": 900
+      },
+      {
+        "id": "menu_wide_container_data_round_trip",
+        "kind": "gametest",
+        "command": [
+          "python",
+          ".agents/run.py",
+          ".agents/gates/gametest_gate.py",
+          "--require-tests",
+          "--run"
+        ],
+        "test_ref": "omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#menuWideContainerDataRoundTrip",
+        "covers": [
+          "The open base menu round-trips every synchronized ContainerData field without truncating integers or long statistics."
+        ],
+        "required": true,
+        "expected": "Every synchronized menu value, including split long counters, round-trips without truncation.",
+        "timeout_seconds": 900
+      }
+    ],
+    "manual_checks": [
+      {
+        "id": "base_gui_visual_matrix",
+        "steps": [
+          "Open all five base tiers at GUI scales 1 through 4, including a 320 by 240 logical canvas.",
+          "Inspect energy at 0, 50 and 100 percent and every permission level.",
+          "Cycle every redstone control mode slowly and with rapid consecutive clicks while separately observing signal and effective running state.",
+          "Exercise both range buttons slowly and with rapid consecutive clicks before and after attaching turrets with different maximum ranges.",
+          "Open targeting and local/global trust pages and perform add, remove and level changes."
+        ],
+        "expected": "Slots align with preserved textures; overview text does not overlap controls; redstone mode, signal and effective running state are unambiguous; controls do not overflow and server state is reflected after every action."
+      }
+    ],
+    "non_goals": [
+      "Camouflage block rendering and light sliders",
+      "ComputerCraft, OpenComputers or probe integration",
+      "Changing preserved GUI pixels"
+    ]
+  }
+}

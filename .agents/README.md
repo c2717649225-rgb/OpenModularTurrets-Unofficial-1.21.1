@@ -71,6 +71,7 @@ python .agents/run.py --version
 | [gates/](./gates/) | 一键质量档位与门禁：合同 L0、编译 L1、静态 L2、资源 L2.5、行为 L4、验收追踪、专服 L3、文档自检 |
 | [contracts/](./contracts/) | Major 功能通用 JSON Schema；宿主实际合同放 `docs/features/` |
 | [scaffolds/](./scaffolds/) | Major 合同与 GameTest 的防假绿脚手架 |
+| [scaffolds/porting/](./scaffolds/porting/) | 老模组移植语义审计模板；验收仍复用 Major 合同 |
 | [studio/](./studio/) | provisional 执行策略、外置哈希链证据账本、封存 Runner 与独立 Verifier |
 | [eval/](./eval/) | T01–T07 微能力回归 + 六场景旗舰生产评测协议 |
 | [skills/neoforge/](./skills/neoforge/) | 领域知识：SKILL 索引、references、examples、playbooks |

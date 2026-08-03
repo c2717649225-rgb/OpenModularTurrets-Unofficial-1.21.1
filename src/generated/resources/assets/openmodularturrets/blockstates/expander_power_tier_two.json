@@ -1,0 +1,27 @@
+{
+  "variants": {
+    "facing=down": {
+      "model": "openmodularturrets:block/expander_power_tier_two",
+      "x": 90
+    },
+    "facing=east": {
+      "model": "openmodularturrets:block/expander_power_tier_two",
+      "y": 90
+    },
+    "facing=north": {
+      "model": "openmodularturrets:block/expander_power_tier_two"
+    },
+    "facing=south": {
+      "model": "openmodularturrets:block/expander_power_tier_two",
+      "y": 180
+    },
+    "facing=up": {
+      "model": "openmodularturrets:block/expander_power_tier_two",
+      "x": 270
+    },
+    "facing=west": {
+      "model": "openmodularturrets:block/expander_power_tier_two",
+      "y": 270
+    }
+  }
+}

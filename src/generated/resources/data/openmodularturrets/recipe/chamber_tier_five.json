@@ -1,0 +1,27 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "A": {
+      "tag": "c:obsidians/normal"
+    },
+    "B": {
+      "item": "openmodularturrets:chamber_tier_four"
+    },
+    "C": {
+      "item": "openmodularturrets:io_bus"
+    },
+    "D": {
+      "tag": "c:gems/quartz"
+    }
+  },
+  "pattern": [
+    "ADA",
+    " BC",
+    "ADA"
+  ],
+  "result": {
+    "count": 1,
+    "id": "openmodularturrets:chamber_tier_five"
+  }
+}

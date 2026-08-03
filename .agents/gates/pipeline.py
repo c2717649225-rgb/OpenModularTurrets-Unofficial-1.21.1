@@ -13,7 +13,18 @@ stops at the first failure.
 """
 from __future__ import annotations
 
+import sys
+
+if sys.version_info < (3, 10):
+    sys.stderr.write(
+        f"[ERROR] Python 3.10 or higher is required to run gate scripts. "
+        f"Current Python: {sys.version_info.major}.{sys.version_info.minor}\n"
+        "Please use: python .agents/run.py ...\n"
+    )
+    sys.exit(1)
+
 import argparse
+import hashlib
 import json
 import math
 import os
@@ -31,6 +42,8 @@ from typing import Optional, Sequence
 SCHEMA_VERSION = 1
 PROFILE_NAMES = ("fast", "major", "release")
 GRACEFUL_SHUTDOWN_SECONDS = 5.0
+LEDGER_ENV_VAR = "TOOLKIT_EVIDENCE_LEDGER"
+LEDGER_EVENT_TYPE = "PIPELINE_RESULT"
 
 
 @dataclass(frozen=True)
@@ -449,6 +462,38 @@ def write_report(path: Path, payload: dict) -> None:
     )
 
 
+def sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with open(path, "rb") as fh:
+        for chunk in iter(lambda: fh.read(65536), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def append_ledger_event(ledger_path: Path, payload: dict, report_path: Path) -> None:
+    """Append one PIPELINE_RESULT JSONL event to the evidence ledger.
+
+    The ledger is an append-only best-effort journal: the pipeline report's
+    sha256 is recorded so releases can be traced to an exact artifact.  The
+    ledger path comes from the TOOLKIT_EVIDENCE_LEDGER environment variable;
+    failures here never change the pipeline exit code.
+    """
+    event = {
+        "event_type": LEDGER_EVENT_TYPE,
+        "schema_version": SCHEMA_VERSION,
+        "recorded_at_utc": datetime.now(timezone.utc).isoformat(),
+        "profile": payload["profile"],
+        "status": payload["status"],
+        "passed": payload["passed"],
+        "report_sha256": sha256_file(report_path),
+        "project_dir": payload["project_dir"],
+    }
+    ledger_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(ledger_path, "a", encoding="utf-8") as fh:
+        fh.write(json.dumps(event, ensure_ascii=False) + "\n")
+
+
+
 def parser() -> argparse.ArgumentParser:
     command_parser = argparse.ArgumentParser(
         description="Run a fail-closed NeoForge quality profile."
@@ -637,6 +682,46 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             print(f"PIPELINE TOOL ERROR: could not write report: {error}")
             return 2
         print(f"JSON report: {report_path}")
+        ledger_env = os.environ.get(LEDGER_ENV_VAR)
+        if ledger_env and not args.dry_run:
+            try:
+                raw_ledger = Path(ledger_env)
+                if raw_ledger.is_symlink():
+                    raise OSError("ledger path must not be a symlink")
+                ledger_path = raw_ledger.resolve()
+                if ledger_path.exists() and not ledger_path.is_file():
+                    raise OSError(
+                        "ledger path exists and is not a regular file"
+                    )
+                append_ledger_event(ledger_path, payload, report_path)
+                print(
+                    f"Evidence ledger: {LEDGER_EVENT_TYPE} appended to "
+                    f"{ledger_path}"
+                )
+            except OSError as error:
+                print(
+                    "PIPELINE TOOL WARNING: could not append evidence "
+                    f"ledger: {error}"
+                )
+        elif args.profile == "release":
+            # Shown even during --dry-run so a release rehearsal surfaces
+            # the ledger requirement before a real run.
+            if ledger_env:
+                print(
+                    "PIPELINE TOOL WARNING: evidence ledger is skipped for "
+                    "--dry-run; a real release run will record it"
+                )
+            else:
+                print(
+                    f"PIPELINE TOOL WARNING: {LEDGER_ENV_VAR} is not set; "
+                    "release pipeline result is not recorded in an evidence "
+                    "ledger"
+                )
+    elif args.profile == "release":
+        print(
+            "PIPELINE TOOL WARNING: release profile without --json-report; "
+            "evidence ledger cannot be recorded"
+        )
     if interrupted:
         return 130
     return 0 if passed else 1
