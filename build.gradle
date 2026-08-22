@@ -63,7 +63,12 @@ neoForge {
 
         gameTestServer {
             type = "gameTestServer"
-            systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
+            // Keep the namespace configurable for the project harness while
+            // respecting the static gate's requirement that authored tests use
+            // the real mod id.  The pressure fixture has its own class/marker.
+            def gameTestNamespaces = project.findProperty('gameTestNamespaces')
+                    ?: project.mod_id
+            systemProperty 'neoforge.enabledGameTestNamespaces', gameTestNamespaces
         }
 
         data {

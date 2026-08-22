@@ -4,6 +4,8 @@ import com.mojang.serialization.Codec;
 import com.mojang.serialization.DataResult;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 
+import io.netty.handler.codec.DecoderException;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -27,9 +29,12 @@ public record MemoryCardProfile(
     /** First schema whose serialized form carries the trusted-player list. */
     public static final int TRUST_SCHEMA = 4;
     public static final int MAX_RANGE = 64;
+    /** Upper bound for a trust list carried by one card (audit F-F2). */
+    public static final int MAX_TRUST_ENTRIES = 128;
+    // Legacy 1.12 defaults: hostile-only target flags (see TargetingSettings).
     public static final MemoryCardProfile DEFAULT =
             new MemoryCardProfile(CURRENT_SCHEMA, 10, BaseMode.DEFAULT.id(),
-                    false, true, false, false, List.of(), true);
+                    true, false, false, false, List.of(), true);
 
     public static final Codec<MemoryCardProfile> CODEC = Serialized.CODEC.flatXmap(
             MemoryCardProfile::decode,
@@ -100,7 +105,12 @@ public record MemoryCardProfile(
         }
         schemaVersion = CURRENT_SCHEMA;
         range = Math.clamp(range, 1, MAX_RANGE);
-        trustEntries = trustEntries == null ? List.of() : List.copyOf(trustEntries);
+        // Bound the restored trust list so crafted/corrupted cards cannot bypass
+        // the base's MAX_LOCAL_TRUST or bloat memory and save files (audit F-F2).
+        trustEntries = trustEntries == null ? List.of()
+                : List.copyOf(trustEntries.size() > MAX_TRUST_ENTRIES
+                        ? trustEntries.subList(0, MAX_TRUST_ENTRIES)
+                        : trustEntries);
     }
 
     /**
@@ -182,6 +192,10 @@ public record MemoryCardProfile(
 
     private static List<TrustEntry> readTrust(RegistryFriendlyByteBuf buffer) {
         int size = buffer.readVarInt();
+        if (size < 0 || size > MAX_TRUST_ENTRIES) {
+            throw new DecoderException(
+                    "Memory-card trust list too large: " + size);
+        }
         List<TrustEntry> entries = new ArrayList<>(size);
         for (int index = 0; index < size; index++) {
             entries.add(new TrustEntry(

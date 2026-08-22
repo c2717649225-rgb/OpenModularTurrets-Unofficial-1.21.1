@@ -324,6 +324,16 @@ public final class TurretProjectileEntity extends ThrowableItemProjectile {
         return projectileKind;
     }
 
+    /**
+     * Returns the immutable base position that authorized this projectile.
+     * This is also useful for diagnostics that run alongside multiple
+     * GameTest fixtures in the same server world.
+     */
+    @Nullable
+    public BlockPos sourceBasePos() {
+        return sourceBasePos;
+    }
+
     private float amplifiedDamage(LivingEntity target) {
         return TurretAddonRules.amplifiedDamage(projectileKind.turretDefinition(),
                 damage, target.getHealth(), damageAmpLevel);

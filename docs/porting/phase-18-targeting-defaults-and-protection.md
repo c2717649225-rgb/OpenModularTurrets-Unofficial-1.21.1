@@ -3,13 +3,21 @@
 ## Legacy source contract
 
 The 1.12.2 base constructs `TargetingSettings(false, true, false, 0, 0)` in
-player/hostile/neutral order. Therefore a newly placed base targets neutral mobs only;
-players and hostile mobs are disabled until configured. The legacy target blacklist
-contains `ArmorStand`, and every tamed horse is protected independently of its owner.
+player/hostile/neutral order (`OMLib` `TargetingSettings` constructor and
+`TurretBase.java` field initializer). Therefore a newly placed base targets hostile
+mobs only; players and neutral mobs are disabled until configured. The legacy target
+blacklist contains `ArmorStand`, and every tamed horse is protected independently of
+its owner.
+
+> Note: an earlier revision of this document misread `targetMobs=true` as "neutral
+> mobs only" and shipped a neutral-only default. The 2026-06-19 audit
+> (`D:\c128\audits\omt-audit-20260619`, finding F-K1) confirmed the hostile-only
+> reading against the 1.12.2 sources and reverted the default.
 
 ## Corrected parity gaps
 
-- New bases now default to hostile `false`, neutral `true`, players `false`.
+- New bases default to hostile `true`, neutral `false`, players `false` (legacy
+  hostile-only behavior, restored after the F-K1 audit finding).
 - Missing target fields during current-schema BlockEntity migration use those same
   legacy defaults.
 - `MemoryCardProfile.DEFAULT` uses the same target flags as a new base.
@@ -53,8 +61,8 @@ DataGen/assets: PASS (291 JSON files, 0 errors, 0 warnings)
 target_blacklist.json: minecraft:armor_stand present
 ```
 
-One existing projectile collision fixture initially failed because it implicitly
-relied on the incorrect hostile-on default. The fixture now explicitly enables hostile
-targets, preserving the purpose of that test without reverting the corrected gameplay
-default.
+One existing projectile collision fixture initially failed when the neutral-only
+default was shipped, because it implicitly relied on the legacy hostile-on default.
+The fixture now explicitly enables hostile targets, preserving the purpose of that
+test without relying on the (now restored) hostile-only default.
 

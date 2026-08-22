@@ -151,16 +151,7 @@ public final class TurretHeadBlockEntityRenderer
     }
 
     private static Direction findMount(TurretHeadBlockEntity turret) {
-        if (turret.getLevel() != null) {
-            for (Direction direction : Direction.values()) {
-                if (turret.getLevel().getBlockEntity(
-                        turret.getBlockPos().relative(direction))
-                        instanceof TurretBaseBlockEntity) {
-                    return direction;
-                }
-            }
-        }
-        return Direction.DOWN;
+        return turret.baseDirectionForRender();
     }
 
     private static int surroundingLight(TurretHeadBlockEntity turret, int packedLight) {

@@ -1,6 +1,7 @@
 package omtteam.openmodularturrets.client;
 
 import omtteam.openmodularturrets.OpenModularTurrets;
+import omtteam.openmodularturrets.network.ModNetwork;
 import omtteam.openmodularturrets.registration.ModMenus;
 import omtteam.openmodularturrets.registration.ModEntities;
 import omtteam.openmodularturrets.registration.ModBlockEntities;
@@ -11,6 +12,7 @@ import omtteam.openmodularturrets.client.render.TurretHeadModelLayers;
 import omtteam.openmodularturrets.client.render.ManualChargerModel;
 import omtteam.openmodularturrets.client.render.ManualChargerItemRenderer;
 import omtteam.openmodularturrets.client.render.ManualChargerBlockEntityRenderer;
+import omtteam.openmodularturrets.client.render.BeamRenderCache;
 import omtteam.openmodularturrets.registration.ModItems;
 
 import net.minecraft.client.Minecraft;
@@ -25,6 +27,12 @@ import net.neoforged.neoforge.client.extensions.common.RegisterClientExtensionsE
 
 @EventBusSubscriber(modid = OpenModularTurrets.MOD_ID, value = Dist.CLIENT)
 public final class ModClientEvents {
+    static {
+        ModNetwork.installBeamEffectHandler(payload -> BeamRenderCache.add(
+                payload.start(), payload.end(), payload.color(), payload.alpha(),
+                payload.durationTicks()));
+    }
+
     private ModClientEvents() {
     }
 

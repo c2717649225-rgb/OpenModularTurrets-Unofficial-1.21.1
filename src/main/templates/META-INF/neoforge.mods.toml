@@ -39,7 +39,7 @@ displayName="${mod_name}" #mandatory
 #logoFile="examplemod.png" #optional
 
 # A text field displayed in the mod UI
-credits="Original Open Modular Turrets by OpenModularTurretsTeam" #optional
+credits="Original Open Modular Turrets 1.12.2 by OpenModularTurretsTeam" #optional
 
 # The authors of the mod, displayed in the mod UI (optional)
 authors="OpenModularTurrets-Unofficial contributors"

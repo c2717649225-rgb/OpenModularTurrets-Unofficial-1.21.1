@@ -1,0 +1,323 @@
+{
+  "$schema": "../../.agents/contracts/major-feature-v2.schema.json",
+  "schema_version": 2,
+  "design_source": {
+    "path": "docs/porting/architecture-refactor-execution.md",
+    "revision": "verifying-2026-08-06",
+    "sha256": "6f172360db4a504cbca3c63b2bf16ec4ad1e9910c0d62608dfb15876864cba81"
+  },
+  "review_required": [],
+  "id": "openmodularturrets.architecture-refactor",
+  "version": 1,
+  "status": "verifying",
+  "summary": "Refactor Base and Head runtime responsibilities into explicit rule, targeting and combat boundaries without changing gameplay, persistence keys, registry identities or network payload schemas.",
+  "server_authority": {
+    "owner": "logical_server",
+    "authoritative_state": [
+      "TurretBaseBlockEntity remains the owner of mutable inventory, energy, trust and persistence state.",
+      "TurretHeadBlockEntity remains the owner of cooldown, target presentation and aim persistence state.",
+      "Targeting and combat services receive immutable inputs and execute only on the server thread."
+    ],
+    "client_input_policy": "intent_only",
+    "invalid_input_policy": "reject_and_log"
+  },
+  "persistence": {
+    "required": true,
+    "scope": "block_entity",
+    "schema": {
+      "version": 5,
+      "format": "value_io",
+      "owner": "TurretBaseBlockEntity, TurretHeadBlockEntity and TurretProjectileEntity",
+      "fields": [
+        "Base save/load keys remain unchanged, including legacy active/mode reads.",
+        "Head cooldown, aim and priority keys remain unchanged.",
+        "Projectile context keys remain unchanged.",
+        "Real old-save load and save/load round-trip are required after each split stage."
+      ]
+    },
+    "migration": {
+      "strategy": "custom",
+      "supported_from": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "fallback": "reject_incompatible",
+      "test_ids": [
+        "architecture_state_roundtrip",
+        "architecture_old_save_load"
+      ]
+    }
+  },
+  "network": {
+    "required": true,
+    "flows": [
+      {
+        "id": "existing_aim_visual",
+        "direction": "s2c",
+        "purpose": "Preserve existing per-shot turret aim visual updates.",
+        "validation": [
+          "Payload type and field order stay unchanged.",
+          "Only bounded presentation state is sent to clients."
+        ],
+        "rate_limit": {
+          "strategy": "coalesced",
+          "max_per_second": 20,
+          "burst": 20,
+          "key": "dimension"
+        },
+        "max_payload_bytes": 128,
+        "test_ids": [
+          "architecture_boundary_static"
+        ]
+      }
+    ]
+  },
+  "client_boundary": {
+    "common_code_client_imports": "forbidden",
+    "client_only_packages": [
+      "omtteam.openmodularturrets.client"
+    ],
+    "visual_state": "synced_server_state",
+    "dedicated_server_fallback": "All services run on common/server classes and never load client-only classes.",
+    "dedicated_server_test_id": "architecture_dedicated_server"
+  },
+  "registries": {
+    "entries": [],
+    "tags": []
+  },
+  "assets": {
+    "generated": [
+      "src/generated/resources/data/openmodularturrets/structure/architecturepressuregametests.smoke.nbt"
+    ],
+    "manual": [],
+    "locales": [
+      "en_us",
+      "zh_cn"
+    ],
+    "license_review": "not_applicable",
+    "validation_test_ids": [
+      "architecture_asset_contract"
+    ]
+  },
+  "performance": {
+    "budgets": [
+      {
+        "id": "pressure_server_tick",
+        "metric": "server_tick_time",
+        "scope": "100 turret bases, 100 turret heads and 100 fixed targets after 200 tick warmup",
+        "limit": 10,
+        "unit": "ms_per_tick",
+        "measurement": "The fixture's 200 server-thread tick intervals are recorded with System.nanoTime; candidate p95 may increase no more than 10 percent over same-machine baseline, with an absolute 0.25 ms floor when baseline p95 is below 1 ms. JFR ServerTickTime and ExecutionSample remain required independent evidence.",
+        "test_id": "architecture_pressure"
+      }
+    ],
+    "hot_paths": [
+      "TurretBaseBlockEntity server tick and attachment views",
+      "TurretHeadBlockEntity target selection",
+      "TurretHeadBlockEntity combat dispatch",
+      "TurretProjectileEntity collision and damage resolution"
+    ],
+    "measurement_environment": "Fixed Windows host, Java 21, NeoForge 21.1.234, identical JVM/config/workspace protocol, three baseline and three candidate runs."
+  },
+  "dependencies": {
+    "features": [
+      "openmodularturrets.core-turret-loop",
+      "openmodularturrets.targeting-control",
+      "openmodularturrets.projectile-combat"
+    ],
+    "mods": [
+      {
+        "id": "neoforge",
+        "requirement": "required",
+        "version_range": "[21.1,21.2)",
+        "fallback": "The mod refuses to load outside the pinned NeoForge 21.1 line."
+      }
+    ]
+  },
+  "acceptance": {
+    "criteria": [
+      {
+        "id": "architecture.behavior_unchanged",
+        "risk": "P0",
+        "required": true,
+        "statement": "Existing gameplay behavior, registry IDs, payload schemas and client/server boundaries remain unchanged.",
+        "observation": "Existing behavior GameTests, static gate and dedicated-server smoke pass after the refactor.",
+        "test_ids": [
+          "architecture_behavior_gametest",
+          "architecture_dedicated_server"
+        ]
+      },
+      {
+        "id": "architecture.persistence_unchanged",
+        "risk": "P0",
+        "required": true,
+        "statement": "Base, Head and Projectile persistence keys remain readable and round-trip without loss.",
+        "observation": "Key ledger, new-object round-trip and real old-save load/save/reload all pass.",
+        "test_ids": [
+          "architecture_state_roundtrip",
+          "architecture_old_save_load"
+        ]
+      },
+      {
+        "id": "architecture.boundaries_real",
+        "risk": "P1",
+        "required": true,
+        "statement": "Target selection and combat execution have explicit service boundaries that do not call back into Head.",
+        "observation": "Services accept bounded inputs, Head owns orchestration state, and static inspection finds no Head-to-service-to-Head cycle.",
+        "test_ids": [
+          "architecture_boundary_static",
+          "architecture_behavior_gametest"
+        ]
+      },
+      {
+        "id": "architecture.performance_non_regression",
+        "risk": "P1",
+        "required": true,
+        "statement": "The fixed 100/100 pressure scenario does not regress server tick p95 beyond the declared budget.",
+        "observation": "Three baseline and three candidate fixture/JFR runs complete and the generated report passes the p95 threshold with independent JFR evidence.",
+        "test_ids": [
+          "architecture_pressure"
+        ]
+      }
+    ],
+    "tests": [
+      {
+        "id": "architecture_behavior_gametest",
+        "kind": "gametest",
+        "command": [
+          "python",
+          ".agents/run.py",
+          ".agents/gates/gametest_gate.py",
+          "--require-tests",
+          "--run"
+        ],
+        "test_ref": "omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#potatoTurretAcquiresVisibleHostileAndFires",
+        "covers": [
+          "Existing gameplay behavior, registry IDs, payload schemas and client/server boundaries remain unchanged.",
+          "Target selection and combat execution have explicit service boundaries that do not call back into Head."
+        ],
+        "required": true,
+        "expected": "All discovered GameTests pass.",
+        "timeout_seconds": 1800
+      },
+      {
+        "id": "architecture_state_roundtrip",
+        "kind": "migration",
+        "command": [
+          "python",
+          ".agents/run.py",
+          ".agents/gates/gametest_gate.py",
+          "--require-tests",
+          "--run"
+        ],
+        "test_ref": "omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#statePersistence",
+        "covers": [
+          "Base, Head and Projectile persistence keys remain readable and round-trip without loss."
+        ],
+        "required": true,
+        "expected": "State persistence and schema migration assertions pass.",
+        "timeout_seconds": 900
+      },
+      {
+        "id": "architecture_old_save_load",
+        "kind": "migration",
+        "command": [
+          "tools/architecture_refactor_pressure.ps1",
+          "-Mode",
+          "old-save-check"
+        ],
+        "covers": [
+          "Base, Head and Projectile persistence keys remain readable and round-trip without loss."
+        ],
+        "required": true,
+        "expected": "The real old-save fixture loads, saves and reloads with key/value ledger agreement.",
+        "timeout_seconds": 900
+      },
+      {
+        "id": "architecture_boundary_static",
+        "kind": "integration",
+        "command": [
+          "python",
+          ".agents/run.py",
+          ".agents/gates/static_gate.py"
+        ],
+        "covers": [
+          "Target selection and combat execution have explicit service boundaries that do not call back into Head."
+        ],
+        "required": true,
+        "expected": "Static gate passes with zero errors and zero warnings.",
+        "timeout_seconds": 900
+      },
+      {
+        "id": "architecture_pressure",
+        "kind": "performance",
+        "command": [
+          "tools/architecture_refactor_pressure.ps1",
+          "-Mode",
+          "baseline",
+          "-Runs",
+          "3"
+        ],
+        "covers": [
+          "The fixed 100/100 pressure scenario does not regress server tick p95 beyond the declared budget."
+        ],
+        "required": true,
+        "expected": "Three baseline and three candidate runs produce complete fixture mean/p50/p95/p99/max reports plus attached JFR evidence within the threshold.",
+        "timeout_seconds": 7200
+      },
+      {
+        "id": "architecture_dedicated_server",
+        "kind": "dedicated_server",
+        "command": [
+          "python",
+          ".agents/run.py",
+          ".agents/gates/compile_and_repair.py",
+          "--with-server"
+        ],
+        "covers": [
+          "Existing gameplay behavior, registry IDs, payload schemas and client/server boundaries remain unchanged."
+        ],
+        "required": true,
+        "expected": "Dedicated server reaches completion without client classloading or runtime errors.",
+        "timeout_seconds": 900
+      },
+      {
+        "id": "architecture_asset_contract",
+        "kind": "datagen",
+        "command": [
+          "python",
+          ".agents/run.py",
+          ".agents/gates/compile_and_repair.py",
+          "--with-static",
+          "--with-assets"
+        ],
+        "covers": [
+          "Existing gameplay behavior, registry IDs, payload schemas and client/server boundaries remain unchanged."
+        ],
+        "required": true,
+        "expected": "Static and asset gates pass; any DataGen diff is reviewed and limited to intentional changes.",
+        "timeout_seconds": 1200
+      }
+    ],
+    "manual_checks": [
+      {
+        "id": "architecture_client_final",
+        "steps": [
+          "Run one client session after automation is complete.",
+          "Check GUI energy/configuration, Jade, Shift tooltip, Beam and projectile visuals.",
+          "Change dimension/world, disconnect to menu, reconnect, run F3+T, then exit normally."
+        ],
+        "expected": "All existing client behavior remains unchanged and no client-only state leaks across world or connection boundaries."
+      }
+    ],
+    "non_goals": [
+      "Changing turret balance, configuration defaults, registry IDs, save keys or network payload fields.",
+      "Splitting TurretProjectileEntity movement or tracking without profiler evidence.",
+      "Changing or iterating the external .agents toolkit.",
+      "Replacing the final manual client acceptance with AI or a server-only test."
+    ]
+  }
+}

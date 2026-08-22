@@ -4,7 +4,9 @@ import net.minecraft.core.Direction;
 
 public final class TurretVisualRules {
     public static final int MAX_BEAM_SEGMENTS = 96;
+    public static final int MAX_ACTIVE_BEAMS = 512;
     public static final int ROCKET_TRAIL_PARTICLES = 21;
+    public static final int MAX_CLIENT_PROJECTILE_PARTICLES_PER_TICK = 1_024;
     public static final int PLASMA_IMPACT_PARTICLES_PER_TYPE = 16;
     public static final int IDLE_DUST_PARTICLES = 6;
     public static final int TELEPORT_BURST_PARTICLES = 26;

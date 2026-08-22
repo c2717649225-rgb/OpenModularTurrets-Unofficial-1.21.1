@@ -27,6 +27,8 @@
   "block.openmodularturrets.turret_base_tier_one": "炮塔基座（等级 1）",
   "block.openmodularturrets.turret_base_tier_three": "炮塔基座（等级 3）",
   "block.openmodularturrets.turret_base_tier_two": "炮塔基座（等级 2）",
+  "config.jade.plugin_openmodularturrets.turret_base": "炮塔基座",
+  "config.jade.plugin_openmodularturrets.turret_head": "炮塔头部",
   "container.openmodularturrets.inventory_expander": "炮塔弹药扩展器",
   "container.openmodularturrets.turret_base": "模块化炮塔基座",
   "death.attack.openmodularturrets.turret_armor_piercing": "%1$s 被模块化炮塔贯穿了",

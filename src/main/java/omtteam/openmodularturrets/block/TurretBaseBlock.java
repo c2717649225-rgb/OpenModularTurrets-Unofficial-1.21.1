@@ -5,6 +5,7 @@ import com.mojang.serialization.MapCodec;
 import javax.annotation.Nullable;
 
 import omtteam.openmodularturrets.blockentity.TurretBaseBlockEntity;
+import omtteam.openmodularturrets.data.AccessLevel;
 import omtteam.openmodularturrets.data.BaseTier;
 import omtteam.openmodularturrets.config.ModServerConfig;
 import omtteam.openmodularturrets.item.MemoryCardItem;
@@ -14,7 +15,6 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.ItemInteractionResult;
-import net.minecraft.world.MenuProvider;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
@@ -125,6 +125,7 @@ public final class TurretBaseBlock extends BaseEntityBlock {
         super.neighborChanged(state, level, pos, neighborBlock, neighborPos, movedByPiston);
         if (!level.isClientSide
                 && level.getBlockEntity(pos) instanceof TurretBaseBlockEntity base) {
+            base.invalidateNeighborCaches();
             base.refreshRedstoneSignal();
         }
     }
@@ -175,8 +176,9 @@ public final class TurretBaseBlock extends BaseEntityBlock {
         }
         if (!level.isClientSide
                 && player instanceof ServerPlayer serverPlayer
-                && level.getBlockEntity(pos) instanceof MenuProvider menuProvider) {
-            serverPlayer.openMenu(menuProvider, pos);
+                && level.getBlockEntity(pos) instanceof TurretBaseBlockEntity base
+                && base.accessFor(player).allows(AccessLevel.VIEW)) {
+            serverPlayer.openMenu(base, pos);
         }
         return InteractionResult.sidedSuccess(level.isClientSide);
     }

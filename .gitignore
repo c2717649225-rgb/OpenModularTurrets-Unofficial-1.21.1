@@ -55,6 +55,9 @@ opencode.json
 # Personal mod design notes (not part of the template)
 minecraft_mod_design.md
 
+# Local screenshots/evidence (not project assets)
+/图片/
+
 # Local agent worktrees / session state
 .claude/
 .lkg_tmp/

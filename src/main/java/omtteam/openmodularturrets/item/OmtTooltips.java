@@ -9,6 +9,7 @@ import omtteam.openmodularturrets.block.ManualChargerBlock;
 import omtteam.openmodularturrets.block.PowerExpanderBlock;
 import omtteam.openmodularturrets.block.TurretBaseBlock;
 import omtteam.openmodularturrets.block.TurretHeadBlock;
+import omtteam.openmodularturrets.client.ClientTooltipUtil;
 import omtteam.openmodularturrets.config.ModServerConfig;
 import omtteam.openmodularturrets.data.TurretAddonRules;
 import omtteam.openmodularturrets.data.TurretDefinition;
@@ -104,13 +105,7 @@ public final class OmtTooltips {
     }
 
     private static boolean isShiftDown() {
-        return FMLEnvironment.dist == Dist.CLIENT && ClientHelper.hasShiftDown();
-    }
-
-    private static final class ClientHelper {
-        private static boolean hasShiftDown() {
-            return net.minecraft.client.gui.screens.Screen.hasShiftDown();
-        }
+        return FMLEnvironment.dist == Dist.CLIENT && ClientTooltipUtil.hasShiftDown();
     }
 
     private static void appendBlock(BlockItem item, List<Component> lines) {

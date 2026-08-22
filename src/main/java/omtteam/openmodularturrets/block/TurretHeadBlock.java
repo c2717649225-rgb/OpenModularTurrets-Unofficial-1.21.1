@@ -141,6 +141,9 @@ public final class TurretHeadBlock extends BaseEntityBlock {
     @Override
     protected BlockState updateShape(BlockState state, Direction direction,
             BlockState neighborState, LevelAccessor level, BlockPos pos, BlockPos neighborPos) {
+        if (level.getBlockEntity(pos) instanceof TurretHeadBlockEntity head) {
+            head.invalidateBaseCache();
+        }
         if (!canSurvive(state, level, pos)) {
             if (level instanceof ServerLevel serverLevel) {
                 serverLevel.destroyBlock(pos, true);

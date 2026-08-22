@@ -2,6 +2,7 @@ package omtteam.openmodularturrets.blockentity;
 
 import javax.annotation.Nullable;
 
+import omtteam.openmodularturrets.network.ModNetwork;
 import omtteam.openmodularturrets.registration.ModBlockEntities;
 
 import net.minecraft.core.BlockPos;
@@ -28,11 +29,10 @@ public final class ManualChargerBlockEntity extends BlockEntity {
         setChanged();
         // The block state does not change here, so vanilla sendBlockUpdated
         // would never push the BE update packet - the client animation would
-        // never start.  Broadcast the update explicitly.
-        if (level instanceof ServerLevel serverLevel) {
-            serverLevel.getServer().getPlayerList().broadcastAll(
-                    ClientboundBlockEntityDataPacket.create(this),
-                    serverLevel.dimension());
+        // never start.  Send the update explicitly to players tracking this
+        // block's chunk.
+        if (level instanceof ServerLevel) {
+            ModNetwork.sendBlockEntityUpdateToTracking(this);
         }
         return true;
     }

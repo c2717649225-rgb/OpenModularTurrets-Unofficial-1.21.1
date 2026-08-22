@@ -1,0 +1,332 @@
+{
+  "$schema": "../../.agents/contracts/major-feature-v2.schema.json",
+  "schema_version": 2,
+  "design_source": {
+    "path": "docs/porting/architecture-maturity-plan.md",
+    "revision": "approved-executing-2026-08-07",
+    "sha256": "ac31b85823a4526c3cc0eadfb2ed42cf5ac0c3027bdcacce3f97cfb412661c8c"
+  },
+  "review_required": [],
+  "id": "openmodularturrets.architecture-maturity",
+  "version": 1,
+  "status": "implementing",
+  "summary": "Raise project-side architecture maintainability, repeatable verification, evidence governance and extension handoff quality without changing runtime gameplay or protocol semantics.",
+  "server_authority": {
+    "owner": "logical_server",
+    "authoritative_state": [
+      "This batch does not move ownership of Base, Head, Projectile or persistence state.",
+      "Existing targeting and combat services remain server-thread services with explicit world-query adapters."
+    ],
+    "client_input_policy": "not_applicable",
+    "invalid_input_policy": "not_applicable"
+  },
+  "persistence": {
+    "required": false,
+    "scope": "none",
+    "schema": {
+      "version": 0,
+      "format": "none",
+      "owner": "No runtime persistence schema is introduced by this batch.",
+      "fields": []
+    },
+    "migration": {
+      "strategy": "none",
+      "supported_from": [],
+      "fallback": "not_applicable",
+      "test_ids": []
+    }
+  },
+  "network": {
+    "required": false,
+    "flows": []
+  },
+  "client_boundary": {
+    "common_code_client_imports": "forbidden",
+    "client_only_packages": [
+      "omtteam.openmodularturrets.client"
+    ],
+    "visual_state": "synced_server_state",
+    "dedicated_server_fallback": "The batch adds only project-side audits and CI; existing common/server code must continue to load without client-only classes.",
+    "dedicated_server_test_id": "architecture_maturity_server"
+  },
+  "registries": {
+    "entries": [],
+    "tags": []
+  },
+  "assets": {
+    "generated": [],
+    "manual": [],
+    "locales": [
+      "en_us",
+      "zh_cn"
+    ],
+    "license_review": "not_applicable",
+    "validation_test_ids": [
+      "architecture_maturity_major_pipeline"
+    ]
+  },
+  "performance": {
+    "budgets": [
+      {
+        "id": "architecture_maturity_evidence_integrity",
+        "metric": "custom",
+        "scope": "The existing fixed 100/100 pressure evidence and real old-save evidence consumed by the maturity audit.",
+        "limit": 1,
+        "unit": "custom",
+        "measurement": "The audit must observe a passing pressure comparison within the existing budget and a passing old-save round-trip without replacing or weakening either threshold.",
+        "test_id": "architecture_maturity_pressure"
+      }
+    ],
+    "hot_paths": [
+      "TurretBaseBlockEntity server tick and attachment views",
+      "TurretHeadBlockEntity target selection and combat orchestration",
+      "TurretProjectileEntity collision and damage resolution"
+    ],
+    "measurement_environment": "Reuse the architecture-optimization-20260807 fixed Windows/Java 21/NeoForge 21.1.234 evidence; this batch adds no default runtime instrumentation."
+  },
+  "dependencies": {
+    "features": [
+      "openmodularturrets.architecture-optimization"
+    ],
+    "mods": [
+      {
+        "id": "neoforge",
+        "requirement": "required",
+        "version_range": "[21.1,21.2)",
+        "fallback": "The project remains pinned to the existing NeoForge 21.1 line."
+      }
+    ]
+  },
+  "acceptance": {
+    "criteria": [
+      {
+        "id": "architecture_maturity.boundaries_enforced",
+        "risk": "P1",
+        "required": true,
+        "statement": "Service direction, client isolation, state ownership and cache/lifecycle boundaries are mechanically auditable.",
+        "observation": "The project-side maturity audit passes and the existing static/dedicated-server gates remain green.",
+        "test_ids": [
+          "architecture_maturity_audit",
+          "architecture_maturity_server"
+        ]
+      },
+      {
+        "id": "architecture_maturity.reproducible_quality_line",
+        "risk": "P1",
+        "required": true,
+        "statement": "A clean CI entry point reproduces the project documentation, contract, compile, resource, behavior and dedicated-server quality line without modifying the external toolkit.",
+        "observation": "The workflow is reviewed, local Major and server gates pass, and the maturity audit confirms the workflow commands and .agents immutability.",
+        "test_ids": [
+          "architecture_maturity_docs",
+          "architecture_maturity_doc_meta",
+          "architecture_maturity_major_pipeline",
+          "architecture_maturity_server"
+        ]
+      },
+      {
+        "id": "architecture_maturity.evidence_governance",
+        "risk": "P1",
+        "required": true,
+        "statement": "Pressure and old-save evidence remain reproducible and are not replaced by unsupported claims about JFR or environment noise.",
+        "observation": "The maturity audit consumes the retained pressure comparison and old-save report; the pressure budget remains unchanged and passing.",
+        "test_ids": [
+          "architecture_maturity_audit",
+          "architecture_maturity_pressure"
+        ]
+      },
+      {
+        "id": "architecture_maturity.extension_handoff",
+        "risk": "P2",
+        "required": true,
+        "statement": "A new turret contributor has a documented definition-driven path that does not require Base/Head concrete branches.",
+        "observation": "The extension guide and Potato path audit agree, and the existing GameTest/pressure path remains available.",
+        "test_ids": [
+          "architecture_maturity_extension",
+          "architecture_maturity_major_pipeline"
+        ]
+      },
+      {
+        "id": "architecture_maturity.runtime_unchanged",
+        "risk": "P0",
+        "required": true,
+        "statement": "This batch does not change gameplay, registry identity, persistence schema, network payload schema or default runtime diagnostic cost.",
+        "observation": "The batch is limited to project-side audit/docs/CI files; L0/L1/L2/L2.5/L3/L4 and retained old-save evidence remain green.",
+        "test_ids": [
+          "architecture_maturity_major_pipeline",
+          "architecture_maturity_server",
+          "architecture_maturity_docs"
+        ]
+      }
+    ],
+    "tests": [
+      {
+        "id": "architecture_maturity_audit",
+        "kind": "integration",
+        "command": [
+          "powershell.exe",
+          "-NoProfile",
+          "-ExecutionPolicy",
+          "Bypass",
+          "-File",
+          "tools/architecture_maturity_audit.ps1",
+          "-EvidenceRoot",
+          "..\\..\\phase25-evidence\\architecture-maturity-20260807",
+          "-RequireRetainedEvidence"
+        ],
+        "covers": [
+          "Project-side architecture boundaries, evidence integrity, CI presence and .agents immutability."
+        ],
+        "required": true,
+        "expected": "maturity-audit.json is generated and all critical checks pass.",
+        "timeout_seconds": 120
+      },
+      {
+        "id": "architecture_maturity_contract_audit",
+        "kind": "integration",
+        "command": [
+          "powershell.exe",
+          "-NoProfile",
+          "-ExecutionPolicy",
+          "Bypass",
+          "-File",
+          "tools/architecture_contract_test_audit.ps1",
+          "-ContractPath",
+          "docs/features/architecture_maturity.contract.json",
+          "-OutputPath",
+          "..\\..\\phase25-evidence\\architecture-maturity-20260807\\contract-test-audit.json"
+        ],
+        "covers": [
+          "Every maturity contract test_id resolves to a real script or gate command."
+        ],
+        "required": true,
+        "expected": "All declared maturity test executors resolve; executor presence remains distinct from execution pass/fail.",
+        "timeout_seconds": 120
+      },
+      {
+        "id": "architecture_maturity_docs",
+        "kind": "integration",
+        "command": [
+          "python",
+          ".agents/run.py",
+          ".agents/gates/check_doc_index.py"
+        ],
+        "covers": [
+          "The extension guide and execution documents remain discoverable and free of broken references."
+        ],
+        "required": true,
+        "expected": "Documentation index and metadata gates pass.",
+        "timeout_seconds": 120
+      },
+      {
+        "id": "architecture_maturity_doc_meta",
+        "kind": "integration",
+        "command": [
+          "python",
+          ".agents/run.py",
+          ".agents/gates/check_doc_meta.py"
+        ],
+        "covers": [
+          "The project documentation trust metadata remains valid for the pinned Minecraft and NeoForge versions."
+        ],
+        "required": true,
+        "expected": "Documentation metadata gate passes.",
+        "timeout_seconds": 120
+      },
+      {
+        "id": "architecture_maturity_major_pipeline",
+        "kind": "integration",
+        "command": [
+          "python",
+          ".agents/run.py",
+          ".agents/gates/pipeline.py",
+          "--profile",
+          "major",
+          "--gametest-timeout",
+          "900"
+        ],
+        "covers": [
+          "L0 contract, L1 compile, L2 static, DataGen, L2.5 assets, L4 GameTest and traceability remain green."
+        ],
+        "required": true,
+        "expected": "The Major pipeline passes without runtime source changes from this batch.",
+        "timeout_seconds": 1800
+      },
+      {
+        "id": "architecture_maturity_server",
+        "kind": "dedicated_server",
+        "command": [
+          "python",
+          ".agents/run.py",
+          ".agents/gates/compile_and_repair.py",
+          "--with-server"
+        ],
+        "covers": [
+          "Common/server client isolation and dedicated-server startup remain valid."
+        ],
+        "required": true,
+        "expected": "Dedicated server reaches completion without client classloading or runtime errors.",
+        "timeout_seconds": 900
+      },
+      {
+        "id": "architecture_maturity_pressure",
+        "kind": "performance",
+        "command": [
+          "powershell.exe",
+          "-NoProfile",
+          "-ExecutionPolicy",
+          "Bypass",
+          "-File",
+          "tools/architecture_refactor_pressure.ps1",
+          "-Mode",
+          "compare",
+          "-EvidenceRoot",
+          "..\\..\\phase25-evidence\\architecture-optimization-20260807"
+        ],
+        "covers": [
+          "Retained fixed pressure comparison and real old-save evidence remain within the original budget."
+        ],
+        "required": true,
+        "expected": "pressure-comparison.json is pass=true and old-save-input.json is status=pass; thresholds are unchanged.",
+        "timeout_seconds": 120
+      },
+      {
+        "id": "architecture_maturity_extension",
+        "kind": "static",
+        "command": [
+          "powershell.exe",
+          "-NoProfile",
+          "-ExecutionPolicy",
+          "Bypass",
+          "-File",
+          "tools/architecture_phase5_audit.ps1",
+          "-EvidenceRoot",
+          "..\\..\\phase25-evidence\\architecture-maturity-20260807"
+        ],
+        "covers": [
+          "Definition-driven Potato extension path remains free of Base/Head-specific branches."
+        ],
+        "required": true,
+        "expected": "phase5-audit.json result is pass.",
+        "timeout_seconds": 120
+      }
+    ],
+    "manual_checks": [
+      {
+        "id": "architecture_maturity_client_final",
+        "steps": [
+          "Run one client session after all automation is complete.",
+          "Check GUI energy/configuration, Jade, Shift tooltip, Beam and projectile visuals.",
+          "Change world, disconnect to menu, reconnect, run F3+T, then exit normally."
+        ],
+        "expected": "Existing client behavior remains unchanged and client caches do not leak across world or connection boundaries."
+      }
+    ],
+    "non_goals": [
+      "Changing gameplay balance, registry identities, config defaults, save keys or Payload schemas.",
+      "Splitting TurretBaseBlockEntity or TurretProjectileEntity without new profiler evidence.",
+      "Adding default per-tick runtime diagnostics or network traffic.",
+      "Modifying, formatting or iterating the external .agents toolkit.",
+      "Replacing the final manual client check with server-only evidence."
+    ]
+  }
+}

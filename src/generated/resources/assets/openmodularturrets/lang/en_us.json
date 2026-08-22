@@ -27,6 +27,8 @@
   "block.openmodularturrets.turret_base_tier_one": "Turret Base (Tier 1)",
   "block.openmodularturrets.turret_base_tier_three": "Turret Base (Tier 3)",
   "block.openmodularturrets.turret_base_tier_two": "Turret Base (Tier 2)",
+  "config.jade.plugin_openmodularturrets.turret_base": "Turret Base",
+  "config.jade.plugin_openmodularturrets.turret_head": "Turret Head",
   "container.openmodularturrets.inventory_expander": "Turret Ammunition Expander",
   "container.openmodularturrets.turret_base": "Modular Turret Base",
   "death.attack.openmodularturrets.turret_armor_piercing": "%1$s was pierced by a modular turret",

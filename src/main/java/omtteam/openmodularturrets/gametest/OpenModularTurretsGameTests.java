@@ -1031,11 +1031,11 @@ public final class OpenModularTurretsGameTests {
 
     @GameTest(template = "smoke", timeoutTicks = 20)
     public static void bulletImpactSoundDispatchContract(GameTestHelper helper) {
-        BlockPos relative = new BlockPos(0, 0, 0);
+        BlockPos relative = new BlockPos(4, 1, 5);
         helper.setBlock(relative, ModBlocks.TURRET_BASE_TIER_FIVE.value());
         TurretBaseBlockEntity base = helper.getBlockEntity(relative);
         base.setTargetFlags(true, false, false);
-        var target = helper.spawn(EntityType.ZOMBIE, new Vec3(0.5D, 2.0D, 0.5D));
+        var target = helper.spawn(EntityType.ZOMBIE, new Vec3(6.5D, 1.0D, 5.5D));
         target.setNoAi(true);
         target.setNoGravity(true);
 
@@ -1129,6 +1129,38 @@ public final class OpenModularTurretsGameTests {
     }
 
     @GameTest(template = "smoke", timeoutTicks = 40)
+    public static void targetingSkipsBlockedPriorityCandidate(GameTestHelper helper) {
+        BlockPos basePos = new BlockPos(4, 1, 5);
+        BlockPos headPos = basePos.east();
+        helper.setBlock(basePos, ModBlocks.TURRET_BASE_TIER_TWO.value());
+        helper.setBlock(headPos, ModBlocks.POTATO_CANNON_TURRET.value());
+        // The nearer golem wins the distance score but is hidden by this block.
+        helper.setBlock(new BlockPos(7, 2, 5), Blocks.STONE);
+
+        TurretBaseBlockEntity base = helper.getBlockEntity(basePos);
+        TurretHeadBlockEntity head = helper.getBlockEntity(headPos);
+        base.setActive(true);
+        base.setRange(TurretDefinition.POTATO.baseRange());
+        base.setTargetFlags(false, true, false);
+        base.energy().receiveEnergy(100, false);
+        base.inventory().setStackInSlot(0, new ItemStack(Items.POTATO, 2));
+        head.setPriorityProfile(new TargetPriorityProfile(0, 0, -100, 0, 0));
+
+        var blocked = helper.spawn(EntityType.IRON_GOLEM, new Vec3(8.5D, 1.0D, 5.5D));
+        var visible = helper.spawn(EntityType.IRON_GOLEM, new Vec3(8.5D, 1.0D, 8.5D));
+        blocked.setNoAi(true);
+        blocked.setNoGravity(true);
+        visible.setNoAi(true);
+        visible.setNoGravity(true);
+
+        helper.runAfterDelay(15L, () -> {
+            helper.assertTrue(head.targets(visible) && !head.targets(blocked),
+                    "Target search did not fall through to a visible lower-priority candidate");
+            helper.succeed();
+        });
+    }
+
+    @GameTest(template = "smoke", timeoutTicks = 40)
     public static void scatterVolleyMeasuredSpread(GameTestHelper helper) {
         BlockPos basePos = new BlockPos(4, 1, 5);
         BlockPos headPos = basePos.east();
@@ -1161,7 +1193,9 @@ public final class OpenModularTurretsGameTests {
             var projectiles = helper.getLevel().getEntitiesOfClass(
                     TurretProjectileEntity.class,
                     new net.minecraft.world.phys.AABB(helper.absolutePos(basePos))
-                            .inflate(32.0D));
+                            .inflate(8.0D),
+                    projectile -> helper.absolutePos(basePos).equals(
+                            projectile.sourceBasePos()));
             helper.assertTrue(projectiles.size() >= 3,
                     "Scatter volley did not spawn three projectiles: " + projectiles.size());
             double maxAngle = 0.0D;
@@ -1781,18 +1815,22 @@ public final class OpenModularTurretsGameTests {
         var owner = helper.makeMockPlayer(GameType.SURVIVAL);
         var stranger = helper.makeMockPlayer(GameType.SURVIVAL);
         var teammate = helper.makeMockPlayer(GameType.SURVIVAL);
-        var ownerTeam = helper.getLevel().getScoreboard().addPlayerTeam(
+        var ownerTeam = helper.getLevel().getScoreboard().getPlayerTeam(
                 "omt_owner_team_" + owner.getId());
+        if (ownerTeam == null) {
+            ownerTeam = helper.getLevel().getScoreboard().addPlayerTeam(
+                    "omt_owner_team_" + owner.getId());
+        }
         helper.getLevel().getScoreboard().addPlayerToTeam(
                 owner.getScoreboardName(), ownerTeam);
         helper.getLevel().getScoreboard().addPlayerToTeam(
                 teammate.getScoreboardName(), ownerTeam);
         base.claim(owner);
-        helper.assertTrue(!base.attackHostile() && base.attackNeutral()
+        helper.assertTrue(base.attackHostile() && !base.attackNeutral()
                         && !base.attackPlayers(),
-                "A new base did not retain the legacy neutral-only target defaults");
-        helper.assertTrue(!MemoryCardProfile.DEFAULT.attackHostile()
-                        && MemoryCardProfile.DEFAULT.attackNeutral()
+                "A new base did not retain the legacy hostile-only target defaults");
+        helper.assertTrue(MemoryCardProfile.DEFAULT.attackHostile()
+                        && !MemoryCardProfile.DEFAULT.attackNeutral()
                         && !MemoryCardProfile.DEFAULT.attackPlayers(),
                 "The default Memory Card profile disagrees with legacy base defaults");
         base.setTargetFlags(true, true, true);
@@ -2068,7 +2106,10 @@ public final class OpenModularTurretsGameTests {
         helper.assertTrue(TurretVisualRules.ROCKET_TRAIL_PARTICLES == 21
                         && TurretVisualRules.PLASMA_IMPACT_PARTICLES_PER_TYPE == 16
                         && TurretVisualRules.IDLE_DUST_PARTICLES == 6
-                        && TurretVisualRules.TELEPORT_BURST_PARTICLES == 26,
+                        && TurretVisualRules.TELEPORT_BURST_PARTICLES == 26
+                        && TurretVisualRules.MAX_ACTIVE_BEAMS > 0
+                        && TurretVisualRules.MAX_CLIENT_PROJECTILE_PARTICLES_PER_TICK
+                                >= TurretVisualRules.ROCKET_TRAIL_PARTICLES,
                 "Legacy particle count contract drifted");
         int mergedLight = TurretVisualRules.mergePackedLight(4 << 4, 13 << 20);
         helper.assertTrue(((mergedLight >> 4) & 0xF) == 4

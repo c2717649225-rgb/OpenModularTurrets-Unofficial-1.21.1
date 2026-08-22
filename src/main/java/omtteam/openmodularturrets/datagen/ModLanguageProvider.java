@@ -22,6 +22,10 @@ public final class ModLanguageProvider extends LanguageProvider {
         boolean chinese = locale.equals("zh_cn");
         add("container.openmodularturrets.turret_base",
                 chinese ? "模块化炮塔基座" : "Modular Turret Base");
+        add("config.jade.plugin_openmodularturrets.turret_base",
+                chinese ? "炮塔基座" : "Turret Base");
+        add("config.jade.plugin_openmodularturrets.turret_head",
+                chinese ? "炮塔头部" : "Turret Head");
         add("container.openmodularturrets.inventory_expander",
                 chinese ? "炮塔弹药扩展器" : "Turret Ammunition Expander");
         addBaseGuiTranslations(chinese);

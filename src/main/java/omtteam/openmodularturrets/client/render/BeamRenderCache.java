@@ -1,8 +1,10 @@
 package omtteam.openmodularturrets.client.render;
 
-import java.util.ArrayList;
+import java.util.ArrayDeque;
 import java.util.Iterator;
-import java.util.List;
+import java.util.Deque;
+
+import omtteam.openmodularturrets.data.TurretVisualRules;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
@@ -20,7 +22,7 @@ import net.minecraft.world.phys.Vec3;
  * instead of the previous one-frame particle dots.
  */
 public final class BeamRenderCache {
-    private static final List<Beam> BEAMS = new ArrayList<>();
+    private static final Deque<Beam> BEAMS = new ArrayDeque<>();
 
     private BeamRenderCache() {
     }
@@ -29,7 +31,17 @@ public final class BeamRenderCache {
             int durationTicks) {
         long gameTime = Minecraft.getInstance().level == null
                 ? 0L : Minecraft.getInstance().level.getGameTime();
-        BEAMS.add(new Beam(start, end, argb(color, alpha), gameTime + durationTicks));
+        while (BEAMS.size() >= TurretVisualRules.MAX_ACTIVE_BEAMS) {
+            BEAMS.removeFirst();
+        }
+        Vec3 delta = end.subtract(start);
+        Vec3 normal = delta.lengthSqr() < 1.0E-12D ? Vec3.ZERO : delta.normalize();
+        BEAMS.addLast(new Beam(start, end, normal, argb(color, alpha),
+                gameTime + durationTicks));
+    }
+
+    public static void clear() {
+        BEAMS.clear();
     }
 
     public static void render(PoseStack poseStack) {
@@ -53,21 +65,20 @@ public final class BeamRenderCache {
             }
             // RenderType.LINES uses POSITION_COLOR_NORMAL - every vertex needs
             // a normal or Sodium/Iris BufferBuilder throws "Missing elements".
-            Vec3 normal = beam.end.subtract(beam.start).normalize();
             consumer.addVertex(pose.pose(),
                             (float) (beam.start.x - camera.x),
                             (float) (beam.start.y - camera.y),
                             (float) (beam.start.z - camera.z))
                     .setColor(beam.argb)
-                    .setNormal(pose, (float) normal.x, (float) normal.y,
-                            (float) normal.z);
+                    .setNormal(pose, (float) beam.normal.x, (float) beam.normal.y,
+                            (float) beam.normal.z);
             consumer.addVertex(pose.pose(),
                             (float) (beam.end.x - camera.x),
                             (float) (beam.end.y - camera.y),
                             (float) (beam.end.z - camera.z))
                     .setColor(beam.argb)
-                    .setNormal(pose, (float) normal.x, (float) normal.y,
-                            (float) normal.z);
+                    .setNormal(pose, (float) beam.normal.x, (float) beam.normal.y,
+                            (float) beam.normal.z);
         }
         buffers.endBatch(RenderType.LINES);
     }
@@ -77,6 +88,6 @@ public final class BeamRenderCache {
         return (a << 24) | (rgb & 0xFFFFFF);
     }
 
-    private record Beam(Vec3 start, Vec3 end, int argb, long expiryTick) {
+    private record Beam(Vec3 start, Vec3 end, Vec3 normal, int argb, long expiryTick) {
     }
 }

@@ -24,8 +24,9 @@ or attribution ledger. Consequently:
 - they must not be described as individually cleared for redistribution;
 - release must either recover and satisfy each original license or replace the
   files with newly authored/clearly licensed audio;
-- the project-level MIT `LICENSE`, GPL mod metadata and OMT-derived content
-  need a deliberate project licensing decision before publication.
+- the project-level GPL-3.0-only `LICENSE` and mod metadata do not resolve
+  those per-file permissions; OMT-derived assets still require a separate
+  provenance decision before publication.
 
 The source repository's GPL text is retained at
 `LICENSES/OpenModularTurrets-GPL-3.0.txt`. This is provenance preservation, not

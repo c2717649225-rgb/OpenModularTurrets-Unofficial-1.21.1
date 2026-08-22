@@ -20,8 +20,12 @@ import omtteam.openmodularturrets.data.TurretUpgradeRules;
 import omtteam.openmodularturrets.data.TurretVisualRules;
 import omtteam.openmodularturrets.data.TargetingRules;
 import omtteam.openmodularturrets.data.OwnershipRules;
+import omtteam.openmodularturrets.data.TurretCombatContext;
+import omtteam.openmodularturrets.data.TurretTargetingWorldQueries;
+import omtteam.openmodularturrets.data.TurretVolleyResourcesView;
 import omtteam.openmodularturrets.config.ModServerConfig;
 import omtteam.openmodularturrets.damage.TurretAttackContext;
+import omtteam.openmodularturrets.network.ModNetwork;
 import omtteam.openmodularturrets.registration.ModBlockEntities;
 import omtteam.openmodularturrets.registration.ModBlocks;
 import omtteam.openmodularturrets.registration.ModTags;
@@ -66,7 +70,9 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.phys.AABB;
 import omtteam.openmodularturrets.menu.TurretBaseMenu;
 
-public final class TurretBaseBlockEntity extends BlockEntity implements net.minecraft.world.MenuProvider {
+public final class TurretBaseBlockEntity extends BlockEntity
+        implements net.minecraft.world.MenuProvider,
+        TurretTargetingWorldQueries, TurretCombatContext {
     public static final int AMMO_SLOT_COUNT = 9;
     public static final int ADDON_SLOT_START = 9;
     public static final int UPGRADE_SLOT_START = 11;
@@ -110,16 +116,16 @@ public final class TurretBaseBlockEntity extends BlockEntity implements net.mine
 
         @Override
         protected void onContentsChanged(int slot) {
+            if (slot >= UPGRADE_SLOT_START && slot < INVENTORY_SIZE) {
+                invalidateRangeCache();
+            }
             markForSave();
             // Addon slots change the rendered turret-head overlay, but
-            // markForSave's sendBlockUpdated uses the same block state, and
-            // vanilla only pushes BlockEntity update packets when the state
-            // differs - so the client's addonRenderMask would never refresh.
+            // persistence alone does not push the BlockEntity update packet,
+            // so the client's addonRenderMask needs an explicit tracking sync.
             if (slot >= ADDON_SLOT_START && slot < UPGRADE_SLOT_START
-                    && level instanceof ServerLevel serverLevel) {
-                serverLevel.getServer().getPlayerList().broadcastAll(
-                        ClientboundBlockEntityDataPacket.create(TurretBaseBlockEntity.this),
-                        serverLevel.dimension());
+                    && level instanceof ServerLevel) {
+                ModNetwork.sendBlockEntityUpdateToTracking(TurretBaseBlockEntity.this);
             }
         }
     };
@@ -128,6 +134,28 @@ public final class TurretBaseBlockEntity extends BlockEntity implements net.mine
     private final BaseEnergyStorage energy = new BaseEnergyStorage();
     private final Map<UUID, LocalTrustEntry> localTrust = new HashMap<>();
     private final Map<UUID, Long> warningCooldowns = new HashMap<>();
+    private final List<BlockPos> cachedAmmoExpanderPositions = new java.util.ArrayList<>();
+    private final List<IItemHandler> cachedAmmoInventories = new java.util.ArrayList<>(
+            Direction.values().length + 1);
+    /**
+     * Range is queried from every attached head every tick. Keep this derived
+     * maximum stable for the current level tick so candidate scans do not
+     * repeatedly walk the same neighboring blocks and upgrade slots.
+     * The level/time key preserves live config reload behavior; topology and
+     * inventory changes invalidate it immediately as well.
+     */
+    @Nullable
+    private net.minecraft.world.level.Level cachedRangeLevel;
+    private long cachedRangeGameTime = Long.MIN_VALUE;
+    private int cachedRangeUpgradeLevel = Integer.MIN_VALUE;
+    private int cachedMaximumRange;
+    @Nullable
+    private net.minecraft.world.level.Level cachedAmmoLevel;
+    private boolean ammoTopologyCached;
+    @Nullable
+    private net.minecraft.world.level.Level cachedCapacityLevel;
+    private long cachedCapacityGameTime = Long.MIN_VALUE;
+    private int cachedMaxEnergyCapacity;
 
     @Nullable
     private UUID owner;
@@ -137,8 +165,10 @@ public final class TurretBaseBlockEntity extends BlockEntity implements net.mine
     private boolean redstonePowered;
     private boolean useGlobalTrust;
     private long localTrustRevision;
-    private boolean attackHostile;
-    private boolean attackNeutral = true;
+    // Legacy 1.12 defaults: new bases attack hostile mobs only
+    // (TargetingSettings(false, true, false) in player/hostile/neutral order).
+    private boolean attackHostile = true;
+    private boolean attackNeutral;
     private boolean attackPlayers;
     private boolean multiTargeting;
     private int configuredRange = 10;
@@ -153,6 +183,19 @@ public final class TurretBaseBlockEntity extends BlockEntity implements net.mine
 
     public TurretBaseBlockEntity(BlockPos pos, BlockState state) {
         super(ModBlockEntities.TURRET_BASE.value(), pos, state);
+    }
+
+    /**
+     * Release derived attachment views when the block entity leaves its
+     * level.  NeoForge marks the entity removed and invalidates capabilities,
+     * but it does not clear custom cache fields; clearing them here prevents a
+     * cached item-handler view from retaining removed neighbours for longer
+     * than the block entity itself.
+     */
+    @Override
+    public void setRemoved() {
+        invalidateNeighborCaches();
+        super.setRemoved();
     }
 
     public static void serverTick(net.minecraft.world.level.Level level, BlockPos pos,
@@ -375,7 +418,7 @@ public final class TurretBaseBlockEntity extends BlockEntity implements net.mine
             return false;
         }
         camouflageLightOpacity = value;
-        markForSave();
+        markForSaveAndSync();
         refreshLighting();
         return true;
     }
@@ -402,10 +445,8 @@ public final class TurretBaseBlockEntity extends BlockEntity implements net.mine
                 level.setBlock(worldPosition, next, 3);
             }
         }
-        if (level instanceof ServerLevel serverLevel) {
-            serverLevel.getServer().getPlayerList().broadcastAll(
-                    ClientboundBlockEntityDataPacket.create(this),
-                    serverLevel.dimension());
+        if (level instanceof ServerLevel) {
+            ModNetwork.sendBlockEntityUpdateToTracking(this);
         }
         markForSave();
         refreshLighting();
@@ -647,17 +688,56 @@ public final class TurretBaseBlockEntity extends BlockEntity implements net.mine
     }
 
     private java.util.List<IItemHandler> ammoInventories() {
-        java.util.List<IItemHandler> handlers = new java.util.ArrayList<>();
-        handlers.add(automationInventory);
+        if (cachedAmmoLevel != level) {
+            invalidateNeighborCaches();
+            cachedAmmoLevel = level;
+        }
+        if (!ammoTopologyCached) {
+            cachedAmmoExpanderPositions.clear();
+            if (level != null) {
+                for (Direction direction : Direction.values()) {
+                    if (level.getBlockEntity(worldPosition.relative(direction))
+                            instanceof InventoryExpanderBlockEntity) {
+                        cachedAmmoExpanderPositions.add(
+                                worldPosition.relative(direction).immutable());
+                    }
+                }
+            }
+            ammoTopologyCached = true;
+        }
+        cachedAmmoInventories.clear();
+        cachedAmmoInventories.add(automationInventory);
         if (level != null) {
-            for (Direction direction : Direction.values()) {
-                if (level.getBlockEntity(worldPosition.relative(direction))
+            for (BlockPos expanderPos : cachedAmmoExpanderPositions) {
+                if (level.getBlockEntity(expanderPos)
                         instanceof InventoryExpanderBlockEntity expander) {
-                    handlers.add(expander.inventory());
+                    cachedAmmoInventories.add(expander.inventory());
                 }
             }
         }
-        return handlers;
+        return cachedAmmoInventories;
+    }
+
+    /**
+     * Neighbor attachments are part of the cached automation view.  Block
+     * updates invalidate it so removed expanders can never be retained by a
+     * long-lived base.
+     */
+    public void invalidateNeighborCaches() {
+        invalidateRangeCache();
+        cachedAmmoExpanderPositions.clear();
+        cachedAmmoInventories.clear();
+        cachedAmmoLevel = null;
+        ammoTopologyCached = false;
+        cachedCapacityLevel = null;
+        cachedCapacityGameTime = Long.MIN_VALUE;
+    }
+
+    private void invalidateRangeCache() {
+        cachedRangeLevel = null;
+        cachedRangeGameTime = Long.MIN_VALUE;
+        cachedRangeUpgradeLevel = Integer.MIN_VALUE;
+        cachedMaximumRange = 0;
     }
 
     public int runReactorCycle() {
@@ -738,9 +818,16 @@ public final class TurretBaseBlockEntity extends BlockEntity implements net.mine
      */
     private void applyStoredTrust(List<MemoryCardProfile.TrustEntry> entries) {
         localTrust.clear();
+        int count = 0;
         for (MemoryCardProfile.TrustEntry entry : entries) {
+            // Bound the restored list like setLocalTrust does; a crafted or
+            // corrupted card must not bypass MAX_LOCAL_TRUST (audit F-F2).
+            if (count >= MAX_LOCAL_TRUST) {
+                break;
+            }
             localTrust.put(entry.player(),
                     new LocalTrustEntry(entry.player(), entry.name(), entry.access()));
+            count++;
         }
     }
 
@@ -754,7 +841,21 @@ public final class TurretBaseBlockEntity extends BlockEntity implements net.mine
     }
 
     public int maximumRange() {
-        return maximumRangeExcluding(null);
+        if (level == null) {
+            return maximumRangeExcluding(null);
+        }
+        long gameTime = level.getGameTime();
+        int rangeLevel = upgradeLevel(ModItems.UPGRADE_RANGE.value());
+        if (cachedRangeLevel == level && cachedRangeGameTime == gameTime
+                && cachedRangeUpgradeLevel == rangeLevel) {
+            return cachedMaximumRange;
+        }
+        int maximum = maximumRangeExcluding(null, rangeLevel);
+        cachedRangeLevel = level;
+        cachedRangeGameTime = gameTime;
+        cachedRangeUpgradeLevel = rangeLevel;
+        cachedMaximumRange = maximum;
+        return maximum;
     }
 
     /**
@@ -764,6 +865,7 @@ public final class TurretBaseBlockEntity extends BlockEntity implements net.mine
      */
     public void updateRangeAfterTurretPlacement(BlockPos turretPos,
             TurretDefinition definition) {
+        invalidateRangeCache();
         if (definition.baseRange() > maximumRangeExcluding(turretPos)) {
             setRange(maximumRange());
         }
@@ -774,6 +876,10 @@ public final class TurretBaseBlockEntity extends BlockEntity implements net.mine
             return 0;
         }
         int rangeLevel = upgradeLevel(ModItems.UPGRADE_RANGE.value());
+        return maximumRangeExcluding(excluded, rangeLevel);
+    }
+
+    private int maximumRangeExcluding(@Nullable BlockPos excluded, int rangeLevel) {
         int maximum = 0;
         for (Direction direction : Direction.values()) {
             BlockPos turretPos = worldPosition.relative(direction);
@@ -908,6 +1014,16 @@ public final class TurretBaseBlockEntity extends BlockEntity implements net.mine
         return addonLevel(ModItems.ADDON_DAMAGE_AMP.value());
     }
 
+    @Override
+    public int accuracyUpgradeLevel() {
+        return upgradeLevel(ModItems.UPGRADE_ACCURACY.value());
+    }
+
+    @Override
+    public int scatterShotUpgradeLevel() {
+        return upgradeLevel(ModItems.UPGRADE_SCATTER_SHOT.value());
+    }
+
     public int fakeDropsLevel() {
         return TurretAddonRules.fakeDropsLevel(
                 addonLevel(ModItems.ADDON_FAKE_DROPS.value()));
@@ -1015,8 +1131,19 @@ public final class TurretBaseBlockEntity extends BlockEntity implements net.mine
 
     private void markForSave() {
         setChanged();
-        if (level instanceof ServerLevel serverLevel) {
-            serverLevel.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+    }
+
+    /**
+     * Marks persistent state dirty and immediately publishes state consumed by
+     * the client renderer or light engine.  Energy and other server-authoritative
+     * values deliberately use {@link #markForSave()} only; menus and Jade have
+     * their own server data paths and do not need a full BlockEntity packet per
+     * tick.
+     */
+    private void markForSaveAndSync() {
+        markForSave();
+        if (level instanceof ServerLevel) {
+            ModNetwork.sendBlockEntityUpdateToTracking(this);
         }
     }
 
@@ -1068,7 +1195,13 @@ public final class TurretBaseBlockEntity extends BlockEntity implements net.mine
         owner = tag.hasUUID("owner") ? tag.getUUID("owner") : null;
         ownerName = sanitizeName(tag.getString("owner_name"));
         ownerTeamName = tag.getString("owner_team");
-        energy.stored = Math.clamp(tag.getInt("energy"), 0, energy.getMaxEnergyStored());
+        // Do not clamp against the load-time capacity: during loadAdditional the
+        // level is still null (vanilla promotePendingBlockEntity attaches it
+        // afterwards), so power-expander capacity is not counted yet and a clamp
+        // here would silently truncate legitimately stored energy on every world
+        // load (audit F-C5). The runtime tick converges stored energy to the real
+        // capacity, which also covers config-driven capacity reductions.
+        energy.stored = Math.max(0, tag.getInt("energy"));
         if (tag.contains("inventory", Tag.TAG_COMPOUND)) {
             inventory.deserializeNBT(registries, tag.getCompound("inventory"));
         }
@@ -1084,8 +1217,8 @@ public final class TurretBaseBlockEntity extends BlockEntity implements net.mine
         redstonePowered = tag.getBoolean("redstone_powered");
         useGlobalTrust = tag.getBoolean("use_global_trust");
         localTrustRevision = Math.max(0L, tag.getLong("local_trust_revision"));
-        attackHostile = tag.contains("attack_hostile") && tag.getBoolean("attack_hostile");
-        attackNeutral = !tag.contains("attack_neutral") || tag.getBoolean("attack_neutral");
+        attackHostile = !tag.contains("attack_hostile") || tag.getBoolean("attack_hostile");
+        attackNeutral = tag.contains("attack_neutral") && tag.getBoolean("attack_neutral");
         attackPlayers = tag.getBoolean("attack_players");
         multiTargeting = tag.getBoolean("multi_targeting");
         configuredRange = Math.max(0, tag.getInt("range"));
@@ -1233,6 +1366,11 @@ public final class TurretBaseBlockEntity extends BlockEntity implements net.mine
         @Override public int getEnergyStored() { return stored; }
         @Override
         public int getMaxEnergyStored() {
+            long gameTime = level == null ? Long.MIN_VALUE : level.getGameTime();
+            if (level != null && cachedCapacityLevel == level
+                    && cachedCapacityGameTime == gameTime) {
+                return cachedMaxEnergyCapacity;
+            }
             long capacity = tier().energyCapacity();
             if (level != null) {
                 for (net.minecraft.core.Direction direction : net.minecraft.core.Direction.values()) {
@@ -1242,7 +1380,13 @@ public final class TurretBaseBlockEntity extends BlockEntity implements net.mine
                     }
                 }
             }
-            return (int) Math.min(Integer.MAX_VALUE, capacity);
+            int result = (int) Math.min(Integer.MAX_VALUE, capacity);
+            if (level != null) {
+                cachedCapacityLevel = level;
+                cachedCapacityGameTime = gameTime;
+                cachedMaxEnergyCapacity = result;
+            }
+            return result;
         }
         @Override public boolean canExtract() { return true; }
         @Override public boolean canReceive() { return true; }
@@ -1258,6 +1402,7 @@ public final class TurretBaseBlockEntity extends BlockEntity implements net.mine
         }
     }
 
-    public record VolleyResources(ItemStack ammo, int projectileCount) {
+    public record VolleyResources(ItemStack ammo, int projectileCount)
+            implements TurretVolleyResourcesView {
     }
 }

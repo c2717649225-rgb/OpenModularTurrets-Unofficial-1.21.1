@@ -49,7 +49,7 @@
 ## 🚨 三、 物理客户端隔离与工程硬红线 (P0)
 
 1. **绝对禁止 Common 侧直接引用 Client 类**：
-   - 包含 `Screen.hasShiftDown()`、`ChatFormatting` 等 UI / 客户端类调用的方法，**必须 100% 隔离在 `omtteam.openmodularturrets.client` 包下**（例如 [OmtTooltips.java](file:///d:/c128/mods/neoforge-1.21.1-ai-starter/src/main/java/omtteam/openmodularturrets/client/OmtTooltips.java)）。
+   - 包含 `Screen.hasShiftDown()`、`ChatFormatting` 等 UI / 客户端类调用的方法，**必须 100% 隔离在 `omtteam.openmodularturrets.client` 包下**（例如 [OmtTooltips.java](file:///d:/c128/mods/OpenModularTurrets-Unofficial/src/main/java/omtteam/openmodularturrets/client/OmtTooltips.java)）。
    - 通用类（Common Block/Item）绝不允许直接 `import net.minecraft.client.gui.screens.Screen`。否则在独立专用服务端（Dedicated Server）启动时，Jade/Waila 扫描或加载类时会直接引发 `NoClassDefFoundError` 崩溃。
 
 2. **消除小标题重复 (Double Title Safety)**：
