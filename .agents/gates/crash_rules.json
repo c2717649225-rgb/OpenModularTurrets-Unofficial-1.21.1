@@ -1,0 +1,86 @@
+{
+  "_comment": "Crash-signature triage rules consumed by crash_triage.py. Each rule: AND-regex `patterns` over the full crash text; on hit, emit diagnosis + redline + doc to read. Mirrors repair_rules.json (compile errors) for the runtime domain. Backflow target: gate-escaped runtime incidents land here (AGENTS.md P1-3).",
+  "rules": [
+    {
+      "id": "codec_field_order",
+      "patterns": ["ClassCastException", "(?i)codec|RecordCodecBuilder|DataResult"],
+      "diagnosis": "Codec 字段顺序与 Record 构造器参数顺序不一致（P0-2），解码时类型错位导致 ClassCastException。",
+      "redline": "P0-2",
+      "read": "skills/neoforge/references/data_components.md",
+      "fix_hint": "对照 Record 主构造器逐字段核对 RecordCodecBuilder.group(...) 的声明顺序；顺序必须 100% 一致。"
+    },
+    {
+      "id": "client_class_on_server",
+      "patterns": ["(NoClassDefFoundError|ClassNotFoundException)", "net[./]minecraft[./]client"],
+      "diagnosis": "专用服务器加载了客户端类（P0-3）——common 代码引用了 net.minecraft.client。",
+      "redline": "P0-3",
+      "read": "skills/neoforge/references/architecture_design.md",
+      "fix_hint": "把 Renderer/Screen/Minecraft.getInstance 移入 client 包并以 Dist.CLIENT 隔离；common 侧仅留接口/事件。static_gate 的 client_import_in_common 规则可静态复查。"
+    },
+    {
+      "id": "static_registry_get",
+      "patterns": ["(NullPointerException|IllegalStateException)", "(<clinit>|static \\{|Registry Object not present|Holder\\.Reference)"],
+      "diagnosis": "静态初始化阶段对注册项直接解包（P0-5）——注册尚未完成时 .get()/.value() 为空。",
+      "redline": "P0-5",
+      "read": "skills/neoforge/references/quick_skeletons.md",
+      "fix_hint": "静态字段只存 DeferredHolder/Supplier；真正取值延迟到事件回调或运行期方法内。"
+    },
+    {
+      "id": "network_thread_mutation",
+      "patterns": ["(?i)(netty|network|io\\.netty)", "(ConcurrentModificationException|Accessing (Legacy)?RandomSource from multiple threads|not on the main thread)"],
+      "diagnosis": "网络线程直接修改世界/玩家状态（P0-4）——Payload handler 未经 enqueueWork 回主线程。",
+      "redline": "P0-4",
+      "read": "skills/neoforge/references/network_payloads.md",
+      "fix_hint": "handler 内所有触碰 Level/Player/BlockEntity 的逻辑包进 context.enqueueWork(() -> ...)。"
+    },
+    {
+      "id": "mixin_apply_failure",
+      "patterns": ["(?i)mixin", "(MixinTransformerError|InvalidInjectionException|InjectionError|Critical injection failure|failed injection check)"],
+      "diagnosis": "Mixin 织入失败——注入点签名/映射与 1.21.1 目标方法不符，或与其他模组的注入冲突。",
+      "redline": null,
+      "read": "skills/neoforge/references/mixins.md",
+      "fix_hint": "用 MCP read_class 核对目标方法当前签名；优先改用事件或 Access Transformer；@Overwrite 为禁手（anti_patterns§11）。"
+    },
+    {
+      "id": "payload_decode_error",
+      "patterns": ["(DecoderException|EncoderException|IndexOutOfBoundsException: readerIndex)", "(?i)(payload|packet|StreamCodec|FriendlyByteBuf)"],
+      "diagnosis": "Payload 编解码不对称——StreamCodec 字段顺序/类型与实际写入不一致，或 ItemStack 用错 ByteBuf 泛型。",
+      "redline": "SKILL§2-StreamCodec",
+      "read": "skills/neoforge/references/network_payloads.md",
+      "fix_hint": "encode/decode 字段顺序逐一对照；含 ItemStack 时泛型必须是 RegistryFriendlyByteBuf；>6 字段改 StreamCodec.of。"
+    },
+    {
+      "id": "invalid_resource_location",
+      "patterns": ["ResourceLocationException", "(?i)(non \\[a-z0-9_.-\\]|invalid|Non-standard) character"],
+      "diagnosis": "资源 ID 含非法字符——命名空间与路径只允许小写字母、数字、下划线、点、横线。",
+      "redline": null,
+      "read": "skills/neoforge/references/anti_patterns.md",
+      "fix_hint": "检查注册名/模型路径/贴图引用里的大写字母或空格；mod_id 与资源名全小写。"
+    },
+    {
+      "id": "duplicate_registration",
+      "patterns": ["(?i)(Duplicate (registration|key)|already registered|Adding duplicate)"],
+      "diagnosis": "同一注册名被注册两次——常见于复制粘贴注册行忘改名字，或两个 DeferredRegister 指向同一注册表重复提交。",
+      "redline": null,
+      "read": "skills/neoforge/references/anti_patterns.md",
+      "fix_hint": "全局搜索该注册名字符串；确认每个 DeferredRegister 只 register 到总线一次。"
+    },
+    {
+      "id": "missing_registry_entry_json",
+      "patterns": ["(?i)(Missing (or invalid )?(registry|value)|Unknown registry key|Failed to parse|No key .* in MapLike)", "(?i)(worldgen|recipe|loot_table|enchantment|damage_type|dimension|biome)"],
+      "diagnosis": "数据驱动 JSON 缺失或结构错误——datapack 注册表条目（worldgen/配方/附魔等）解析失败。",
+      "redline": "P1-1",
+      "read": "skills/neoforge/references/recipes_standard_datagen.md",
+      "fix_hint": "该类 JSON 必须经 DataGen 生成而非手写；跑 --with-data 后用 asset_gate 对账；目录名用单数（recipe/loot_table）。"
+    },
+    {
+      "id": "oom_environment",
+      "patterns": ["OutOfMemoryError"],
+      "diagnosis": "[环境类] JVM 内存不足——不是模组代码缺陷，先调大内存再复现。",
+      "redline": null,
+      "read": null,
+      "fix_hint": "gradle.properties 的 org.gradle.jvmargs 与 run 配置 JVM 参数调大 -Xmx；若仅特定操作触发再回头查泄漏。不要先改模组逻辑。"
+    }
+  ],
+  "no_match_guidance": "无已知签名命中。回到 systematic-debugging 四阶段：1) 通读崩溃报告定位第一个 'Caused by' 与你模组包名出现的最深栈帧；2) 稳定复现步骤；3) git diff 最近改动；4) 用 MCP read_file 查栈帧对应源码后再改。禁止无根因盲改。"
+}

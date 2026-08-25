@@ -63,4 +63,11 @@ minecraft_mod_design.md
 .lkg_tmp/
 .reasonix/
 reasonix.toml
-.agents/
+.agents/*
+# --- CI 门禁工具链白名单（方案A：仅运行门禁所需，skills/eval 等保持私有）---
+!.agents/run.py
+!.agents/gates
+!.agents/gates/**
+!.agents/contracts
+!.agents/contracts/**
+**/__pycache__/

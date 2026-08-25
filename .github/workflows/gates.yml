@@ -39,5 +39,8 @@ jobs:
       - name: L0 feature contracts
         run: python .agents/run.py .agents/gates/contract_gate.py --require
 
+      - name: L2.5 asset gate (visual integrity)
+        run: python .agents/run.py .agents/gates/asset_gate.py
+
       - name: L4 GameTests
         run: python .agents/run.py .agents/gates/gametest_gate.py --require-tests --run
