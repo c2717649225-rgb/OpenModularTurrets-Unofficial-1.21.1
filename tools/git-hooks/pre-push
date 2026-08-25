@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# Local pre-push fast gate (L1 compile + L2 static).
+#
+# Activate once per clone:
+#   git config core.hooksPath tools/git-hooks
+#
+# Bypass for exceptional pushes:
+#   OMT_SKIP_PUSH_GATE=1 git push
+set -euo pipefail
+if [ "${OMT_SKIP_PUSH_GATE:-0}" = "1" ]; then
+  echo "[omt-pre-push] skipped via OMT_SKIP_PUSH_GATE"
+  exit 0
+fi
+cd "$(git rev-parse --show-toplevel)"
+echo "[omt-pre-push] running L1 compile + L2 static gate..."
+python .agents/run.py .agents/gates/compile_and_repair.py --with-static
+echo "[omt-pre-push] gates green."

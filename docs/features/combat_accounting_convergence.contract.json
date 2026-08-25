@@ -3,8 +3,8 @@
   "schema_version": 2,
   "design_source": {
     "path": "docs/porting/code-quality-remediation-plan.md",
-    "revision": "executing-2026-08-25",
-    "sha256": "a855364ef9023c74f7e66cddac006262c7e73c7d885400182d5ebe3a6530b098"
+    "revision": "executed-complete-2026-08-25",
+    "sha256": "596c91d671fa7e0cdaf1b03fe10f8b8793f4ffb7225268cd9c9bb98a53f6d695"
   },
   "review_required": [],
   "id": "openmodularturrets.combat-accounting-convergence",
@@ -36,9 +36,17 @@
     },
     "migration": {
       "strategy": "custom",
-      "supported_from": [1, 2, 3, 4, 5],
+      "supported_from": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
       "fallback": "reject_incompatible",
-      "test_ids": ["accounting_state_roundtrip"]
+      "test_ids": [
+        "accounting_state_roundtrip"
+      ]
     }
   },
   "network": {
@@ -59,7 +67,9 @@
           "key": "dimension"
         },
         "max_payload_bytes": 128,
-        "test_ids": ["accounting_behavior_regressions"]
+        "test_ids": [
+          "accounting_behavior_regressions"
+        ]
       }
     ]
   },
@@ -79,9 +89,13 @@
   "assets": {
     "generated": [],
     "manual": [],
-    "locales": ["en_us"],
+    "locales": [
+      "en_us"
+    ],
     "license_review": "not_applicable",
-    "validation_test_ids": ["accounting_static_clean"]
+    "validation_test_ids": [
+      "accounting_static_clean"
+    ]
   },
   "performance": {
     "budgets": [
@@ -122,7 +136,10 @@
         "required": true,
         "statement": "Synchronous volley kills are recorded in exactly one place: TurretCombatService after the execution loop. BeamVolleyStrategy no longer records kills and TurretHeadBlockEntity no longer branches on ShotKind for accounting.",
         "observation": "New combat kill accounting GameTest passes; existing combat regression tests stay green.",
-        "test_ids": ["accounting_kill_recorded_once", "accounting_behavior_regressions"]
+        "test_ids": [
+          "accounting_kill_recorded_once",
+          "accounting_behavior_regressions"
+        ]
       },
       {
         "id": "accounting.projectile_path_preserved",
@@ -130,7 +147,9 @@
         "required": true,
         "statement": "Asynchronous projectile kills still increment base kill counters exactly once via TurretProjectileEntity.",
         "observation": "Existing projectile combat GameTests pass unchanged.",
-        "test_ids": ["accounting_behavior_regressions"]
+        "test_ids": [
+          "accounting_behavior_regressions"
+        ]
       },
       {
         "id": "definitions.golden_default_values",
@@ -138,7 +157,9 @@
         "required": true,
         "statement": "After builder migration every TurretDefinition exposes byte-identical default gameplay values for all eleven turret types.",
         "observation": "Golden defaults GameTest compares all definitions against an explicit expected-value table.",
-        "test_ids": ["definitions_golden_defaults"]
+        "test_ids": [
+          "definitions_golden_defaults"
+        ]
       },
       {
         "id": "combat.dead_code_and_metadata_sound",
@@ -146,7 +167,10 @@
         "required": true,
         "statement": "BaseAddonEngine.runSolarCycle is removed; RELATIVISTIC and TELEPORTER launch sound volume/pitch come from definition metadata instead of enum identity checks in TurretHeadBlockEntity.",
         "observation": "Static gate finds no runSolarCycle references; special sound metadata GameTest asserts fixed launch sound parameters for both turret types.",
-        "test_ids": ["special_launch_sound_metadata", "accounting_static_clean"]
+        "test_ids": [
+          "special_launch_sound_metadata",
+          "accounting_static_clean"
+        ]
       },
       {
         "id": "combat.persistence_unchanged",
@@ -154,16 +178,26 @@
         "required": true,
         "statement": "Persistence keys and versions remain unchanged and round-trip without loss.",
         "observation": "Existing state persistence GameTests pass.",
-        "test_ids": ["accounting_state_roundtrip"]
+        "test_ids": [
+          "accounting_state_roundtrip"
+        ]
       }
     ],
     "tests": [
       {
         "id": "accounting_kill_recorded_once",
         "kind": "gametest",
-        "command": ["python", ".agents/run.py", ".agents/gates/gametest_gate.py", "--require-tests", "--run"],
+        "command": [
+          "python",
+          ".agents/run.py",
+          ".agents/gates/gametest_gate.py",
+          "--require-tests",
+          "--run"
+        ],
         "test_ref": "omtteam.openmodularturrets.gametest.omtteam.openmodularturrets.gametest.CombatTargetingGameTests#combatKillAccountingContract",
-        "covers": ["Synchronous volley kills are recorded in exactly one place: TurretCombatService after the execution loop."],
+        "covers": [
+          "Synchronous volley kills are recorded in exactly one place: TurretCombatService after the execution loop."
+        ],
         "required": true,
         "expected": "Laser turret volley that kills its target records exactly one kill on the owning base.",
         "timeout_seconds": 1800
@@ -171,9 +205,17 @@
       {
         "id": "definitions_golden_defaults",
         "kind": "gametest",
-        "command": ["python", ".agents/run.py", ".agents/gates/gametest_gate.py", "--require-tests", "--run"],
+        "command": [
+          "python",
+          ".agents/run.py",
+          ".agents/gates/gametest_gate.py",
+          "--require-tests",
+          "--run"
+        ],
         "test_ref": "omtteam.openmodularturrets.gametest.omtteam.openmodularturrets.gametest.ConfigDefinitionGameTests#turretDefinitionGoldenDefaultsContract",
-        "covers": ["After builder migration every TurretDefinition exposes byte-identical default gameplay values."],
+        "covers": [
+          "After builder migration every TurretDefinition exposes byte-identical default gameplay values."
+        ],
         "required": true,
         "expected": "All eleven definitions match the explicit expected table.",
         "timeout_seconds": 1800
@@ -181,9 +223,17 @@
       {
         "id": "special_launch_sound_metadata",
         "kind": "gametest",
-        "command": ["python", ".agents/run.py", ".agents/gates/gametest_gate.py", "--require-tests", "--run"],
+        "command": [
+          "python",
+          ".agents/run.py",
+          ".agents/gates/gametest_gate.py",
+          "--require-tests",
+          "--run"
+        ],
         "test_ref": "omtteam.openmodularturrets.gametest.omtteam.openmodularturrets.gametest.ConfigDefinitionGameTests#specialLaunchSoundMetadataContract",
-        "covers": ["RELATIVISTIC and TELEPORTER launch sound volume/pitch come from definition metadata."],
+        "covers": [
+          "RELATIVISTIC and TELEPORTER launch sound volume/pitch come from definition metadata."
+        ],
         "required": true,
         "expected": "Both turret types expose fixed launch sound metadata; all others expose none.",
         "timeout_seconds": 1800
@@ -191,9 +241,18 @@
       {
         "id": "accounting_behavior_regressions",
         "kind": "gametest",
-        "command": ["python", ".agents/run.py", ".agents/gates/gametest_gate.py", "--require-tests", "--run"],
+        "command": [
+          "python",
+          ".agents/run.py",
+          ".agents/gates/gametest_gate.py",
+          "--require-tests",
+          "--run"
+        ],
         "test_ref": "omtteam.openmodularturrets.gametest.omtteam.openmodularturrets.gametest.CombatTargetingGameTests#potatoTurretAcquiresVisibleHostileAndFires",
-        "covers": ["Asynchronous projectile kills still increment base kill counters exactly once.", "Existing gameplay, payload schemas and boundaries remain unchanged."],
+        "covers": [
+          "Asynchronous projectile kills still increment base kill counters exactly once.",
+          "Existing gameplay, payload schemas and boundaries remain unchanged."
+        ],
         "required": true,
         "expected": "All discovered GameTests pass.",
         "timeout_seconds": 1800
@@ -201,9 +260,17 @@
       {
         "id": "accounting_state_roundtrip",
         "kind": "migration",
-        "command": ["python", ".agents/run.py", ".agents/gates/gametest_gate.py", "--require-tests", "--run"],
+        "command": [
+          "python",
+          ".agents/run.py",
+          ".agents/gates/gametest_gate.py",
+          "--require-tests",
+          "--run"
+        ],
         "test_ref": "omtteam.openmodularturrets.gametest.omtteam.openmodularturrets.gametest.BaseStateGameTests#statePersistence",
-        "covers": ["Persistence keys and versions remain unchanged and round-trip without loss."],
+        "covers": [
+          "Persistence keys and versions remain unchanged and round-trip without loss."
+        ],
         "required": true,
         "expected": "Save/load round-trip keeps energy, range, owner and counters.",
         "timeout_seconds": 1800
@@ -211,9 +278,17 @@
       {
         "id": "accounting_pressure_fixture",
         "kind": "performance",
-        "command": ["python", ".agents/run.py", ".agents/gates/gametest_gate.py", "--require-tests", "--run"],
+        "command": [
+          "python",
+          ".agents/run.py",
+          ".agents/gates/gametest_gate.py",
+          "--require-tests",
+          "--run"
+        ],
         "test_ref": "omtteam.openmodularturrets.gametest.ArchitecturePressureGameTests#architecturePressureFixture",
-        "covers": ["Accounting convergence adds no measurable hot-path cost."],
+        "covers": [
+          "Accounting convergence adds no measurable hot-path cost."
+        ],
         "required": true,
         "expected": "Pressure fixture passes its internal tick-time assertion.",
         "timeout_seconds": 3600
@@ -221,8 +296,15 @@
       {
         "id": "accounting_static_clean",
         "kind": "static",
-        "command": ["python", ".agents/run.py", ".agents/gates/static_gate.py"],
-        "covers": ["BaseAddonEngine.runSolarCycle is removed.", "L2 static gate passes with zero errors."],
+        "command": [
+          "python",
+          ".agents/run.py",
+          ".agents/gates/static_gate.py"
+        ],
+        "covers": [
+          "BaseAddonEngine.runSolarCycle is removed.",
+          "L2 static gate passes with zero errors."
+        ],
         "required": true,
         "expected": "Zero references to runSolarCycle in host sources; L2 static gate PASS.",
         "timeout_seconds": 600
@@ -230,8 +312,15 @@
       {
         "id": "accounting_dedicated_server",
         "kind": "dedicated_server",
-        "command": ["python", ".agents/run.py", ".agents/gates/compile_and_repair.py", "--with-server"],
-        "covers": ["Combat accounting runs on a dedicated server without loading client-only classes."],
+        "command": [
+          "python",
+          ".agents/run.py",
+          ".agents/gates/compile_and_repair.py",
+          "--with-server"
+        ],
+        "covers": [
+          "Combat accounting runs on a dedicated server without loading client-only classes."
+        ],
         "required": false,
         "expected": "Dedicated server smoke starts and shuts down cleanly.",
         "timeout_seconds": 3600

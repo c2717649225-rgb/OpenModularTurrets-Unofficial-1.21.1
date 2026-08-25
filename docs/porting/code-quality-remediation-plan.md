@@ -163,14 +163,28 @@ DISPOSABLE(def("disposable_item_turret")
 | D4 | EnderDragon `setHealth` 绕过伤害管线处补设计注释（为何不走 hurt()） | TurretProjectileEntity.java:273-276 |
 | D5 | `TurretDamageSource.prepareFakePlayer` 中 InteractionHand 等 FQN 已在 C2 处理，此处仅复核 | — |
 
-## 7. Phase E — 结构性优化（可选，需单项立项）
+## 7. Phase E — 结构性优化（2026-08-25 执行结果）
 
-以下两项收益真实但动静大，**默认不做**，待 A~D 完成后按需单独立项：
-
-1. **GameTest 大类拆分**：2341 行 / 57 测试按域拆为 Persistence / Camouflage / SecurityTrust / CombatRules / NetworkContracts / ConfigDefaults 六个 `@GameTestHolder` 同命名空间类。机械性强，但会移动基线测试清单，需要重新对账 L4 输出。
-2. **爆炸伤害模型对齐评估**：方形 AABB + 无遮挡 + 双段清无敌帧（TurretProjectileEntity.java:232-250）是否为 1.12 手感的有意保留；若确认保留则补设计注释固化，若要对齐原版球形+遮挡则属玩法变更，另行走 Major 流程。
+1. **GameTest 大类拆分：已完成**（提交 183ddb9）。59 个测试按域拆为
+   BaseState(12) / CombatTargeting(17) / AddonUpgrade(9) / SecurityTrust(7) /
+   ConfigDefinition(15) 五个同命名空间持有者类；全部合同 test_ref 与阶段
+   文档引用已重写；L4 复跑 61/61 全绿。
+2. **爆炸伤害模型评估：已裁决**。经与
+   `reference-sources/OpenModularTurrets-1.12` 四个弹种源码逐行对照，
+   方形 AABB、无遮挡、双段清无敌帧均为原作设计；parity 结论已固化为
+   `TurretProjectileEntity#damageArea` 的合同注释（19777e4），不再作为待办。
+3. **TurretBaseScreen 拆分：评估后不做**。安全页与屏幕原语
+   （addRenderableWidget/font/topPos）深度耦合，而当前环境无法做客户端
+   视觉回归；文件本身已按页分节、命名一致，强行拆分是以稳定性换外观。
+   若未来引入 GUI 自动化测试再重启此决策。
 
 > 复核更正（2026-08-25）：原第 2 项 "referencehost 打包隔离" 经查证**撤回**——`build.gradle:138` 已 `exclude('dev/modstudio/referencehost/**')`，且 `build.gradle:158-174` 存在构建期泄漏守卫（检测到泄漏直接使构建失败），打包卫生已妥善处理，无需整改。
+
+## 7.5 CI 门禁恢复（2026-08-25 新增并完成）
+
+历史删除的自动门禁以双轨方式恢复：`.github/workflows/gates.yml`
+（push/PR 触发 L0/L1/L2/L4，只读权限，不含 Secret）+ 本地可选 pre-push
+快速门禁钩子（`tools/git-hooks/pre-push`，见 `tools/ci/README.md`）。
 
 ---
 
