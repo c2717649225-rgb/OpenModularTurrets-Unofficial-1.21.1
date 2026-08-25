@@ -1,8 +1,9 @@
 name: OMT quality
 
 on:
-  push:
-  pull_request:
+  # Toolkit self-check (doc index, skill integrity).  It reads untracked
+  # private pieces under .agents/skills/, so it can never pass on remote
+  # push/PR events — keep it manual-only; run it locally or via gh CLI.
   workflow_dispatch:
 
 permissions:
