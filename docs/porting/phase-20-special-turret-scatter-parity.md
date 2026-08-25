@@ -32,7 +32,7 @@ whether to reproduce the old missing-tick-reset defect.
 
 ## Executable evidence
 
-`OpenModularTurretsGameTests#specialTurretRules` verifies that a four-projectile paid
+`omtteam.openmodularturrets.gametest.CombatTargetingGameTests#specialTurretRules` verifies that a four-projectile paid
 volley executes Teleporter and Relativistic actions once, while Machine Gun and Laser
 execute four times. Existing volley tests continue to prove the scatter energy
 multiplier and atomic resource reservation.

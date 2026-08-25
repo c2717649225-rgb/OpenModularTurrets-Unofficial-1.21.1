@@ -121,7 +121,7 @@
         "risk": "P1",
         "required": true,
         "statement": "Tier one exposes no addon or upgrade slots, tiers two through four expose two addon and one upgrade slot, and tier five exposes two of each.",
-        "observation": "GameTest `omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#tieredInventoryRules` passes after asserting that tier one exposes no addon or upgrade slots, tiers two through four expose two addon and one upgrade slot, and tier five exposes two of each.",
+        "observation": "GameTest `omtteam.openmodularturrets.gametest.omtteam.openmodularturrets.gametest.BaseStateGameTests#tieredInventoryRules` passes after asserting that tier one exposes no addon or upgrade slots, tiers two through four expose two addon and one upgrade slot, and tier five exposes two of each.",
         "test_ids": [
           "tiered_inventory_rules"
         ]
@@ -141,7 +141,7 @@
         "risk": "P1",
         "required": true,
         "statement": "Fire interval, efficiency, shared dynamic range, accuracy and scatter formulas match the declared legacy defaults.",
-        "observation": "GameTest `omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#upgradeFormulaRules` passes after asserting that fire interval, efficiency, shared dynamic range, accuracy and scatter formulas match the declared legacy defaults.",
+        "observation": "GameTest `omtteam.openmodularturrets.gametest.omtteam.openmodularturrets.gametest.AddonUpgradeGameTests#upgradeFormulaRules` passes after asserting that fire interval, efficiency, shared dynamic range, accuracy and scatter formulas match the declared legacy defaults.",
         "test_ids": [
           "upgrade_formula_rules"
         ]
@@ -151,7 +151,7 @@
         "risk": "P0",
         "required": true,
         "statement": "Energy and ammunition account for every projectile in a scatter volley.",
-        "observation": "GameTest `omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#upgradeFormulaRules` passes after asserting that energy and ammunition account for every projectile in a scatter volley.",
+        "observation": "GameTest `omtteam.openmodularturrets.gametest.omtteam.openmodularturrets.gametest.AddonUpgradeGameTests#upgradeFormulaRules` passes after asserting that energy and ammunition account for every projectile in a scatter volley.",
         "test_ids": [
           "upgrade_formula_rules"
         ]
@@ -161,7 +161,7 @@
         "risk": "P1",
         "required": true,
         "statement": "A base rejects an over-tier turret, a turret above the total limit, and a turret above its per-kind limit.",
-        "observation": "GameTest `omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#turretAttachmentLimits` passes after asserting that a base rejects an over-tier turret, a turret above the total limit, and a turret above its per-kind limit.",
+        "observation": "GameTest `omtteam.openmodularturrets.gametest.omtteam.openmodularturrets.gametest.BaseStateGameTests#turretAttachmentLimits` passes after asserting that a base rejects an over-tier turret, a turret above the total limit, and a turret above its per-kind limit.",
         "test_ids": [
           "turret_attachment_rules"
         ]
@@ -171,7 +171,7 @@
         "risk": "P1",
         "required": true,
         "statement": "An already attached turret is not counted twice during survival validation.",
-        "observation": "GameTest `omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#turretAttachmentLimits` passes after asserting that an already attached turret is not counted twice during survival validation.",
+        "observation": "GameTest `omtteam.openmodularturrets.gametest.omtteam.openmodularturrets.gametest.BaseStateGameTests#turretAttachmentLimits` passes after asserting that an already attached turret is not counted twice during survival validation.",
         "test_ids": [
           "turret_attachment_rules"
         ]
@@ -181,7 +181,7 @@
         "risk": "P1",
         "required": true,
         "statement": "The block ItemHandler capability exposes exactly nine ammunition slots.",
-        "observation": "GameTest `omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#capabilityAmmoBoundary` passes after asserting that the block ItemHandler capability exposes exactly nine ammunition slots.",
+        "observation": "GameTest `omtteam.openmodularturrets.gametest.omtteam.openmodularturrets.gametest.ConfigDefinitionGameTests#capabilityAmmoBoundary` passes after asserting that the block ItemHandler capability exposes exactly nine ammunition slots.",
         "test_ids": [
           "capability_ammo_boundary"
         ]
@@ -191,7 +191,7 @@
         "risk": "P0",
         "required": true,
         "statement": "Automation cannot insert addon or upgrade items through the ammunition capability.",
-        "observation": "GameTest `omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#capabilityAmmoBoundary` passes after asserting that automation cannot insert addon or upgrade items through the ammunition capability.",
+        "observation": "GameTest `omtteam.openmodularturrets.gametest.omtteam.openmodularturrets.gametest.ConfigDefinitionGameTests#capabilityAmmoBoundary` passes after asserting that automation cannot insert addon or upgrade items through the ammunition capability.",
         "test_ids": [
           "capability_ammo_boundary"
         ]
@@ -234,7 +234,7 @@
         "required": true,
         "expected": "All tier slot and stack-count assertions pass without changing the persisted inventory layout.",
         "timeout_seconds": 900,
-        "test_ref": "omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#tieredInventoryRules"
+        "test_ref": "omtteam.openmodularturrets.gametest.omtteam.openmodularturrets.gametest.BaseStateGameTests#tieredInventoryRules"
       },
       {
         "id": "tiered_inventory_recovery",
@@ -270,7 +270,7 @@
         "required": true,
         "expected": "Representative ordinary, Laser and Plasma test vectors match exact bounded values, and the legacy base-hardness values are never treated as range caps.",
         "timeout_seconds": 900,
-        "test_ref": "omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#upgradeFormulaRules"
+        "test_ref": "omtteam.openmodularturrets.gametest.omtteam.openmodularturrets.gametest.AddonUpgradeGameTests#upgradeFormulaRules"
       },
       {
         "id": "turret_attachment_limits",
@@ -307,7 +307,7 @@
         "required": true,
         "expected": "Tier, total, per-kind, and already-attached validation vectors pass.",
         "timeout_seconds": 900,
-        "test_ref": "omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#turretAttachmentLimits"
+        "test_ref": "omtteam.openmodularturrets.gametest.omtteam.openmodularturrets.gametest.BaseStateGameTests#turretAttachmentLimits"
       },
       {
         "id": "capability_ammo_boundary",
@@ -326,7 +326,7 @@
         "required": true,
         "expected": "Capability queries cannot observe or mutate addon and upgrade slots.",
         "timeout_seconds": 900,
-        "test_ref": "omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#capabilityAmmoBoundary"
+        "test_ref": "omtteam.openmodularturrets.gametest.omtteam.openmodularturrets.gametest.ConfigDefinitionGameTests#capabilityAmmoBoundary"
       },
       {
         "id": "dedicated_server_boot",

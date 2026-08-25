@@ -235,7 +235,7 @@
         "required": true,
         "expected": "Pure visual routing rules pass without loading client classes.",
         "timeout_seconds": 900,
-        "test_ref": "omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#visualStateContract"
+        "test_ref": "omtteam.openmodularturrets.gametest.omtteam.openmodularturrets.gametest.ConfigDefinitionGameTests#visualStateContract"
       },
       {
         "id": "visual_performance_budget",

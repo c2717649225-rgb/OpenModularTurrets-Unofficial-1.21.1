@@ -183,7 +183,7 @@
         "risk": "P1",
         "required": true,
         "statement": "Every turret definition has a valid five-entry default profile.",
-        "observation": "GameTest `omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#targetPriorityRules` passes after asserting that every turret definition has a valid five-entry default profile.",
+        "observation": "GameTest `omtteam.openmodularturrets.gametest.omtteam.openmodularturrets.gametest.CombatTargetingGameTests#targetPriorityRules` passes after asserting that every turret definition has a valid five-entry default profile.",
         "test_ids": [
           "target_priority_defaults"
         ]
@@ -203,7 +203,7 @@
         "risk": "P0",
         "required": true,
         "statement": "Owners, trusted players, team allies and their tameable pets are protected.",
-        "observation": "GameTest `omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#targetProtectionPolicy` passes after asserting that owners, trusted players, team allies and their tameable pets are protected.",
+        "observation": "GameTest `omtteam.openmodularturrets.gametest.omtteam.openmodularturrets.gametest.CombatTargetingGameTests#targetProtectionPolicy` passes after asserting that owners, trusted players, team allies and their tameable pets are protected.",
         "test_ids": [
           "target_protection_policy"
         ]
@@ -213,7 +213,7 @@
         "risk": "P0",
         "required": true,
         "statement": "The damage_trusted_players switch applies consistently to trusted players and their tameable pets while owner and owner-team protection remains unconditional.",
-        "observation": "GameTest `omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#targetProtectionPolicy` passes after asserting that the damage_trusted_players switch applies consistently to trusted players and their tameable pets while owner and owner-team protection remains unconditional.",
+        "observation": "GameTest `omtteam.openmodularturrets.gametest.omtteam.openmodularturrets.gametest.CombatTargetingGameTests#targetProtectionPolicy` passes after asserting that the damage_trusted_players switch applies consistently to trusted players and their tameable pets while owner and owner-team protection remains unconditional.",
         "test_ids": [
           "target_protection_policy"
         ]
@@ -223,7 +223,7 @@
         "risk": "P0",
         "required": true,
         "statement": "Creative and spectator players are never warned or targeted.",
-        "observation": "GameTest `omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#targetProtectionPolicy` passes after asserting that creative and spectator players are never warned or targeted.",
+        "observation": "GameTest `omtteam.openmodularturrets.gametest.omtteam.openmodularturrets.gametest.CombatTargetingGameTests#targetProtectionPolicy` passes after asserting that creative and spectator players are never warned or targeted.",
         "test_ids": [
           "target_protection_policy"
         ]
@@ -233,7 +233,7 @@
         "risk": "P0",
         "required": true,
         "statement": "Entity types in target_blacklist are rejected.",
-        "observation": "GameTest `omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#targetProtectionPolicy` passes after asserting that entity types in target_blacklist are rejected.",
+        "observation": "GameTest `omtteam.openmodularturrets.gametest.omtteam.openmodularturrets.gametest.CombatTargetingGameTests#targetProtectionPolicy` passes after asserting that entity types in target_blacklist are rejected.",
         "test_ids": [
           "target_protection_policy"
         ]
@@ -243,7 +243,7 @@
         "risk": "P1",
         "required": true,
         "statement": "Disabled multi-target permits focus fire.",
-        "observation": "GameTest `omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#multiTargetCoordination` passes after asserting that disabled multi-target permits focus fire.",
+        "observation": "GameTest `omtteam.openmodularturrets.gametest.omtteam.openmodularturrets.gametest.CombatTargetingGameTests#multiTargetCoordination` passes after asserting that disabled multi-target permits focus fire.",
         "test_ids": [
           "multi_target_rules"
         ]
@@ -253,7 +253,7 @@
         "risk": "P1",
         "required": true,
         "statement": "Enabled multi-target excludes targets already held by sibling heads.",
-        "observation": "GameTest `omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#multiTargetCoordination` passes after asserting that enabled multi-target excludes targets already held by sibling heads.",
+        "observation": "GameTest `omtteam.openmodularturrets.gametest.omtteam.openmodularturrets.gametest.CombatTargetingGameTests#multiTargetCoordination` passes after asserting that enabled multi-target excludes targets already held by sibling heads.",
         "test_ids": [
           "multi_target_rules"
         ]
@@ -263,7 +263,7 @@
         "risk": "P1",
         "required": true,
         "statement": "The menu synchronizes six bounded server-owned configuration values.",
-        "observation": "GameTest `omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#targetingMenuState` passes after asserting that the menu synchronizes six bounded server-owned configuration values.",
+        "observation": "GameTest `omtteam.openmodularturrets.gametest.omtteam.openmodularturrets.gametest.ConfigDefinitionGameTests#targetingMenuState` passes after asserting that the menu synchronizes six bounded server-owned configuration values.",
         "test_ids": [
           "targeting_menu_state"
         ]
@@ -283,7 +283,7 @@
         "risk": "P0",
         "required": true,
         "statement": "Schema 1 Memory Cards decode with multi-target false.",
-        "observation": "GameTest `omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#targetingProfileMigration` passes after asserting that schema 1 Memory Cards decode with multi-target false.",
+        "observation": "GameTest `omtteam.openmodularturrets.gametest.omtteam.openmodularturrets.gametest.CombatTargetingGameTests#targetingProfileMigration` passes after asserting that schema 1 Memory Cards decode with multi-target false.",
         "test_ids": [
           "targeting_profile_schema_one"
         ]
@@ -303,7 +303,7 @@
         "risk": "P0",
         "required": true,
         "statement": "Five per-head legacy priority weights survive block-entity save and load.",
-        "observation": "GameTest `omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#turretPriorityPersistence` passes after asserting that five per-head legacy priority weights survive block-entity save and load.",
+        "observation": "GameTest `omtteam.openmodularturrets.gametest.omtteam.openmodularturrets.gametest.CombatTargetingGameTests#turretPriorityPersistence` passes after asserting that five per-head legacy priority weights survive block-entity save and load.",
         "test_ids": [
           "turret_priority_persistence"
         ]
@@ -313,7 +313,7 @@
         "risk": "P0",
         "required": true,
         "statement": "Older turret-head data without priority fields migrates to its turret definition defaults.",
-        "observation": "GameTest `omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#turretPriorityPersistence` passes after asserting that older turret-head data without priority fields migrates to its turret definition defaults.",
+        "observation": "GameTest `omtteam.openmodularturrets.gametest.omtteam.openmodularturrets.gametest.CombatTargetingGameTests#turretPriorityPersistence` passes after asserting that older turret-head data without priority fields migrates to its turret definition defaults.",
         "test_ids": [
           "turret_priority_persistence"
         ]
@@ -374,7 +374,7 @@
         "required": true,
         "expected": "Every turret definition exposes a non-null default priority profile.",
         "timeout_seconds": 900,
-        "test_ref": "omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#targetPriorityRules"
+        "test_ref": "omtteam.openmodularturrets.gametest.omtteam.openmodularturrets.gametest.CombatTargetingGameTests#targetPriorityRules"
       },
       {
         "id": "target_protection_policy",
@@ -395,7 +395,7 @@
         "required": true,
         "expected": "Protection fixtures pass without client state.",
         "timeout_seconds": 900,
-        "test_ref": "omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#targetProtectionPolicy"
+        "test_ref": "omtteam.openmodularturrets.gametest.omtteam.openmodularturrets.gametest.CombatTargetingGameTests#targetProtectionPolicy"
       },
       {
         "id": "multi_target_coordination",
@@ -432,7 +432,7 @@
         "required": true,
         "expected": "Sibling-head focus-fire and exclusion vectors pass in their respective modes.",
         "timeout_seconds": 900,
-        "test_ref": "omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#multiTargetCoordination"
+        "test_ref": "omtteam.openmodularturrets.gametest.omtteam.openmodularturrets.gametest.CombatTargetingGameTests#multiTargetCoordination"
       },
       {
         "id": "targeting_menu_state",
@@ -450,7 +450,7 @@
         "required": true,
         "expected": "The menu exposes the bounded authoritative targeting values.",
         "timeout_seconds": 900,
-        "test_ref": "omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#targetingMenuState"
+        "test_ref": "omtteam.openmodularturrets.gametest.omtteam.openmodularturrets.gametest.ConfigDefinitionGameTests#targetingMenuState"
       },
       {
         "id": "targeting_network_authority",
@@ -485,7 +485,7 @@
         "required": true,
         "expected": "A schema-one Memory Card migrates to the current schema with multi-target disabled.",
         "timeout_seconds": 900,
-        "test_ref": "omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#targetingProfileMigration"
+        "test_ref": "omtteam.openmodularturrets.gametest.omtteam.openmodularturrets.gametest.CombatTargetingGameTests#targetingProfileMigration"
       },
       {
         "id": "targeting_profile_migration",
@@ -519,7 +519,7 @@
         "required": true,
         "expected": "Custom profiles round-trip and schema-one fixtures receive exact defaults.",
         "timeout_seconds": 900,
-        "test_ref": "omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#turretPriorityPersistence"
+        "test_ref": "omtteam.openmodularturrets.gametest.omtteam.openmodularturrets.gametest.CombatTargetingGameTests#turretPriorityPersistence"
       },
       {
         "id": "targeting_dedicated_server_boot",

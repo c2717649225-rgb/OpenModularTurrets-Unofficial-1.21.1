@@ -33,10 +33,10 @@ position, dimension, loaded BlockEntity and access level, and be within eight bl
 
 ## New executable evidence
 
-- `OpenModularTurretsGameTests#baseModePersistenceAndMigration`
+- `omtteam.openmodularturrets.gametest.BaseStateGameTests#baseModePersistenceAndMigration`
   verifies the complete truth table, cycle order, default, `setActive` compatibility,
   live redstone response, current save/load and legacy mode fallbacks.
-- `OpenModularTurretsGameTests#baseCommandAuthorityAndBounds`
+- `omtteam.openmodularturrets.gametest.SecurityTrustGameTests#baseCommandAuthorityAndBounds`
   verifies session binding, unknown commands, operand bounds, NONE/VIEW/USE/ADMIN
   permissions, range/target/multi mutations, mode mutation, distance rejection and
   both destructive commands.

@@ -35,7 +35,7 @@ change target flags and multi-targeting, while `VIEW`/`NONE` cannot.
 
 ## Executable evidence
 
-`OpenModularTurretsGameTests#targetProtectionPolicy` now verifies:
+`omtteam.openmodularturrets.gametest.CombatTargetingGameTests#targetProtectionPolicy` now verifies:
 
 - new-base and default-memory-card flags;
 - owner, owner-team, creative and spectator protection;
@@ -45,7 +45,7 @@ change target flags and multi-targeting, while `VIEW`/`NONE` cannot.
 - the loaded ArmorStand blacklist tag;
 - hostile category enable/disable behavior.
 
-`OpenModularTurretsGameTests#baseCommandAuthorityAndBounds` already provides the exact
+`omtteam.openmodularturrets.gametest.SecurityTrustGameTests#baseCommandAuthorityAndBounds` already provides the exact
 network authorization, invalid operand, forged session and distance evidence for
 target flags and multi-targeting.
 

@@ -25,11 +25,11 @@ server-side dispatch preserve the old gameplay contract.
 
 ## Executable evidence
 
-`OpenModularTurretsGameTests#launchSoundDispatchContract` drives a real machine-gun
+`omtteam.openmodularturrets.gametest.ConfigDefinitionGameTests#launchSoundDispatchContract` drives a real machine-gun
 turret through its firing loop and verifies exactly one server-side launch event at
 the fixture, `SoundSource.BLOCKS`, configured volume and pitch in `[0.5, 1.5)`.
 
-`OpenModularTurretsGameTests#bulletImpactSoundDispatchContract` drives a real bullet
+`omtteam.openmodularturrets.gametest.ConfigDefinitionGameTests#bulletImpactSoundDispatchContract` drives a real bullet
 collision and verifies exactly one server-side impact event near the fixture,
 `SoundSource.AMBIENT`, configured volume and pitch in `[0.5, 1.5)`. The listener is
 spatially filtered and always unregistered, so parallel GameTests cannot pollute the

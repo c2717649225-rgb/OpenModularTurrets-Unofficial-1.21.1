@@ -306,7 +306,7 @@
         "required": true,
         "expected": "Mode and effective active state match the legacy truth table after reload.",
         "timeout_seconds": 900,
-        "test_ref": "omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#baseModePersistenceAndMigration"
+        "test_ref": "omtteam.openmodularturrets.gametest.omtteam.openmodularturrets.gametest.BaseStateGameTests#baseModePersistenceAndMigration"
       },
       {
         "id": "base_command_authority",
@@ -324,7 +324,7 @@
         "required": true,
         "expected": "Only a valid current menu session can mutate the base.",
         "timeout_seconds": 900,
-        "test_ref": "omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#baseCommandAuthorityAndBounds"
+        "test_ref": "omtteam.openmodularturrets.gametest.omtteam.openmodularturrets.gametest.SecurityTrustGameTests#baseCommandAuthorityAndBounds"
       },
       {
         "id": "trust_command_authority",
@@ -342,7 +342,7 @@
         "required": true,
         "expected": "Trust mutations preserve legacy membership semantics without privilege escalation.",
         "timeout_seconds": 900,
-        "test_ref": "omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#trustScopeMembershipAndSecurityRevision"
+        "test_ref": "omtteam.openmodularturrets.gametest.omtteam.openmodularturrets.gametest.SecurityTrustGameTests#trustScopeMembershipAndSecurityRevision"
       },
       {
         "id": "trust_snapshot_session",
@@ -360,7 +360,7 @@
         "required": true,
         "expected": "Late or unrelated snapshots cannot overwrite the current trust page.",
         "timeout_seconds": 900,
-        "test_ref": "omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#clientTrustSnapshotReducerContract"
+        "test_ref": "omtteam.openmodularturrets.gametest.omtteam.openmodularturrets.gametest.SecurityTrustGameTests#clientTrustSnapshotReducerContract"
       },
       {
         "id": "trust_snapshot_bound",
@@ -423,7 +423,7 @@
           "--require-tests",
           "--run"
         ],
-        "test_ref": "omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#menuWideContainerDataRoundTrip",
+        "test_ref": "omtteam.openmodularturrets.gametest.omtteam.openmodularturrets.gametest.ConfigDefinitionGameTests#menuWideContainerDataRoundTrip",
         "covers": [
           "The open base menu round-trips every synchronized ContainerData field without truncating integers or long statistics."
         ],

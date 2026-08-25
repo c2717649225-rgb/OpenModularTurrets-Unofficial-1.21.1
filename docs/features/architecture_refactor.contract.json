@@ -194,7 +194,7 @@
           "--require-tests",
           "--run"
         ],
-        "test_ref": "omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#potatoTurretAcquiresVisibleHostileAndFires",
+        "test_ref": "omtteam.openmodularturrets.gametest.omtteam.openmodularturrets.gametest.CombatTargetingGameTests#potatoTurretAcquiresVisibleHostileAndFires",
         "covers": [
           "Existing gameplay behavior, registry IDs, payload schemas and client/server boundaries remain unchanged.",
           "Target selection and combat execution have explicit service boundaries that do not call back into Head."
@@ -213,7 +213,7 @@
           "--require-tests",
           "--run"
         ],
-        "test_ref": "omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#statePersistence",
+        "test_ref": "omtteam.openmodularturrets.gametest.omtteam.openmodularturrets.gametest.BaseStateGameTests#statePersistence",
         "covers": [
           "Base, Head and Projectile persistence keys remain readable and round-trip without loss."
         ],

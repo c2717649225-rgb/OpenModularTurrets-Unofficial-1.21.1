@@ -52,6 +52,6 @@
 - 不支持流体、箱子、床、门等非完整单方块模型。
 - 不恢复已经废弃的独立 OMLib 模型加载器。
 - Phase 7 implementation evidence: production camouflage state, persistence, network commands, menu synchronization, client renderer and UI are implemented in the corresponding `omtteam.openmodularturrets` classes.
-- GameTest traceability: `base_camouflage_persistence` -> `OpenModularTurretsGameTests#baseCamouflagePersistenceAndValidation`; `base_camouflage_authority` -> that test plus `#baseCamouflageLightContract`; `base_camouflage_render_contract` -> `#baseCamouflageLightContract`.
+- GameTest traceability: `base_camouflage_persistence` -> `omtteam.openmodularturrets.gametest.BaseStateGameTests#baseCamouflagePersistenceAndValidation`; `base_camouflage_authority` -> that test plus `#baseCamouflageLightContract`; `base_camouflage_render_contract` -> `#baseCamouflageLightContract`.
 - Verification: compile/static PASS; DataGen and asset reconciliation PASS (287 JSON files); L4 PASS with all 33 required tests.
 - Verification now also includes dedicated-server smoke PASS with zero ERROR lines. Remaining verification is the manual client visual matrix (stone, glass, tinted full blocks, light values 0/15).

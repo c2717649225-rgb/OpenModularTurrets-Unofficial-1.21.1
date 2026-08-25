@@ -270,7 +270,7 @@
           "--require-tests",
           "--run"
         ],
-        "test_ref": "omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#memoryCardSneakUseClearsOnlyProfile",
+        "test_ref": "omtteam.openmodularturrets.gametest.omtteam.openmodularturrets.gametest.SecurityTrustGameTests#memoryCardSneakUseClearsOnlyProfile",
         "covers": [
           "Clearing a populated card removes only memory_card_profile and preserves unrelated ItemStack components."
         ],
@@ -308,7 +308,7 @@
           "--require-tests",
           "--run"
         ],
-        "test_ref": "omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#survivalRecipeContract",
+        "test_ref": "omtteam.openmodularturrets.gametest.omtteam.openmodularturrets.gametest.ConfigDefinitionGameTests#survivalRecipeContract",
         "covers": [
           "The runtime recipe manager exposes all 61 intended recipes and none of the five declared creative-only recipe ids."
         ],
@@ -326,7 +326,7 @@
           "--require-tests",
           "--run"
         ],
-        "test_ref": "omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#soundRegistryContract",
+        "test_ref": "omtteam.openmodularturrets.gametest.omtteam.openmodularturrets.gametest.ConfigDefinitionGameTests#soundRegistryContract",
         "covers": [
           "Every declared legacy combat sound id is present in the runtime SoundEvent registry."
         ],
@@ -361,7 +361,7 @@
           "--require-tests",
           "--run"
         ],
-        "test_ref": "omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#launchSoundDispatchContract",
+        "test_ref": "omtteam.openmodularturrets.gametest.omtteam.openmodularturrets.gametest.ConfigDefinitionGameTests#launchSoundDispatchContract",
         "covers": [
           "One accepted projectile launch dispatches exactly one positional launch sound from the logical server."
         ],
@@ -379,7 +379,7 @@
           "--require-tests",
           "--run"
         ],
-        "test_ref": "omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#bulletImpactSoundDispatchContract",
+        "test_ref": "omtteam.openmodularturrets.gametest.omtteam.openmodularturrets.gametest.ConfigDefinitionGameTests#bulletImpactSoundDispatchContract",
         "covers": [
           "One direct bullet impact dispatches exactly one positional impact sound from the logical server."
         ],

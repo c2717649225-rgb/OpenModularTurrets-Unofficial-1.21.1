@@ -235,7 +235,7 @@
           "--require-tests",
           "--run"
         ],
-        "test_ref": "omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#baseCamouflagePersistenceAndValidation",
+        "test_ref": "omtteam.openmodularturrets.gametest.omtteam.openmodularturrets.gametest.BaseStateGameTests#baseCamouflagePersistenceAndValidation",
         "covers": [
           "Camouflage block state survives save/load, while data without camouflage fields defaults to no camouflage, light value 0 and opacity 15.",
           "Only the owner can set or clear camouflage, and air, block-entity blocks and partial blocks are rejected."
@@ -305,7 +305,7 @@
           "--require-tests",
           "--run"
         ],
-        "test_ref": "omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#baseCamouflageLightContract",
+        "test_ref": "omtteam.openmodularturrets.gametest.omtteam.openmodularturrets.gametest.BaseStateGameTests#baseCamouflageLightContract",
         "covers": [
           "Only a tier-five owner can set camouflage light value and opacity within 0 through 15."
         ],

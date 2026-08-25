@@ -69,12 +69,12 @@ D:\c128\phase25-evidence\architecture-optimization-20260807\
 | test_id | 实际执行器 | 当前对账状态 |
 | --- | --- | --- |
 | `architecture_optimization_contract_audit` | `tools/architecture_contract_test_audit.ps1` | `executor_present`；审计结果 `pass`，执行状态仍单独记录 |
-| `architecture_optimization_behavior_gametest` | `OpenModularTurretsGameTests#potatoTurretAcquiresVisibleHostileAndFires` | `executor_present`；待本批次 L4 |
-| `architecture_optimization_state_roundtrip` | `OpenModularTurretsGameTests#statePersistence` | `executor_present`；待本批次 L4 |
+| `architecture_optimization_behavior_gametest` | `omtteam.openmodularturrets.gametest.CombatTargetingGameTests#potatoTurretAcquiresVisibleHostileAndFires` | `executor_present`；待本批次 L4 |
+| `architecture_optimization_state_roundtrip` | `omtteam.openmodularturrets.gametest.BaseStateGameTests#statePersistence` | `executor_present`；待本批次 L4 |
 | `architecture_optimization_old_save_load` | `tools/architecture_refactor_pressure.ps1 -Mode old-save-check` | `executor_present`；本批次真实旧存档 `pass` |
 | `architecture_optimization_boundary_static` | `.agents/gates/static_gate.py` | `executor_present`；待代码阶段门禁 |
-| `architecture_optimization_attachment_behavior_gametest` | `OpenModularTurretsGameTests#turretAttachmentLimits` | `executor_present`；待本批次 L4 |
-| `architecture_optimization_capacity_behavior_gametest` | `OpenModularTurretsGameTests#everyBaseTierHonorsTurretCapacity` | `executor_present`；待本批次 L4 |
+| `architecture_optimization_attachment_behavior_gametest` | `omtteam.openmodularturrets.gametest.BaseStateGameTests#turretAttachmentLimits` | `executor_present`；待本批次 L4 |
+| `architecture_optimization_capacity_behavior_gametest` | `omtteam.openmodularturrets.gametest.ConfigDefinitionGameTests#everyBaseTierHonorsTurretCapacity` | `executor_present`；待本批次 L4 |
 | `architecture_optimization_pressure` | `tools/architecture_refactor_pressure.ps1` baseline/candidate/compare | `executor_present`；当前 baseline `pass`，candidate 尚未开始 |
 | `architecture_optimization_dedicated_server` | `.agents/gates/compile_and_repair.py --with-server` | `executor_present`；待本批次阶段门禁 |
 | `architecture_optimization_asset_contract` | DataGen/static/asset gates | `executor_present`；涉及资源变更时执行 |

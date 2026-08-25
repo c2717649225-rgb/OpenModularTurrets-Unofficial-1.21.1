@@ -307,7 +307,7 @@
           "--require-tests",
           "--run"
         ],
-        "test_ref": "omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#addonRuleVectors",
+        "test_ref": "omtteam.openmodularturrets.gametest.omtteam.openmodularturrets.gametest.AddonUpgradeGameTests#addonRuleVectors",
         "covers": [
           "The reactor prefers redstone blocks, enforces strict free-capacity boundaries, consumes one selected fuel item and bypasses external receive-rate limits.",
           "Damage Amp uses target current health, turret-specific coefficients and the snapshotted addon level.",
@@ -396,7 +396,7 @@
           "--require-tests",
           "--run"
         ],
-        "test_ref": "omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#addonSolarRules",
+        "test_ref": "omtteam.openmodularturrets.gametest.omtteam.openmodularturrets.gametest.AddonUpgradeGameTests#addonSolarRules",
         "covers": [
           "A Solar Panel adds exactly 10 FE during clear daytime with sky visibility and adds no FE after the sky is obstructed."
         ],
@@ -414,7 +414,7 @@
           "--require-tests",
           "--run"
         ],
-        "test_ref": "omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#addonEnergyRules",
+        "test_ref": "omtteam.openmodularturrets.gametest.omtteam.openmodularturrets.gametest.AddonUpgradeGameTests#addonEnergyRules",
         "covers": [
           "The reactor prefers redstone blocks, enforces strict free-capacity boundaries, consumes one selected fuel item and bypasses external receive-rate limits."
         ],
@@ -432,7 +432,7 @@
           "--require-tests",
           "--run"
         ],
-        "test_ref": "omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#addonRecyclerVolleyRules",
+        "test_ref": "omtteam.openmodularturrets.gametest.omtteam.openmodularturrets.gametest.AddonUpgradeGameTests#addonRecyclerVolleyRules",
         "covers": [
           "Recycler uses a bounded 10 percent whole-volley preservation rule without partial mutation."
         ],
@@ -450,7 +450,7 @@
           "--require-tests",
           "--run"
         ],
-        "test_ref": "omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#addonFakeDropsAttribution",
+        "test_ref": "omtteam.openmodularturrets.gametest.omtteam.openmodularturrets.gametest.AddonUpgradeGameTests#addonFakeDropsAttribution",
         "covers": [
           "Fake Drops level -1 has no causing player, while levels 0-3 use the legacy fixed-profile FakePlayer with matching Luck and Looting levels."
         ],
@@ -468,7 +468,7 @@
           "--require-tests",
           "--run"
         ],
-        "test_ref": "omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#addonLootAttribution",
+        "test_ref": "omtteam.openmodularturrets.gametest.omtteam.openmodularturrets.gametest.AddonUpgradeGameTests#addonLootAttribution",
         "covers": [
           "A nearby Loot Deleter snapshot suppresses guaranteed drops while a generic-damage control does not."
         ],
@@ -486,7 +486,7 @@
           "--require-tests",
           "--run"
         ],
-        "test_ref": "omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#addonConcealmentState",
+        "test_ref": "omtteam.openmodularturrets.gametest.omtteam.openmodularturrets.gametest.AddonUpgradeGameTests#addonConcealmentState",
         "covers": [
           "Concealer enters its state at 40 idle ticks and expands immediately when invalidated."
         ],

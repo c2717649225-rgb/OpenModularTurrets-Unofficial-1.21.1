@@ -220,7 +220,7 @@
           "--require-tests",
           "--run"
         ],
-        "test_ref": "omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#potatoTurretAcquiresVisibleHostileAndFires",
+        "test_ref": "omtteam.openmodularturrets.gametest.omtteam.openmodularturrets.gametest.CombatTargetingGameTests#potatoTurretAcquiresVisibleHostileAndFires",
         "covers": [
           "Existing gameplay behavior and target/combat orchestration remain unchanged."
         ],
@@ -238,7 +238,7 @@
           "--require-tests",
           "--run"
         ],
-        "test_ref": "omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#statePersistence",
+        "test_ref": "omtteam.openmodularturrets.gametest.omtteam.openmodularturrets.gametest.BaseStateGameTests#statePersistence",
         "covers": [
           "Base, Head and Projectile persistence keys remain readable and round-trip without loss."
         ],
@@ -293,7 +293,7 @@
           "--require-tests",
           "--run"
         ],
-        "test_ref": "omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#turretAttachmentLimits",
+        "test_ref": "omtteam.openmodularturrets.gametest.omtteam.openmodularturrets.gametest.BaseStateGameTests#turretAttachmentLimits",
         "covers": [
           "Attachment topology and placement behavior remain unchanged."
         ],
@@ -311,7 +311,7 @@
           "--require-tests",
           "--run"
         ],
-        "test_ref": "omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#everyBaseTierHonorsTurretCapacity",
+        "test_ref": "omtteam.openmodularturrets.gametest.omtteam.openmodularturrets.gametest.ConfigDefinitionGameTests#everyBaseTierHonorsTurretCapacity",
         "covers": [
           "Derived capacity behavior remains unchanged while cache ownership is reviewed."
         ],

@@ -367,7 +367,7 @@
           "--require-tests",
           "--run"
         ],
-        "test_ref": "omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#projectileStatePersistence",
+        "test_ref": "omtteam.openmodularturrets.gametest.omtteam.openmodularturrets.gametest.CombatTargetingGameTests#projectileStatePersistence",
         "covers": [
           "Projectile kind and bounded combat state survive an entity save/load round trip."
         ],
@@ -385,7 +385,7 @@
           "--require-tests",
           "--run"
         ],
-        "test_ref": "omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#projectileLifetime",
+        "test_ref": "omtteam.openmodularturrets.gametest.omtteam.openmodularturrets.gametest.CombatTargetingGameTests#projectileLifetime",
         "covers": [
           "Every projectile family has a bounded lifetime and cannot accumulate indefinitely.",
           "The grenade fuse resolves at age 39, plasma expires after age 30, and other projectiles expire after age 40."
@@ -404,7 +404,7 @@
           "--require-tests",
           "--run"
         ],
-        "test_ref": "omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#projectileCollisionPolicy",
+        "test_ref": "omtteam.openmodularturrets.gametest.omtteam.openmodularturrets.gametest.CombatTargetingGameTests#projectileCollisionPolicy",
         "covers": [
           "Turret heads, other OMT projectiles and protected living entities do not consume or detonate a projectile."
         ],
@@ -422,7 +422,7 @@
           "--require-tests",
           "--run"
         ],
-        "test_ref": "omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#projectileDamageTypes",
+        "test_ref": "omtteam.openmodularturrets.gametest.omtteam.openmodularturrets.gametest.CombatTargetingGameTests#projectileDamageTypes",
         "covers": [
           "Projectile and armor-piercing DamageTypes are present in the runtime damage-type registry."
         ],
@@ -440,7 +440,7 @@
           "--require-tests",
           "--run"
         ],
-        "test_ref": "omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#projectileCollisionIsServerAuthoritative",
+        "test_ref": "omtteam.openmodularturrets.gametest.omtteam.openmodularturrets.gametest.CombatTargetingGameTests#projectileCollisionIsServerAuthoritative",
         "covers": [
           "A direct projectile collision applies server-owned damage and discards the projectile after impact."
         ],

@@ -110,7 +110,7 @@
         "risk": "P1",
         "required": true,
         "statement": "Five base tiers, five power expanders, addon generators and all eleven turret definitions expose the declared 1.12.2 defaults.",
-        "observation": "GameTest `omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#legacyConfigDefaults` passes after asserting that five base tiers, five power expanders, addon generators and all eleven turret definitions expose the declared 1.12.2 defaults.",
+        "observation": "GameTest `omtteam.openmodularturrets.gametest.omtteam.openmodularturrets.gametest.ConfigDefinitionGameTests#legacyConfigDefaults` passes after asserting that five base tiers, five power expanders, addon generators and all eleven turret definitions expose the declared 1.12.2 defaults.",
         "test_ids": [
           "legacy_config_defaults_gametest"
         ]
@@ -120,7 +120,7 @@
         "risk": "P1",
         "required": true,
         "statement": "Accuracy, efficiency and recycler tuning remain independently configurable for all eleven turret definitions with legacy defaults 0.2, 0.08 and 0.10.",
-        "observation": "GameTest `omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#legacyConfigDefaults` passes after asserting that accuracy, efficiency and recycler tuning remain independently configurable for all eleven turret definitions with legacy defaults 0.2, 0.08 and 0.10.",
+        "observation": "GameTest `omtteam.openmodularturrets.gametest.omtteam.openmodularturrets.gametest.ConfigDefinitionGameTests#legacyConfigDefaults` passes after asserting that accuracy, efficiency and recycler tuning remain independently configurable for all eleven turret definitions with legacy defaults 0.2, 0.08 and 0.10.",
         "test_ids": [
           "legacy_config_defaults_gametest"
         ]
@@ -252,7 +252,7 @@
         "required": true,
         "expected": "Legacy base, expander, addon and turret defaults match the asserted values.",
         "timeout_seconds": 900,
-        "test_ref": "omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#legacyConfigDefaults"
+        "test_ref": "omtteam.openmodularturrets.gametest.omtteam.openmodularturrets.gametest.ConfigDefinitionGameTests#legacyConfigDefaults"
       },
       {
         "id": "runtime_config_consumers",

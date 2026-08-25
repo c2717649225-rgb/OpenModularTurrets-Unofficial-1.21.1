@@ -106,11 +106,11 @@ multi-target、access、trust scope、energy/max energy、kills、player kills �
   本地信任域。
 - 已恢复五级基地、配置、信任和库存扩展器 GUI 纹理；VIEW 只读、USE 可操作物品
   与目标配置、ADMIN/owner 执行管理操作。
-- `OpenModularTurretsGameTests#clientTrustSnapshotReducerContract`：
+- `omtteam.openmodularturrets.gametest.SecurityTrustGameTests#clientTrustSnapshotReducerContract`：
   快照会话、scope、revision 与非法枚举边界。
-- `OpenModularTurretsGameTests#menuWideContainerDataRoundTrip`：
+- `omtteam.openmodularturrets.gametest.ConfigDefinitionGameTests#menuWideContainerDataRoundTrip`：
   32/64 位 ContainerData 拆装。
-- `OpenModularTurretsGameTests#trustScopeMembershipAndSecurityRevision`：
+- `omtteam.openmodularturrets.gametest.SecurityTrustGameTests#trustScopeMembershipAndSecurityRevision`：
   NONE 成员语义、本地/全局互斥、no-op/REMOVE 与 revision。
 - L1/L2/L2.5/DataGen、L3 dedicated server 与 L4 31/31 GameTests 已通过；
   合同进入 `verifying`。五级基地在 GUI scale 1/2/3 下的人工截图矩阵保留到发布审计。

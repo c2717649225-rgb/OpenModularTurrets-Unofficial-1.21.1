@@ -306,7 +306,7 @@
         "risk": "P1",
         "required": true,
         "statement": "Target acquisition work is staggered and bounded for 100 loaded turret heads.",
-        "observation": "GameTest `omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#targetingBudget` passes after asserting that target acquisition work is staggered and bounded for 100 loaded turret heads.",
+        "observation": "GameTest `omtteam.openmodularturrets.gametest.omtteam.openmodularturrets.gametest.CombatTargetingGameTests#targetingBudget` passes after asserting that target acquisition work is staggered and bounded for 100 loaded turret heads.",
         "test_ids": [
           "targeting_budget_gametest"
         ]
@@ -416,7 +416,7 @@
         "required": true,
         "expected": "The 100-head fixture schedules no more than 20 scans on one tick.",
         "timeout_seconds": 900,
-        "test_ref": "omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#targetingBudget"
+        "test_ref": "omtteam.openmodularturrets.gametest.omtteam.openmodularturrets.gametest.CombatTargetingGameTests#targetingBudget"
       }
     ],
     "manual_checks": [

@@ -38,12 +38,12 @@
 
 ## 4. 自动化验收映射
 
-- `OpenModularTurretsGameTests#baseCamouflagePersistenceAndValidation`
+- `omtteam.openmodularturrets.gametest.BaseStateGameTests#baseCamouflagePersistenceAndValidation`
   - 合法/非法复制状态
   - 所有者权限
   - 清除语义
   - schema 4 存盘恢复
-- `OpenModularTurretsGameTests#baseCamouflageLightContract`
+- `omtteam.openmodularturrets.gametest.BaseStateGameTests#baseCamouflageLightContract`
   - 0–15 边界
   - 发光 BlockState 同步
   - 遮光值与 tier 4/5 管理规则
