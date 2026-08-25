@@ -36,18 +36,7 @@ public final class BaseAddonEngine {
         return 0;
     }
 
-    public int runSolarCycle(AddonContext ctx) {
-        if (!ctx.hasAddon(ModItems.ADDON_SOLAR_PANEL.value())) {
-            return 0;
-        }
-        if (ctx.canSeeSky(ctx.worldPosition().above())) {
-            return ctx.generateEnergy(TurretAddonRules.solarGeneration());
-        }
-        return 0;
-    }
-
-    public int computeRenderMask(AddonContext ctx) {
-        boolean damageAmp = ctx.hasAddon(ModItems.ADDON_DAMAGE_AMP.value());
+    public int computeRenderMask(AddonContext ctx) {        boolean damageAmp = ctx.hasAddon(ModItems.ADDON_DAMAGE_AMP.value());
         boolean solar = ctx.hasAddon(ModItems.ADDON_SOLAR_PANEL.value());
         boolean reactor = ctx.hasAddon(ModItems.ADDON_REDSTONE_REACTOR.value());
         return TurretVisualRules.addonMask(damageAmp, solar, reactor);

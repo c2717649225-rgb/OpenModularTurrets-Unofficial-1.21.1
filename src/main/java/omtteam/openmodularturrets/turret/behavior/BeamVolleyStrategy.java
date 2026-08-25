@@ -98,7 +98,6 @@ public final class BeamVolleyStrategy implements VolleyStrategy {
         }
         if (hitEntity != null) {
             endpoint = entityHitPoint;
-            boolean aliveBefore = hitEntity.isAlive();
             var holder = level.registryAccess()
                     .registryOrThrow(Registries.DAMAGE_TYPE)
                     .getHolderOrThrow(damageTypeKey);
@@ -110,9 +109,6 @@ public final class BeamVolleyStrategy implements VolleyStrategy {
             hitEntity.hurt(TurretDamageSource.create(level, holder, null,
                     combatContext.attackContext()), damage);
             hitEntity.invulnerableTime = 0;
-            if (aliveBefore && !hitEntity.isAlive()) {
-                combatContext.recordKill(hitEntity);
-            }
             SoundEvent impact = ModSounds.rayImpactFor(definition);
             if (impact != null) {
                 level.playSound(null, hitEntity.blockPosition(), impact,

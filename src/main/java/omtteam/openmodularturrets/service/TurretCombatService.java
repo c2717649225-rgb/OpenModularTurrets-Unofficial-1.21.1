@@ -29,6 +29,12 @@ public final class TurretCombatService {
             definition.volleyStrategy().execute(level, headPos, target,
                     definition, resources.ammo(), combatContext);
         }
+        // Single kill-accounting point for synchronous volleys: strategies must
+        // not record kills themselves.  Projectile kills stay asynchronous in
+        // TurretProjectileEntity because death happens after this method returns.
+        if (aliveBefore && !target.isAlive()) {
+            combatContext.recordKill(target);
+        }
         return new CombatResult(aliveBefore, target.isAlive(), executions);
     }
 

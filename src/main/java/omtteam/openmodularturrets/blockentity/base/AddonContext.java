@@ -1,6 +1,5 @@
 package omtteam.openmodularturrets.blockentity.base;
 
-import net.minecraft.core.BlockPos;
 import net.minecraft.world.item.Item;
 
 /**
@@ -19,8 +18,4 @@ public interface AddonContext {
     int maxEnergyCapacity();
 
     int storedEnergy();
-
-    boolean canSeeSky(BlockPos pos);
-
-    BlockPos worldPosition();
 }

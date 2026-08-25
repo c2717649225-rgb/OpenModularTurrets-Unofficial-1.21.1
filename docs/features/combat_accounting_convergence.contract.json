@@ -1,0 +1,258 @@
+{
+  "$schema": "../../.agents/contracts/major-feature-v2.schema.json",
+  "schema_version": 2,
+  "design_source": {
+    "path": "docs/porting/code-quality-remediation-plan.md",
+    "revision": "executing-2026-08-25",
+    "sha256": "a855364ef9023c74f7e66cddac006262c7e73c7d885400182d5ebe3a6530b098"
+  },
+  "review_required": [],
+  "id": "openmodularturrets.combat-accounting-convergence",
+  "version": 1,
+  "status": "verifying",
+  "summary": "Converge synchronous volley kill accounting into TurretCombatService, migrate TurretDefinition construction to a named builder without value drift, delete the dead solar cycle path, and drive special launch sounds from definition metadata, with zero gameplay, persistence or network changes.",
+  "server_authority": {
+    "owner": "logical_server",
+    "authoritative_state": [
+      "Kill and player-kill counters remain owned by TurretBaseBlockEntity and are mutated only through recordKill.",
+      "A single synchronous volley that kills its target increments the kill counter exactly once, regardless of shot executions.",
+      "Asynchronous projectile kills remain recorded by TurretProjectileEntity through its source base.",
+      "TurretDefinition default values are immutable constants; config getters keep delegating to ModServerConfig."
+    ],
+    "client_input_policy": "intent_only",
+    "invalid_input_policy": "reject_and_log"
+  },
+  "persistence": {
+    "required": true,
+    "scope": "block_entity",
+    "schema": {
+      "version": 5,
+      "format": "value_io",
+      "owner": "TurretBaseBlockEntity, TurretHeadBlockEntity and TurretProjectileEntity",
+      "fields": [
+        "Base save/load keys remain unchanged (kills, player_kills, shots_fired included).",
+        "No persistence schema field is added, removed or re-typed by this feature."
+      ]
+    },
+    "migration": {
+      "strategy": "custom",
+      "supported_from": [1, 2, 3, 4, 5],
+      "fallback": "reject_incompatible",
+      "test_ids": ["accounting_state_roundtrip"]
+    }
+  },
+  "network": {
+    "required": true,
+    "flows": [
+      {
+        "id": "existing_aim_visual_unchanged",
+        "direction": "s2c",
+        "purpose": "Preserve existing per-shot turret aim visual updates; this feature introduces no new payloads and no schema changes.",
+        "validation": [
+          "Payload type and field order stay unchanged.",
+          "Only bounded presentation state is sent to clients."
+        ],
+        "rate_limit": {
+          "strategy": "coalesced",
+          "max_per_second": 20,
+          "burst": 20,
+          "key": "dimension"
+        },
+        "max_payload_bytes": 128,
+        "test_ids": ["accounting_behavior_regressions"]
+      }
+    ]
+  },
+  "client_boundary": {
+    "common_code_client_imports": "forbidden",
+    "client_only_packages": [
+      "omtteam.openmodularturrets.client"
+    ],
+    "visual_state": "synced_server_state",
+    "dedicated_server_fallback": "All touched classes are common/server only; combat accounting executes on the server thread and never loads client-only classes.",
+    "dedicated_server_test_id": "accounting_dedicated_server"
+  },
+  "registries": {
+    "entries": [],
+    "tags": []
+  },
+  "assets": {
+    "generated": [],
+    "manual": [],
+    "locales": ["en_us"],
+    "license_review": "not_applicable",
+    "validation_test_ids": ["accounting_static_clean"]
+  },
+  "performance": {
+    "budgets": [
+      {
+        "id": "accounting_pressure_non_regression",
+        "metric": "server_tick_time",
+        "scope": "Existing ArchitecturePressureGameTests fixture (100 bases / heads / targets) executed by the standard L4 gate",
+        "limit": 10,
+        "unit": "ms_per_tick",
+        "measurement": "The pre-existing pressure fixture records per-tick server timings after warmup; the candidate run must stay within the fixture's own asserted bound, proving the accounting convergence added no measurable hot-path cost.",
+        "test_id": "accounting_pressure_fixture"
+      }
+    ],
+    "hot_paths": [
+      "TurretCombatService volley dispatch and kill accounting",
+      "BeamVolleyStrategy hit resolution"
+    ],
+    "measurement_environment": "Behavioral equivalence asserted by GameTests; pressure non-regression covered by the existing fixture inside the normal L4 run."
+  },
+  "dependencies": {
+    "features": [
+      "openmodularturrets.architecture-refactor"
+    ],
+    "mods": [
+      {
+        "id": "neoforge",
+        "requirement": "required",
+        "version_range": "[21.1,21.2)",
+        "fallback": "The mod refuses to load outside the pinned NeoForge 21.1 line."
+      }
+    ]
+  },
+  "acceptance": {
+    "criteria": [
+      {
+        "id": "accounting.single_dispatch_point",
+        "risk": "P0",
+        "required": true,
+        "statement": "Synchronous volley kills are recorded in exactly one place: TurretCombatService after the execution loop. BeamVolleyStrategy no longer records kills and TurretHeadBlockEntity no longer branches on ShotKind for accounting.",
+        "observation": "New combat kill accounting GameTest passes; existing combat regression tests stay green.",
+        "test_ids": ["accounting_kill_recorded_once", "accounting_behavior_regressions"]
+      },
+      {
+        "id": "accounting.projectile_path_preserved",
+        "risk": "P0",
+        "required": true,
+        "statement": "Asynchronous projectile kills still increment base kill counters exactly once via TurretProjectileEntity.",
+        "observation": "Existing projectile combat GameTests pass unchanged.",
+        "test_ids": ["accounting_behavior_regressions"]
+      },
+      {
+        "id": "definitions.golden_default_values",
+        "risk": "P0",
+        "required": true,
+        "statement": "After builder migration every TurretDefinition exposes byte-identical default gameplay values for all eleven turret types.",
+        "observation": "Golden defaults GameTest compares all definitions against an explicit expected-value table.",
+        "test_ids": ["definitions_golden_defaults"]
+      },
+      {
+        "id": "combat.dead_code_and_metadata_sound",
+        "risk": "P2",
+        "required": true,
+        "statement": "BaseAddonEngine.runSolarCycle is removed; RELATIVISTIC and TELEPORTER launch sound volume/pitch come from definition metadata instead of enum identity checks in TurretHeadBlockEntity.",
+        "observation": "Static gate finds no runSolarCycle references; special sound metadata GameTest asserts fixed launch sound parameters for both turret types.",
+        "test_ids": ["special_launch_sound_metadata", "accounting_static_clean"]
+      },
+      {
+        "id": "combat.persistence_unchanged",
+        "risk": "P0",
+        "required": true,
+        "statement": "Persistence keys and versions remain unchanged and round-trip without loss.",
+        "observation": "Existing state persistence GameTests pass.",
+        "test_ids": ["accounting_state_roundtrip"]
+      }
+    ],
+    "tests": [
+      {
+        "id": "accounting_kill_recorded_once",
+        "kind": "gametest",
+        "command": ["python", ".agents/run.py", ".agents/gates/gametest_gate.py", "--require-tests", "--run"],
+        "test_ref": "omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#combatKillAccountingContract",
+        "covers": ["Synchronous volley kills are recorded in exactly one place: TurretCombatService after the execution loop."],
+        "required": true,
+        "expected": "Laser turret volley that kills its target records exactly one kill on the owning base.",
+        "timeout_seconds": 1800
+      },
+      {
+        "id": "definitions_golden_defaults",
+        "kind": "gametest",
+        "command": ["python", ".agents/run.py", ".agents/gates/gametest_gate.py", "--require-tests", "--run"],
+        "test_ref": "omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#turretDefinitionGoldenDefaultsContract",
+        "covers": ["After builder migration every TurretDefinition exposes byte-identical default gameplay values."],
+        "required": true,
+        "expected": "All eleven definitions match the explicit expected table.",
+        "timeout_seconds": 1800
+      },
+      {
+        "id": "special_launch_sound_metadata",
+        "kind": "gametest",
+        "command": ["python", ".agents/run.py", ".agents/gates/gametest_gate.py", "--require-tests", "--run"],
+        "test_ref": "omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#specialLaunchSoundMetadataContract",
+        "covers": ["RELATIVISTIC and TELEPORTER launch sound volume/pitch come from definition metadata."],
+        "required": true,
+        "expected": "Both turret types expose fixed launch sound metadata; all others expose none.",
+        "timeout_seconds": 1800
+      },
+      {
+        "id": "accounting_behavior_regressions",
+        "kind": "gametest",
+        "command": ["python", ".agents/run.py", ".agents/gates/gametest_gate.py", "--require-tests", "--run"],
+        "test_ref": "omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#potatoTurretAcquiresVisibleHostileAndFires",
+        "covers": ["Asynchronous projectile kills still increment base kill counters exactly once.", "Existing gameplay, payload schemas and boundaries remain unchanged."],
+        "required": true,
+        "expected": "All discovered GameTests pass.",
+        "timeout_seconds": 1800
+      },
+      {
+        "id": "accounting_state_roundtrip",
+        "kind": "migration",
+        "command": ["python", ".agents/run.py", ".agents/gates/gametest_gate.py", "--require-tests", "--run"],
+        "test_ref": "omtteam.openmodularturrets.gametest.OpenModularTurretsGameTests#statePersistence",
+        "covers": ["Persistence keys and versions remain unchanged and round-trip without loss."],
+        "required": true,
+        "expected": "Save/load round-trip keeps energy, range, owner and counters.",
+        "timeout_seconds": 1800
+      },
+      {
+        "id": "accounting_pressure_fixture",
+        "kind": "performance",
+        "command": ["python", ".agents/run.py", ".agents/gates/gametest_gate.py", "--require-tests", "--run"],
+        "test_ref": "omtteam.openmodularturrets.gametest.ArchitecturePressureGameTests#architecturePressureFixture",
+        "covers": ["Accounting convergence adds no measurable hot-path cost."],
+        "required": true,
+        "expected": "Pressure fixture passes its internal tick-time assertion.",
+        "timeout_seconds": 3600
+      },
+      {
+        "id": "accounting_static_clean",
+        "kind": "static",
+        "command": ["python", ".agents/run.py", ".agents/gates/static_gate.py"],
+        "covers": ["BaseAddonEngine.runSolarCycle is removed.", "L2 static gate passes with zero errors."],
+        "required": true,
+        "expected": "Zero references to runSolarCycle in host sources; L2 static gate PASS.",
+        "timeout_seconds": 600
+      },
+      {
+        "id": "accounting_dedicated_server",
+        "kind": "dedicated_server",
+        "command": ["python", ".agents/run.py", ".agents/gates/compile_and_repair.py", "--with-server"],
+        "covers": ["Combat accounting runs on a dedicated server without loading client-only classes."],
+        "required": false,
+        "expected": "Dedicated server smoke starts and shuts down cleanly.",
+        "timeout_seconds": 3600
+      }
+    ],
+    "manual_checks": [
+      {
+        "id": "accounting_manual_shotkind_boundary_review",
+        "steps": [
+          "Open TurretDefinition.ShotKind and confirm the Javadoc documents it as the presentation-layer taxonomy (rendering/sound) while VolleyStrategy remains the behavioral taxonomy.",
+          "Confirm no code path outside TurretCombatService, TurretProjectileEntity and TurretBaseBlockEntity.recordKill mutates kill counters."
+        ],
+        "expected": "ShotKind boundary comment present; kill counter write surface limited to the three documented owners."
+      }
+    ],
+    "non_goals": [
+      "No gameplay balance changes: damage, range, energy costs and fire intervals keep their exact current values.",
+      "No persistence schema changes: save keys and data versions stay as shipped.",
+      "No network payload changes: protocol version and payload schemas stay untouched.",
+      "No registry identity changes: blocks, items, entities and sound events keep their IDs.",
+      "No merging of ShotKind into VolleyStrategy: this batch only documents the boundary."
+    ]
+  }
+}

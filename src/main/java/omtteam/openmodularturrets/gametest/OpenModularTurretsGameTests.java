@@ -2338,4 +2338,116 @@ public final class OpenModularTurretsGameTests {
                 "Laser turret should be enabled by default in server config");
         helper.succeed();
     }
+
+    @GameTest(template = "smoke", timeoutTicks = 60)
+    public static void combatKillAccountingContract(GameTestHelper helper) {
+        BlockPos basePos = new BlockPos(4, 1, 5);
+        BlockPos headPos = basePos.east();
+        helper.setBlock(basePos, ModBlocks.TURRET_BASE_TIER_FIVE.value());
+        helper.setBlock(headPos, ModBlocks.LASER_TURRET.value());
+
+        TurretBaseBlockEntity base = helper.getBlockEntity(basePos);
+        base.setActive(true);
+        base.setRange(TurretDefinition.LASER.baseRange());
+        base.setTargetFlags(true, false, false);
+        while (base.energy().getEnergyStored() < TurretDefinition.LASER.energyCost()) {
+            base.energy().receiveEnergy(1_000, false);
+        }
+
+        var target = helper.spawn(EntityType.ZOMBIE, new Vec3(8.5D, 1.0D, 5.5D));
+        target.setNoAi(true);
+        target.setNoGravity(true);
+        target.setHealth(1.0F);
+
+        helper.runAfterDelay(20L, () -> {
+            helper.assertTrue(!target.isAlive(),
+                    "A funded laser volley did not kill the weakened hostile");
+            helper.assertTrue(base.kills() == 1,
+                    "Synchronous volley kill was not recorded exactly once: " + base.kills());
+            helper.assertTrue(base.playerKills() == 0,
+                    "A hostile kill must not count as a player kill");
+            helper.succeed();
+        });
+    }
+
+    @GameTest(template = "smoke", timeoutTicks = 20)
+    public static void turretDefinitionGoldenDefaultsContract(GameTestHelper helper) {
+        assertGoldenDefaults(helper, TurretDefinition.DISPOSABLE, true,
+                1, 10, 25, 2.0F, 2, 50.0D, 4, 0.1D, 2, 0.05F, 0.2D, 0.08D, 0.10D);
+        assertGoldenDefaults(helper, TurretDefinition.POTATO, true,
+                1, 15, 35, 3.0F, 10, 30.0D, 4, 0.1D, 2, 0.05F, 0.2D, 0.08D, 0.10D);
+        assertGoldenDefaults(helper, TurretDefinition.MACHINE_GUN, true,
+                2, 18, 8, 2.0F, 100, 30.0D, 4, 0.1D, 2, 0.06F, 0.2D, 0.08D, 0.10D);
+        assertGoldenDefaults(helper, TurretDefinition.INCENDIARY, true,
+                2, 12, 25, 2.0F, 250, 30.0D, 4, 0.1D, 2, 0.05F, 0.2D, 0.08D, 0.10D);
+        assertGoldenDefaults(helper, TurretDefinition.GRENADE, true,
+                3, 18, 40, 8.0F, 3_000, 30.0D, 3, 0.1D, 2, 0.08F, 0.2D, 0.08D, 0.10D);
+        assertGoldenDefaults(helper, TurretDefinition.RELATIVISTIC, false,
+                3, 20, 25, 0.0F, 5_000, 0.0D, 4, 0.1D, 2, 0.0F, 0.2D, 0.08D, 0.10D);
+        assertGoldenDefaults(helper, TurretDefinition.ROCKET, true,
+                4, 30, 30, 10.0F, 5_000, 10.0D, 3, 0.1D, 2, 0.08F, 0.2D, 0.08D, 0.10D);
+        assertGoldenDefaults(helper, TurretDefinition.TELEPORTER, false,
+                4, 20, 100, 0.0F, 15_000, 0.0D, 1, 0.1D, 2, 0.0F, 0.2D, 0.08D, 0.10D);
+        assertGoldenDefaults(helper, TurretDefinition.LASER, false,
+                5, 25, 10, 4.0F, 8_000, 10.0D, 4, 0.125D, 2, 0.06F, 0.2D, 0.08D, 0.10D);
+        assertGoldenDefaults(helper, TurretDefinition.RAIL_GUN, true,
+                5, 30, 100, 25.0F, 25_000, 3.0D, 2, 0.2D, 2, 0.10F, 0.2D, 0.08D, 0.10D);
+        assertGoldenDefaults(helper, TurretDefinition.PLASMA, false,
+                5, 20, 60, 20.0F, 40_000, 8.0D, 1, 0.2D, 1, 0.10F, 0.2D, 0.08D, 0.10D);
+
+        for (TurretDefinition definition : TurretDefinition.values()) {
+            helper.assertTrue(definition.volleyStrategy() != null,
+                    definition.id() + " lost its volley strategy binding");
+            helper.assertTrue(definition.shotKind() != null,
+                    definition.id() + " lost its shot kind");
+        }
+        helper.succeed();
+    }
+
+    private static void assertGoldenDefaults(GameTestHelper helper, TurretDefinition definition,
+            boolean hasAmmoTag, int requiredBaseTier, int baseRange, int fireInterval,
+            float damage, int energyCost, double baseAccuracyDeviation, int maxSimultaneous,
+            double fireRateUpgrade, int rangeUpgrade, float damageAmpFraction,
+            double accuracyUpgrade, double efficiencyUpgrade, double recyclerNegateChance) {
+        String id = definition.id();
+        helper.assertTrue((definition.ammoTag() != null) == hasAmmoTag,
+                id + " ammunition tag presence drifted");
+        helper.assertTrue(definition.requiredBaseTier() == requiredBaseTier, id + " tier drifted");
+        helper.assertTrue(definition.defaultBaseRange() == baseRange, id + " base range drifted");
+        helper.assertTrue(definition.defaultFireInterval() == fireInterval, id + " fire interval drifted");
+        helper.assertTrue(definition.defaultDamage() == damage, id + " damage drifted");
+        helper.assertTrue(definition.defaultEnergyCost() == energyCost, id + " energy cost drifted");
+        helper.assertTrue(definition.defaultBaseAccuracyDeviation() == baseAccuracyDeviation,
+                id + " accuracy deviation drifted");
+        helper.assertTrue(definition.defaultMaxSimultaneous() == maxSimultaneous,
+                id + " simultaneous limit drifted");
+        helper.assertTrue(definition.defaultFireRateUpgrade() == fireRateUpgrade,
+                id + " fire rate upgrade drifted");
+        helper.assertTrue(definition.defaultRangeUpgrade() == rangeUpgrade,
+                id + " range upgrade drifted");
+        helper.assertTrue(definition.defaultDamageAmpFraction() == damageAmpFraction,
+                id + " damage amp fraction drifted");
+        helper.assertTrue(definition.defaultAccuracyUpgrade() == accuracyUpgrade,
+                id + " accuracy upgrade drifted");
+        helper.assertTrue(definition.defaultEfficiencyUpgrade() == efficiencyUpgrade,
+                id + " efficiency upgrade drifted");
+        helper.assertTrue(definition.defaultRecyclerNegateChance() == recyclerNegateChance,
+                id + " recycler chance drifted");
+    }
+
+    @GameTest(template = "smoke", timeoutTicks = 20)
+    public static void specialLaunchSoundMetadataContract(GameTestHelper helper) {
+        for (TurretDefinition definition : TurretDefinition.values()) {
+            boolean expectsFixedSound = definition == TurretDefinition.RELATIVISTIC
+                    || definition == TurretDefinition.TELEPORTER;
+            TurretDefinition.LaunchSound launchSound = definition.launchSound();
+            helper.assertTrue((launchSound != null) == expectsFixedSound,
+                    definition.id() + " fixed launch sound presence drifted");
+            if (expectsFixedSound) {
+                helper.assertTrue(launchSound.volume() == 0.6F && launchSound.pitch() == 1.0F,
+                        definition.id() + " fixed launch sound parameters drifted");
+            }
+        }
+        helper.succeed();
+    }
 }

@@ -172,6 +172,8 @@ public final class TurretBaseBlockEntity extends BlockEntity
 
     public static void serverTick(Level level, BlockPos pos, BlockState state, TurretBaseBlockEntity base) {
         base.refreshRedstoneSignal();
+        // Legacy 1.12 solar rules: daylight, clear weather, open sky two blocks
+        // above the base, and an air gap three blocks above it.
         if (base.hasAddon(ModItems.ADDON_SOLAR_PANEL.value())
                 && level.isDay() && !level.isRaining()
                 && level.canSeeSky(pos.above(2))
@@ -677,11 +679,6 @@ public final class TurretBaseBlockEntity extends BlockEntity
     @Override
     public int storedEnergy() {
         return energy.getEnergyStored();
-    }
-
-    @Override
-    public boolean canSeeSky(BlockPos pos) {
-        return level != null && level.canSeeSky(pos);
     }
 
     public MemoryCardProfile createProfile() {

@@ -107,19 +107,16 @@ public final class TurretHeadBlockEntity extends BlockEntity {
                         SoundSource.BLOCKS, ModServerConfig.turretSoundVolume(),
                         0.5F + serverLevel.random.nextFloat());
             }
-            boolean fixedSpecialSound = definition == TurretDefinition.RELATIVISTIC
-                    || definition == TurretDefinition.TELEPORTER;
+            TurretDefinition.LaunchSound fixedLaunch = definition.launchSound();
             serverLevel.playSound(null, pos, ModSounds.launchFor(definition),
                     SoundSource.BLOCKS,
-                    fixedSpecialSound ? 0.6F : ModServerConfig.turretSoundVolume(),
-                    fixedSpecialSound ? 1.0F : 0.5F + serverLevel.random.nextFloat());
+                    fixedLaunch != null ? fixedLaunch.volume()
+                            : ModServerConfig.turretSoundVolume(),
+                    fixedLaunch != null ? fixedLaunch.pitch()
+                            : 0.5F + serverLevel.random.nextFloat());
             PacketDistributor.sendToPlayersTrackingChunk(serverLevel, new ChunkPos(pos),
                     new TurretAimPayload(pos, turret.aimYaw, turret.aimPitch,
                             target.getId()));
-            if (definition.shotKind() != TurretDefinition.ShotKind.BEAM
-                    && combat.targetAliveBefore() && !combat.targetAliveAfter()) {
-                base.recordKill(target);
-            }
             turret.cooldown = base.adjustedFireInterval(definition);
             // Aim is sent through the lightweight payload above.  The full
             // BlockEntity update remains reserved for durable target changes.
