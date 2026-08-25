@@ -83,7 +83,7 @@ public final class TrustService {
     public static TrustSnapshotPayload snapshot(ServerPlayer player, TurretBaseMenu menu,
             TrustScope scope) {
         TurretBaseBlockEntity base = menu.base();
-        UUID owner = base.owner().orElse(new UUID(0L, 0L));
+        UUID owner = base.owner().orElse(ClientTrustSnapshot.NULL_SESSION_OWNER);
         List<TrustSnapshotPayload.Entry> entries;
         if (scope == TrustScope.LOCAL) {
             entries = base.localTrustSnapshot().values().stream()

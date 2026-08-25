@@ -255,7 +255,10 @@ public final class OmtTooltips {
     private static double[] minMaxFraction(
             ToDoubleFunction<TurretDefinition> extractor) {
         double min = Double.MAX_VALUE;
-        double max = Double.MIN_VALUE;
+        // Double.MIN_VALUE is the smallest positive value, not negative
+        // infinity; seed with NEGATIVE_INFINITY so an all-zero field group
+        // still reports a correct maximum.
+        double max = Double.NEGATIVE_INFINITY;
         for (TurretDefinition definition : TurretDefinition.values()) {
             double value = extractor.applyAsDouble(definition);
             min = Math.min(min, value);

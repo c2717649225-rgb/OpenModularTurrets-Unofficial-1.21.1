@@ -174,6 +174,9 @@ public class BaseAttachmentBlock extends Block {
     @Override
     public float getExplosionResistance(BlockState state, BlockGetter level, BlockPos pos,
             Explosion explosion) {
+        // Deliberately a fixed legacy value, unlike the tier-configurable base:
+        // 1.12 attachments always used plain block blast resistance here and
+        // only the breakable toggle is exposed through config.
         return 3.0F;
     }
 }

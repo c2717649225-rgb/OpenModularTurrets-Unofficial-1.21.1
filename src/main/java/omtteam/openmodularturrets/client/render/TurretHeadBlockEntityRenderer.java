@@ -85,10 +85,13 @@ public final class TurretHeadBlockEntityRenderer
         model.setAim(yawRadians, pitchRadians);
         float animation = ((turret.getLevel() == null ? 0L
                 : turret.getLevel().getGameTime()) + partialTick) * 0.03F;
-        if (definition == TurretDefinition.RELATIVISTIC) {
-            model.setRelativisticAnimation(animation);
-        } else if (definition == TurretDefinition.TELEPORTER) {
-            model.setTeleporterAnimation(animation);
+        // Presentation-layer selection keyed on the documented presentation
+        // taxonomy; ShotKind.RELATIVISTIC/TELEPORT map one-to-one onto the two
+        // special turret definitions.
+        switch (definition.shotKind()) {
+            case RELATIVISTIC -> model.setRelativisticAnimation(animation);
+            case TELEPORT -> model.setTeleporterAnimation(animation);
+            default -> { }
         }
         VertexConsumer consumer = bufferSource.getBuffer(
                 RenderType.entityCutoutNoCull(TEXTURES.get(definition)));
