@@ -69,7 +69,7 @@ import net.neoforged.neoforge.energy.IEnergyStorage;
 import net.neoforged.neoforge.items.IItemHandler;
 import net.neoforged.neoforge.items.ItemStackHandler;
 import net.neoforged.neoforge.items.wrapper.RangedWrapper;
-
+import net.minecraft.tags.TagKey;
 /**
  * Modernized, server-authoritative Turret Base BlockEntity.
  * Functions as a lean orchestrator delegating domain concerns to dedicated sub-components.
@@ -574,7 +574,7 @@ public final class TurretBaseBlockEntity extends BlockEntity
     public Optional<VolleyResources> consumeResourcesForVolley(TurretDefinition definition, double recyclerRoll) {
         int shotCount = projectileCount();
         int actualEnergyCost = effectiveEnergyCost(definition);
-        net.minecraft.tags.TagKey<Item> ammo = definition.ammoTag();
+        TagKey<Item> ammo = definition.ammoTag();
         if (energy.stored < actualEnergyCost
                 || (ModServerConfig.requireAmmo() && ammo != null && countAvailableAmmo(ammo) < shotCount)) {
             return Optional.empty();
@@ -595,7 +595,7 @@ public final class TurretBaseBlockEntity extends BlockEntity
         return Optional.of(new VolleyResources(consumedAmmo, shotCount));
     }
 
-    private ItemStack findRepresentativeAmmo(net.minecraft.tags.TagKey<Item> ammo) {
+    private ItemStack findRepresentativeAmmo(TagKey<Item> ammo) {
         for (IItemHandler handler : ammoInventories()) {
             for (int slot = 0; slot < handler.getSlots(); slot++) {
                 ItemStack stack = handler.getStackInSlot(slot);
@@ -607,7 +607,7 @@ public final class TurretBaseBlockEntity extends BlockEntity
         return ItemStack.EMPTY;
     }
 
-    private int countAvailableAmmo(net.minecraft.tags.TagKey<Item> ammo) {
+    private int countAvailableAmmo(TagKey<Item> ammo) {
         long count = 0;
         for (IItemHandler handler : ammoInventories()) {
             for (int slot = 0; slot < handler.getSlots(); slot++) {
@@ -623,7 +623,7 @@ public final class TurretBaseBlockEntity extends BlockEntity
         return (int) count;
     }
 
-    private ItemStack extractAmmo(net.minecraft.tags.TagKey<Item> ammo, int requested) {
+    private ItemStack extractAmmo(TagKey<Item> ammo, int requested) {
         ItemStack representative = ItemStack.EMPTY;
         int remaining = requested;
         for (IItemHandler handler : ammoInventories()) {

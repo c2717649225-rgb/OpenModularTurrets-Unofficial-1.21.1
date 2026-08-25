@@ -83,6 +83,12 @@ import net.neoforged.neoforge.event.PlayLevelSoundEvent;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.common.util.FakePlayer;
 import net.neoforged.neoforge.common.util.FakePlayerFactory;
+import java.util.Arrays;
+import net.minecraft.world.effect.MobEffectInstance;
+import net.minecraft.world.effect.MobEffects;
+import net.minecraft.world.entity.Entity.RemovalReason;
+import net.minecraft.world.level.block.state.properties.BlockStateProperties;
+import net.neoforged.neoforge.registries.DeferredBlock;
 
 @GameTestHolder("openmodularturrets")
 public final class OpenModularTurretsGameTests {
@@ -1192,7 +1198,7 @@ public final class OpenModularTurretsGameTests {
                     .subtract(Vec3.atCenterOf(helper.absolutePos(headPos))).normalize();
             var projectiles = helper.getLevel().getEntitiesOfClass(
                     TurretProjectileEntity.class,
-                    new net.minecraft.world.phys.AABB(helper.absolutePos(basePos))
+                    new AABB(helper.absolutePos(basePos))
                             .inflate(8.0D),
                     projectile -> helper.absolutePos(basePos).equals(
                             projectile.sourceBasePos()));
@@ -1690,7 +1696,7 @@ public final class OpenModularTurretsGameTests {
 
         MemoryCardProfile schemaThree = new MemoryCardProfile(
                 MemoryCardProfile.TRUST_SCHEMA - 1, 21, BaseMode.NONINVERTED.id(),
-                true, false, true, true, java.util.List.of(), false);
+                true, false, true, true, List.of(), false);
         MemoryCardProfile roundTripped = MemoryCardProfile.CODEC
                 .parse(JsonOps.INSTANCE,
                         MemoryCardProfile.CODEC.encodeStart(JsonOps.INSTANCE, schemaThree)
@@ -1704,8 +1710,8 @@ public final class OpenModularTurretsGameTests {
         MemoryCardProfile trustCard = new MemoryCardProfile(
                 MemoryCardProfile.CURRENT_SCHEMA, 21, BaseMode.NONINVERTED.id(),
                 true, false, true, true,
-                java.util.List.of(new MemoryCardProfile.TrustEntry(
-                        java.util.UUID.fromString(
+                List.of(new MemoryCardProfile.TrustEntry(
+                        UUID.fromString(
                                 "a5b5b6a5-0000-0000-0000-000000000001"),
                         "Alice", AccessLevel.ADMIN)), true);
         MemoryCardProfile trustRoundTripped = MemoryCardProfile.CODEC
@@ -1737,7 +1743,7 @@ public final class OpenModularTurretsGameTests {
         TurretBaseBlockEntity source = helper.getBlockEntity(sourcePos);
         TurretBaseBlockEntity target = helper.getBlockEntity(targetPos);
 
-        java.util.UUID trusted = java.util.UUID.fromString(
+        UUID trusted = UUID.fromString(
                 "a5b5b6a5-0000-0000-0000-000000000002");
         var owner = helper.makeMockPlayer(GameType.SURVIVAL);
         source.claim(owner);
@@ -1967,8 +1973,8 @@ public final class OpenModularTurretsGameTests {
         helper.assertTrue(SpecialTurretRules.acceptsTarget(
                         TurretDefinition.RELATIVISTIC, slowed),
                 "Relativistic turret rejected an unaffected target");
-        slowed.addEffect(new net.minecraft.world.effect.MobEffectInstance(
-                net.minecraft.world.effect.MobEffects.MOVEMENT_SLOWDOWN, 200, 3));
+        slowed.addEffect(new MobEffectInstance(
+                MobEffects.MOVEMENT_SLOWDOWN, 200, 3));
         helper.assertTrue(!SpecialTurretRules.acceptsTarget(
                         TurretDefinition.RELATIVISTIC, slowed),
                 "Relativistic turret accepted a target that is already slowed");
@@ -2041,7 +2047,7 @@ public final class OpenModularTurretsGameTests {
             helper.assertTrue(state.getInt("cooldown") > 0,
                     "Forced teleporter shot did not start the firing cooldown");
             helper.succeed();
-            target.remove(net.minecraft.world.entity.Entity.RemovalReason.DISCARDED);
+            target.remove(RemovalReason.DISCARDED);
         });
     }
 
@@ -2057,7 +2063,7 @@ public final class OpenModularTurretsGameTests {
                         .endsWith("grenade_turret.png"),
                 "Plasma did not retain its legacy grenade-model texture");
         Set<TurretVisualRules.MountRotation> rotations =
-                java.util.Arrays.stream(Direction.values())
+                Arrays.stream(Direction.values())
                         .map(TurretVisualRules::mountRotation)
                         .collect(Collectors.toSet());
         helper.assertTrue(rotations.size() == Direction.values().length,
@@ -2081,7 +2087,7 @@ public final class OpenModularTurretsGameTests {
                 "Turret head still occludes neighboring terrain or uses a full-cube shape");
         var expanderState = ModBlocks.EXPANDER_POWER_TIER_FIVE.value()
                 .defaultBlockState().setValue(
-                        net.minecraft.world.level.block.state.properties.BlockStateProperties.FACING,
+                        BlockStateProperties.FACING,
                         Direction.NORTH);
         var expanderBounds = expanderState.getShape(helper.getLevel(), absoluteHeadPos).bounds();
         helper.assertTrue(Math.abs(expanderBounds.getXsize() - 0.75D) < 0.001D
@@ -2231,27 +2237,27 @@ public final class OpenModularTurretsGameTests {
         helper.setBlock(basePos, ModBlocks.TURRET_BASE_TIER_ONE.value());
         BlockPos attachmentPos = basePos.east();
         BlockPos absoluteAttachment = helper.absolutePos(attachmentPos);
-        net.neoforged.neoforge.registries.DeferredBlock<?>[] inventoryExpanders = {
+        DeferredBlock<?>[] inventoryExpanders = {
                 ModBlocks.EXPANDER_INV_TIER_ONE, ModBlocks.EXPANDER_INV_TIER_TWO,
                 ModBlocks.EXPANDER_INV_TIER_THREE, ModBlocks.EXPANDER_INV_TIER_FOUR,
                 ModBlocks.EXPANDER_INV_TIER_FIVE
         };
-        net.neoforged.neoforge.registries.DeferredBlock<?>[] powerExpanders = {
+        DeferredBlock<?>[] powerExpanders = {
                 ModBlocks.EXPANDER_POWER_TIER_ONE, ModBlocks.EXPANDER_POWER_TIER_TWO,
                 ModBlocks.EXPANDER_POWER_TIER_THREE, ModBlocks.EXPANDER_POWER_TIER_FOUR,
                 ModBlocks.EXPANDER_POWER_TIER_FIVE
         };
-        for (net.neoforged.neoforge.registries.DeferredBlock<?> expander : inventoryExpanders) {
+        for (DeferredBlock<?> expander : inventoryExpanders) {
             BlockState state = expander.value().defaultBlockState().setValue(
-                    net.minecraft.world.level.block.state.properties.BlockStateProperties.FACING,
+                    BlockStateProperties.FACING,
                     Direction.WEST);
             helper.assertTrue(state.canSurvive(helper.getLevel(), absoluteAttachment),
                     "Inventory expander was restricted by the tier-one base: "
                             + expander.getId());
         }
-        for (net.neoforged.neoforge.registries.DeferredBlock<?> expander : powerExpanders) {
+        for (DeferredBlock<?> expander : powerExpanders) {
             BlockState state = expander.value().defaultBlockState().setValue(
-                    net.minecraft.world.level.block.state.properties.BlockStateProperties.FACING,
+                    BlockStateProperties.FACING,
                     Direction.WEST);
             helper.assertTrue(state.canSurvive(helper.getLevel(), absoluteAttachment),
                     "Power expander was restricted by the tier-one base: "
@@ -2288,14 +2294,14 @@ public final class OpenModularTurretsGameTests {
         helper.setBlock(basePos, ModBlocks.TURRET_BASE_TIER_ONE.value());
         var tierFiveState = ModBlocks.EXPANDER_INV_TIER_FIVE.value()
                 .defaultBlockState().setValue(
-                        net.minecraft.world.level.block.state.properties.BlockStateProperties.FACING,
+                        BlockStateProperties.FACING,
                         Direction.WEST);
         BlockPos absoluteExpanderPos = helper.absolutePos(expanderPos);
         helper.assertTrue(tierFiveState.canSurvive(helper.getLevel(), absoluteExpanderPos),
                 "Legacy inventory expanders were incorrectly restricted by base tier");
 
         int[] expectedLimits = {4, 8, 16, 32, 64};
-        net.neoforged.neoforge.registries.DeferredBlock<?>[] expanders = {
+        DeferredBlock<?>[] expanders = {
                 ModBlocks.EXPANDER_INV_TIER_ONE,
                 ModBlocks.EXPANDER_INV_TIER_TWO,
                 ModBlocks.EXPANDER_INV_TIER_THREE,
@@ -2304,7 +2310,7 @@ public final class OpenModularTurretsGameTests {
         };
         for (int tier = 0; tier < expanders.length; tier++) {
             helper.setBlock(expanderPos, expanders[tier].value().defaultBlockState()
-                    .setValue(net.minecraft.world.level.block.state.properties.BlockStateProperties.FACING,
+                    .setValue(BlockStateProperties.FACING,
                             Direction.WEST));
             helper.assertTrue(helper.getBlockEntity(expanderPos)
                             instanceof omtteam.openmodularturrets.blockentity.InventoryExpanderBlockEntity expander

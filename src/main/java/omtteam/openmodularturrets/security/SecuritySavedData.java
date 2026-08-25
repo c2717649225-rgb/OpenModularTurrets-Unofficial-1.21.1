@@ -14,7 +14,7 @@ import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.saveddata.SavedData;
-
+import java.util.Comparator;
 public final class SecuritySavedData extends SavedData {
     private static final String FILE_ID = OpenModularTurrets.MOD_ID + "_security";
     private static final int DATA_VERSION = 2;
@@ -51,7 +51,7 @@ public final class SecuritySavedData extends SavedData {
                 .filter(entry -> OwnershipRules.matches(entry.player(), entry.name(), player,
                         playerName, true))
                 .map(TrustEntry::access)
-                .max(java.util.Comparator.comparingInt(AccessLevel::id))
+                .max(Comparator.comparingInt(AccessLevel::id))
                 .orElse(AccessLevel.NONE);
     }
 

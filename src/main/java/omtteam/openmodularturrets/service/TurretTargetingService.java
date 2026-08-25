@@ -8,19 +8,21 @@ import omtteam.openmodularturrets.data.SpecialTurretRules;
 import omtteam.openmodularturrets.data.TargetPriorityProfile;
 import omtteam.openmodularturrets.data.TargetingRules;
 import omtteam.openmodularturrets.data.TurretDefinition;
+import omtteam.openmodularturrets.data.TurretGeometryRules;
 import omtteam.openmodularturrets.data.TurretTargetingWorldQueries;
+import omtteam.openmodularturrets.config.ModServerConfig;
 import omtteam.openmodularturrets.registration.ModTags;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
+import net.minecraft.world.entity.monster.Enemy;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
-
 /**
  * Server-side target selection and line-of-sight policy for one turret head.
  *
@@ -30,7 +32,6 @@ import net.minecraft.world.phys.Vec3;
  * {@code Head -> TargetingService}, not {@code Head -> Service -> Head}.</p>
  */
 public final class TurretTargetingService {
-    private static final double MUZZLE_CLEARANCE = 1.0D;
     private static final long TARGET_LOS_CACHE_TICKS = 2L;
 
     private int cachedLineOfSightTargetId = -1;
@@ -133,7 +134,7 @@ public final class TurretTargetingService {
                 > (double) range * range) {
             return false;
         }
-        if (!(entity instanceof Player) && !(entity instanceof net.minecraft.world.entity.monster.Enemy)
+        if (!(entity instanceof Player) && !(entity instanceof Enemy)
                 && !(entity instanceof Mob)) {
             return false;
         }
@@ -144,7 +145,7 @@ public final class TurretTargetingService {
     private boolean hasLineOfSight(ServerLevel level, BlockPos headPos,
             LivingEntity entity) {
         Vec3 target = entity.getEyePosition();
-        Vec3 origin = muzzleOrigin(headPos, target);
+        Vec3 origin = TurretGeometryRules.muzzleOrigin(headPos, target);
         return level.clip(new ClipContext(origin, target, ClipContext.Block.COLLIDER,
                 ClipContext.Fluid.NONE, entity)).getType() == HitResult.Type.MISS;
     }
@@ -155,14 +156,5 @@ public final class TurretTargetingService {
         cachedLineOfSightTick = gameTime;
         cachedLineOfSight = visible;
         return visible;
-    }
-
-    private static Vec3 muzzleOrigin(BlockPos headPos, Vec3 targetPosition) {
-        Vec3 center = Vec3.atCenterOf(headPos);
-        Vec3 direction = targetPosition.subtract(center);
-        if (direction.lengthSqr() < 1.0E-7D) {
-            return center;
-        }
-        return center.add(direction.normalize().scale(MUZZLE_CLEARANCE));
     }
 }

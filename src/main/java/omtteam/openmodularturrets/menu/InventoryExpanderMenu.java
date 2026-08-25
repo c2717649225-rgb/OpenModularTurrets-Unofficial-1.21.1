@@ -14,7 +14,7 @@ import net.minecraft.world.inventory.SimpleContainerData;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 import net.neoforged.neoforge.items.SlotItemHandler;
-
+import net.neoforged.neoforge.items.IItemHandler;
 public final class InventoryExpanderMenu extends AbstractContainerMenu {
     private static final int CONTAINER_SLOTS = 9;
     private static final int DATA_ACCESS = 0;
@@ -152,7 +152,7 @@ public final class InventoryExpanderMenu extends AbstractContainerMenu {
     }
 
     private final class AuthorizedSlot extends SlotItemHandler {
-        private AuthorizedSlot(net.neoforged.neoforge.items.IItemHandler itemHandler,
+        private AuthorizedSlot(IItemHandler itemHandler,
                 int index, int xPosition, int yPosition) {
             super(itemHandler, index, xPosition, yPosition);
         }

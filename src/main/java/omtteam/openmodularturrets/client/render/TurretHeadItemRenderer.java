@@ -22,7 +22,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.resources.ResourceLocation;
 import org.joml.Quaternionf;
 import org.joml.Vector3f;
-
+import net.minecraft.core.Direction;
 /**
  * Renders turret-head block items with the same model used by the placed head.
  * The old 1.12 port used a TESR for these items; a NeoForge item extension is
@@ -74,7 +74,7 @@ public final class TurretHeadItemRenderer extends BlockEntityWithoutLevelRendere
         Vector3f axis = new Vector3f(2.5F, -4.5F, -1.0F).normalize();
         poseStack.mulPose(new Quaternionf().rotationAxis(
                 (float) Math.toRadians(45.0D), axis));
-        model.setMount(net.minecraft.core.Direction.DOWN);
+        model.setMount(Direction.DOWN);
         model.setAim(0.0F, 0.0F);
         VertexConsumer consumer = bufferSource.getBuffer(
                 RenderType.entityCutoutNoCull(TEXTURES.get(definition)));

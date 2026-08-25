@@ -9,7 +9,7 @@ import omtteam.openmodularturrets.data.TurretDefinition;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.Items;
-
+import java.util.function.Supplier;
 public enum ProjectileKind {
     DISPOSABLE("disposable", 0.03D, 40, ModItems.AMMO_FAKE_DISPOSABLE),
     POTATO("potato", 0.03D, 40, () -> Items.POTATO),
@@ -19,13 +19,18 @@ public enum ProjectileKind {
     ROCKET("rocket", 0.0D, 40, ModItems.AMMO_ROCKET),
     PLASMA("plasma", 0.001D, 30, () -> Items.EMERALD);
 
+    /** Age at which an unfused grenade airbursts; the direct-entity bounce
+     *  writes a lower fuse age from TurretProjectileEntity so the burst still
+     *  happens mid-flight after impact. */
+    public static final int GRENADE_FUSE_AGE_TICKS = 39;
+
     private final String id;
     private final double gravity;
     private final int maximumLifetime;
-    private final java.util.function.Supplier<? extends Item> displayItem;
+    private final Supplier<? extends Item> displayItem;
 
     ProjectileKind(String id, double gravity, int maximumLifetime,
-            java.util.function.Supplier<? extends Item> displayItem) {
+            Supplier<? extends Item> displayItem) {
         this.id = id;
         this.gravity = gravity;
         this.maximumLifetime = maximumLifetime;
@@ -49,7 +54,7 @@ public enum ProjectileKind {
     }
 
     public boolean fuseExpired(int age) {
-        return this == GRENADE && age >= 39;
+        return this == GRENADE && age >= GRENADE_FUSE_AGE_TICKS;
     }
 
     public Item displayItem() {

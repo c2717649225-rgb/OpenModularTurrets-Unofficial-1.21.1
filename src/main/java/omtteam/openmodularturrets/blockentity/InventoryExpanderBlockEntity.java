@@ -19,11 +19,13 @@ import omtteam.openmodularturrets.block.InventoryExpanderBlock;
 import omtteam.openmodularturrets.registration.ModTags;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
-
+import java.util.Optional;
+import net.minecraft.core.Direction;
+import net.minecraft.world.item.ItemStack;
 public final class InventoryExpanderBlockEntity extends BlockEntity implements MenuProvider {
     private final ItemStackHandler inventory = new ItemStackHandler(9) {
         @Override
-        public boolean isItemValid(int slot, net.minecraft.world.item.ItemStack stack) {
+        public boolean isItemValid(int slot, ItemStack stack) {
             return stack.is(ModTags.Items.AMMUNITION)
                     || stack.is(Items.REDSTONE)
                     || stack.is(Blocks.REDSTONE_BLOCK.asItem());
@@ -50,16 +52,16 @@ public final class InventoryExpanderBlockEntity extends BlockEntity implements M
         return inventory;
     }
 
-    public java.util.Optional<TurretBaseBlockEntity> linkedBase() {
+    public Optional<TurretBaseBlockEntity> linkedBase() {
         if (level != null) {
-            for (net.minecraft.core.Direction direction : net.minecraft.core.Direction.values()) {
+            for (Direction direction : Direction.values()) {
                 if (level.getBlockEntity(worldPosition.relative(direction))
                         instanceof TurretBaseBlockEntity base) {
-                    return java.util.Optional.of(base);
+                    return Optional.of(base);
                 }
             }
         }
-        return java.util.Optional.empty();
+        return Optional.empty();
     }
 
     @Override

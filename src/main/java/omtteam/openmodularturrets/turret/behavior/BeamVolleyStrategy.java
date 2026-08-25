@@ -6,11 +6,13 @@ import omtteam.openmodularturrets.data.SpecialTurretRules;
 import omtteam.openmodularturrets.data.TurretAddonRules;
 import omtteam.openmodularturrets.data.TurretCombatContext;
 import omtteam.openmodularturrets.data.TurretDefinition;
+import omtteam.openmodularturrets.data.TurretGeometryRules;
 import omtteam.openmodularturrets.data.TurretUpgradeRules;
 import omtteam.openmodularturrets.data.TurretVisualRules;
 import omtteam.openmodularturrets.network.BeamEffectPayload;
 import omtteam.openmodularturrets.registration.ModSounds;
 import net.minecraft.core.BlockPos;
+import net.minecraft.world.level.ChunkPos;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
@@ -26,7 +28,7 @@ import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.network.PacketDistributor;
-
+import java.util.Optional;
 /**
  * Parameterized strategy for instantaneous hitscan ray/beam turrets (laser, railgun).
  * Holds only immutable metadata (ResourceKey, block breaking capabilities).
@@ -60,7 +62,7 @@ public final class BeamVolleyStrategy implements VolleyStrategy {
                         TurretDefinition definition, ItemStack consumedAmmo,
                         TurretCombatContext combatContext) {
         Vec3 intendedEnd = target.getEyePosition();
-        Vec3 start = muzzleOrigin(headPos, intendedEnd);
+        Vec3 start = TurretGeometryRules.muzzleOrigin(headPos, intendedEnd);
         Vec3 direct = intendedEnd.subtract(start);
         double distance = direct.length();
         double deviationModifier = 0.3D
@@ -84,7 +86,7 @@ public final class BeamVolleyStrategy implements VolleyStrategy {
         for (LivingEntity candidate : level.getEntitiesOfClass(LivingEntity.class,
                 traceBounds, entity -> entity.isAlive()
                         && combatContext.mayDamage(entity))) {
-            java.util.Optional<Vec3> hit = candidate.getBoundingBox().inflate(0.3D)
+            Optional<Vec3> hit = candidate.getBoundingBox().inflate(0.3D)
                     .clip(start, endpoint);
             if (hit.isEmpty()) {
                 continue;
@@ -126,19 +128,10 @@ public final class BeamVolleyStrategy implements VolleyStrategy {
             }
         }
         PacketDistributor.sendToPlayersTrackingChunk(level,
-                new net.minecraft.world.level.ChunkPos(headPos),
+                new ChunkPos(headPos),
                 new BeamEffectPayload(start, endpoint,
                         SpecialTurretRules.beamColor(definition),
                         TurretVisualRules.beamAlpha(definition),
                         TurretVisualRules.beamDurationTicks(definition)));
-    }
-
-    private static Vec3 muzzleOrigin(BlockPos headPos, Vec3 targetPosition) {
-        Vec3 center = Vec3.atCenterOf(headPos);
-        Vec3 direction = targetPosition.subtract(center);
-        if (direction.lengthSqr() < 1.0E-7D) {
-            return center;
-        }
-        return center.add(direction.normalize().scale(1.0D));
     }
 }

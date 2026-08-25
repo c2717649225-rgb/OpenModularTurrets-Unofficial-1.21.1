@@ -6,13 +6,13 @@ import omtteam.openmodularturrets.config.ModServerConfig;
 
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.event.entity.living.LivingDropsEvent;
-
+import net.neoforged.bus.api.SubscribeEvent;
 @EventBusSubscriber(modid = OpenModularTurrets.MOD_ID)
 public final class TurretCombatEvents {
     private TurretCombatEvents() {
     }
 
-    @net.neoforged.bus.api.SubscribeEvent
+    @SubscribeEvent
     public static void onLivingDrops(LivingDropsEvent event) {
         if (!(event.getSource() instanceof TurretDamageSource turretSource)) {
             return;

@@ -37,7 +37,7 @@ import net.minecraft.world.level.block.state.StateDefinition;
 import net.minecraft.world.level.block.state.properties.BooleanProperty;
 import net.minecraft.world.level.block.state.properties.IntegerProperty;
 import net.minecraft.world.phys.BlockHitResult;
-
+import net.minecraft.network.chat.Component;
 public final class TurretBaseBlock extends BaseEntityBlock {
     public static final BooleanProperty CAMOUFLAGED =
             BooleanProperty.create("camouflaged");
@@ -141,7 +141,7 @@ public final class TurretBaseBlock extends BaseEntityBlock {
                         new BlockPlaceContext(new UseOnContext(player, hand, hit)));
                 if (camouflage == null || !base.setCamouflage(player, camouflage)) {
                     player.displayClientMessage(
-                            net.minecraft.network.chat.Component.translatable(
+                            Component.translatable(
                                     "message.openmodularturrets.camouflage_rejected"),
                             true);
                 }
@@ -167,7 +167,7 @@ public final class TurretBaseBlock extends BaseEntityBlock {
                     && level.getBlockEntity(pos) instanceof TurretBaseBlockEntity base) {
                 if (!base.clearCamouflage(player)) {
                     player.displayClientMessage(
-                            net.minecraft.network.chat.Component.translatable(
+                            Component.translatable(
                                     "message.openmodularturrets.camouflage_clear_rejected"),
                             true);
                 }

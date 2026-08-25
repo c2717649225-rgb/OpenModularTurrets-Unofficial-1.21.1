@@ -18,7 +18,7 @@ import net.minecraft.world.inventory.SimpleContainerData;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 import net.neoforged.neoforge.items.SlotItemHandler;
-
+import net.neoforged.neoforge.items.IItemHandler;
 public final class TurretBaseMenu extends AbstractContainerMenu {
     private static final int DATA_TIER = 0;
     private static final int DATA_MODE = 1;
@@ -164,7 +164,8 @@ public final class TurretBaseMenu extends AbstractContainerMenu {
     public ClientTrustSnapshot.Snapshot trustSnapshot(TrustScope scope) {
         return trustState == null
                 ? ClientTrustSnapshot.begin(new ClientTrustSnapshot.Session(
-                        containerId, base.getBlockPos(), new java.util.UUID(0L, 0L)))
+                        containerId, base.getBlockPos(),
+                        ClientTrustSnapshot.NULL_SESSION_OWNER))
                         .snapshot(scope)
                 : trustState.snapshot(scope);
     }
@@ -337,7 +338,7 @@ public final class TurretBaseMenu extends AbstractContainerMenu {
     }
 
     private final class AuthorizedSlot extends SlotItemHandler {
-        private AuthorizedSlot(net.neoforged.neoforge.items.IItemHandler itemHandler,
+        private AuthorizedSlot(IItemHandler itemHandler,
                 int index, int xPosition, int yPosition) {
             super(itemHandler, index, xPosition, yPosition);
         }

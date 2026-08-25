@@ -64,6 +64,12 @@ public final class BaseExpanderTopology {
         return result;
     }
 
+    /**
+     * Aggregates the base's own automation inventory with every adjacent
+     * inventory expander.  Contract: the returned read-only view wraps an
+     * internal buffer that is rebuilt on each call — consume it within the
+     * current tick and never retain it across calls.
+     */
     public List<IItemHandler> aggregateAmmoInventories(@Nullable Level level, BlockPos basePos,
                                                        IItemHandler automationInventory) {
         if (cachedAmmoLevel != level) {

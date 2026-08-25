@@ -17,7 +17,9 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.gametest.GameTestHolder;
-
+import java.util.Locale;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.entity.ai.attributes.Attributes;
 /**
  * Fixed, isolated load fixture used by the project-side JFR pressure harness.
  * It intentionally uses ordinary registered blocks/entities so the measured
@@ -41,7 +43,7 @@ public final class ArchitecturePressureGameTests {
                     int x = 1 + column * 3;
                     int y = 1 + layer * 3;
                     int z = 1 + row * 3;
-                    var basePos = new net.minecraft.core.BlockPos(x, y, z);
+                    var basePos = new BlockPos(x, y, z);
                     var headPos = basePos.east();
                     helper.setBlock(basePos, ModBlocks.TURRET_BASE_TIER_FIVE.value());
                     helper.setBlock(headPos, ModBlocks.POTATO_CANNON_TURRET.value());
@@ -67,7 +69,7 @@ public final class ArchitecturePressureGameTests {
                     new Vec3(x + 3.5D, y + 1.0D, z + 0.5D));
             target.setNoAi(true);
             target.setNoGravity(true);
-            var maxHealth = target.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.MAX_HEALTH);
+            var maxHealth = target.getAttribute(Attributes.MAX_HEALTH);
             if (maxHealth != null) {
                 maxHealth.setBaseValue(100_000.0D);
                 target.setHealth(100_000.0F);
@@ -127,6 +129,6 @@ public final class ArchitecturePressureGameTests {
     }
 
     private static String format(double value) {
-        return String.format(java.util.Locale.ROOT, "%.6f", value);
+        return String.format(Locale.ROOT, "%.6f", value);
     }
 }

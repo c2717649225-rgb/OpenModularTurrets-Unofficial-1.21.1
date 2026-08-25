@@ -13,6 +13,10 @@ import net.minecraft.core.BlockPos;
  * replacing a menu cannot leak entries into another menu session.
  */
 public final class ClientTrustSnapshot {
+    /** Placeholder owner for the empty pre-snapshot state shown before the
+     *  first trust snapshot arrives for a menu session. */
+    public static final UUID NULL_SESSION_OWNER = new UUID(0L, 0L);
+
     private ClientTrustSnapshot() {
     }
 

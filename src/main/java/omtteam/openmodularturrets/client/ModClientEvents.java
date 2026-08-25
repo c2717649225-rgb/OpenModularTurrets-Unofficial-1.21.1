@@ -24,7 +24,7 @@ import net.neoforged.neoforge.client.event.RegisterMenuScreensEvent;
 import net.neoforged.neoforge.client.event.EntityRenderersEvent;
 import net.neoforged.neoforge.client.extensions.common.IClientItemExtensions;
 import net.neoforged.neoforge.client.extensions.common.RegisterClientExtensionsEvent;
-
+import net.minecraft.client.renderer.BlockEntityWithoutLevelRenderer;
 @EventBusSubscriber(modid = OpenModularTurrets.MOD_ID, value = Dist.CLIENT)
 public final class ModClientEvents {
     static {
@@ -49,7 +49,7 @@ public final class ModClientEvents {
                 Minecraft.getInstance().getEntityModels());
         IClientItemExtensions extensions = new IClientItemExtensions() {
             @Override
-            public net.minecraft.client.renderer.BlockEntityWithoutLevelRenderer getCustomRenderer() {
+            public BlockEntityWithoutLevelRenderer getCustomRenderer() {
                 return renderer;
             }
         };
@@ -71,7 +71,7 @@ public final class ModClientEvents {
                 Minecraft.getInstance().getEntityModels());
         event.registerItem(new IClientItemExtensions() {
             @Override
-            public net.minecraft.client.renderer.BlockEntityWithoutLevelRenderer getCustomRenderer() {
+            public BlockEntityWithoutLevelRenderer getCustomRenderer() {
                 return chargerRenderer;
             }
         }, ModItems.LEVER_BLOCK.value());

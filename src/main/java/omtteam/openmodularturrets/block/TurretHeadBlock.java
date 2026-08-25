@@ -35,7 +35,8 @@ import net.minecraft.world.phys.shapes.Shapes;
 import net.minecraft.world.phys.shapes.VoxelShape;
 import omtteam.openmodularturrets.blockentity.TurretBaseBlockEntity;
 import org.joml.Vector3f;
-
+import net.minecraft.world.level.LevelReader;
+import net.minecraft.world.level.block.Block;
 public final class TurretHeadBlock extends BaseEntityBlock {
     public static final BooleanProperty CONCEALED = BooleanProperty.create("concealed");
     private static final VoxelShape SHAPE = box(3.2D, 3.2D, 3.2D,
@@ -60,7 +61,7 @@ public final class TurretHeadBlock extends BaseEntityBlock {
 
     @Override
     protected void createBlockStateDefinition(
-            StateDefinition.Builder<net.minecraft.world.level.block.Block, BlockState> builder) {
+            StateDefinition.Builder<Block, BlockState> builder) {
         builder.add(CONCEALED);
     }
 
@@ -127,7 +128,7 @@ public final class TurretHeadBlock extends BaseEntityBlock {
     }
 
     @Override
-    protected boolean canSurvive(BlockState state, net.minecraft.world.level.LevelReader level,
+    protected boolean canSurvive(BlockState state, LevelReader level,
             BlockPos pos) {
         for (Direction direction : Direction.values()) {
             if (level.getBlockEntity(pos.relative(direction)) instanceof TurretBaseBlockEntity base

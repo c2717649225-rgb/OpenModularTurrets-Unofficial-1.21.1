@@ -35,9 +35,20 @@ import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundSource;
-
+import java.util.Optional;
+import net.minecraft.core.particles.ParticleTypes;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.EntityHitResult;
 public final class TurretProjectileEntity extends ThrowableItemProjectile {
     private static final int DATA_VERSION = 3;
+    /**
+     * Fuse age written when a grenade bounces off a living target so it
+     * detonates mid-flight shortly after; the airburst threshold itself lives
+     * in {@link ProjectileKind#GRENADE_FUSE_AGE_TICKS}.
+     */
+    private static final int GRENADE_BOUNCE_FUSE_AGE_TICKS = 30;
 
     private ProjectileKind projectileKind;
     private float damage;
@@ -130,7 +141,7 @@ public final class TurretProjectileEntity extends ThrowableItemProjectile {
 
     @Override
     protected void onHit(HitResult result) {
-        if (result instanceof net.minecraft.world.phys.BlockHitResult blockHit) {
+        if (result instanceof BlockHitResult blockHit) {
             BlockState hitState = level().getBlockState(blockHit.getBlockPos());
             if (ignoresBlockCollision(hitState)) {
                 return;
@@ -155,7 +166,7 @@ public final class TurretProjectileEntity extends ThrowableItemProjectile {
                 if (result.getType() == HitResult.Type.ENTITY) {
                     grenadeHit = true;
                     setDeltaMovement(getDeltaMovement().multiply(0.2D, 1.2D, 0.2D));
-                    tickCount = 30;
+                    tickCount = GRENADE_BOUNCE_FUSE_AGE_TICKS;
                 } else {
                     setDeltaMovement(Vec3.ZERO);
                 }
@@ -178,12 +189,12 @@ public final class TurretProjectileEntity extends ThrowableItemProjectile {
                 discard();
             }
             case DISPOSABLE, POTATO, BULLET -> {
-                if (result instanceof net.minecraft.world.phys.EntityHitResult entityHit
+                if (result instanceof EntityHitResult entityHit
                         && entityHit.getEntity() instanceof LivingEntity living) {
                     damage(living, ModDamageTypes.TURRET_PROJECTILE,
                             amplifiedDamage(living));
                     living.invulnerableTime = 0;
-                } else if (result instanceof net.minecraft.world.phys.EntityHitResult entityHit) {
+                } else if (result instanceof EntityHitResult entityHit) {
                     damageNonLiving(entityHit.getEntity());
                 }
                 discard();
@@ -200,10 +211,14 @@ public final class TurretProjectileEntity extends ThrowableItemProjectile {
             if (projectileKind == ProjectileKind.PLASMA) {
                 spawnPlasmaImpact(serverLevel);
             } else {
-                boolean terrainDamageEnabled = projectileKind == ProjectileKind.ROCKET
-                        ? ModServerConfig.rocketsDestroyBlocks()
-                        : projectileKind == ProjectileKind.GRENADE
-                                && ModServerConfig.grenadesDestroyBlocks();
+                boolean terrainDamageEnabled;
+                if (projectileKind == ProjectileKind.ROCKET) {
+                    terrainDamageEnabled = ModServerConfig.rocketsDestroyBlocks();
+                } else if (projectileKind == ProjectileKind.GRENADE) {
+                    terrainDamageEnabled = ModServerConfig.grenadesDestroyBlocks();
+                } else {
+                    terrainDamageEnabled = false;
+                }
                 float terrainStrength = projectileKind
                         .terrainExplosionStrength(terrainDamageEnabled);
                 serverLevel.explode(null, getX(), getY(), getZ(), terrainStrength, true,
@@ -214,11 +229,11 @@ public final class TurretProjectileEntity extends ThrowableItemProjectile {
     }
 
     private void spawnPlasmaImpact(ServerLevel level) {
-        level.sendParticles(net.minecraft.core.particles.ParticleTypes.FLAME,
+        level.sendParticles(ParticleTypes.FLAME,
                 getX(), getY(), getZ(),
                 TurretVisualRules.PLASMA_IMPACT_PARTICLES_PER_TYPE,
                 1.0D, 0.5D, 1.0D, 0.1D);
-        level.sendParticles(net.minecraft.core.particles.ParticleTypes.LARGE_SMOKE,
+        level.sendParticles(ParticleTypes.LARGE_SMOKE,
                 getX(), getY(), getZ(),
                 TurretVisualRules.PLASMA_IMPACT_PARTICLES_PER_TYPE,
                 1.0D, 0.5D, 1.0D, 0.1D);
@@ -250,7 +265,7 @@ public final class TurretProjectileEntity extends ThrowableItemProjectile {
         }
     }
 
-    private void damageNonLiving(net.minecraft.world.entity.Entity target) {
+    private void damageNonLiving(Entity target) {
         if (!(level() instanceof ServerLevel serverLevel) || damage <= 0.0F) {
             return;
         }
@@ -261,7 +276,7 @@ public final class TurretProjectileEntity extends ThrowableItemProjectile {
     }
 
     private void damage(LivingEntity target,
-            net.minecraft.resources.ResourceKey<DamageType> damageType, float amount) {
+            ResourceKey<DamageType> damageType, float amount) {
         if (amount <= 0.0F || !mayDamage(target)) {
             return;
         }
@@ -295,7 +310,7 @@ public final class TurretProjectileEntity extends ThrowableItemProjectile {
                 .orElse(false);
     }
 
-    public boolean mayCollideWith(net.minecraft.world.entity.Entity target) {
+    public boolean mayCollideWith(Entity target) {
         if (target instanceof TurretProjectileEntity || sourceBase().isEmpty()) {
             return false;
         }
@@ -307,17 +322,17 @@ public final class TurretProjectileEntity extends ThrowableItemProjectile {
     }
 
     @Override
-    protected boolean canHitEntity(net.minecraft.world.entity.Entity target) {
+    protected boolean canHitEntity(Entity target) {
         return mayCollideWith(target) && super.canHitEntity(target)
                 && !(projectileKind == ProjectileKind.GRENADE && grenadeHit);
     }
 
-    private java.util.Optional<TurretBaseBlockEntity> sourceBase() {
+    private Optional<TurretBaseBlockEntity> sourceBase() {
         if (sourceBasePos != null
                 && level().getBlockEntity(sourceBasePos) instanceof TurretBaseBlockEntity base) {
-            return java.util.Optional.of(base);
+            return Optional.of(base);
         }
-        return java.util.Optional.empty();
+        return Optional.empty();
     }
 
     public ProjectileKind projectileKind() {

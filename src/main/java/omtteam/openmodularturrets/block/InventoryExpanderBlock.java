@@ -29,7 +29,9 @@ import net.minecraft.world.MenuProvider;
 import net.minecraft.world.level.Level;
 import omtteam.openmodularturrets.blockentity.TurretBaseBlockEntity;
 import omtteam.openmodularturrets.config.ModServerConfig;
-
+import net.minecraft.world.level.LevelAccessor;
+import net.minecraft.world.level.LevelReader;
+import net.minecraft.world.level.block.Block;
 public final class InventoryExpanderBlock extends BaseEntityBlock {
     public static final DirectionProperty FACING = BaseAttachmentBlock.FACING;
     private final int tier;
@@ -61,7 +63,7 @@ public final class InventoryExpanderBlock extends BaseEntityBlock {
     }
 
     @Override
-    protected boolean canSurvive(BlockState state, net.minecraft.world.level.LevelReader level,
+    protected boolean canSurvive(BlockState state, LevelReader level,
             BlockPos pos) {
         return findBaseFacing(level, pos, state.getValue(FACING)) != null;
     }
@@ -77,7 +79,7 @@ public final class InventoryExpanderBlock extends BaseEntityBlock {
 
     @Override
     protected BlockState updateShape(BlockState state, Direction direction,
-            BlockState neighborState, net.minecraft.world.level.LevelAccessor level,
+            BlockState neighborState, LevelAccessor level,
             BlockPos pos, BlockPos neighborPos) {
         Direction facing = findBaseFacing(level, pos, state.getValue(FACING));
         if (facing == null) {
@@ -90,14 +92,14 @@ public final class InventoryExpanderBlock extends BaseEntityBlock {
     }
 
     @Nullable
-    private Direction findBaseFacing(net.minecraft.world.level.LevelReader level, BlockPos pos,
+    private Direction findBaseFacing(LevelReader level, BlockPos pos,
             @Nullable Direction preferred) {
         return BaseAttachmentBlock.findBaseFacing(level, pos, preferred, base -> true);
     }
 
     @Override
     protected void createBlockStateDefinition(
-            StateDefinition.Builder<net.minecraft.world.level.block.Block, BlockState> builder) {
+            StateDefinition.Builder<Block, BlockState> builder) {
         builder.add(FACING);
     }
 

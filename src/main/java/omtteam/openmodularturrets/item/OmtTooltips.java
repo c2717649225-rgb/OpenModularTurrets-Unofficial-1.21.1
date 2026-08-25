@@ -24,7 +24,8 @@ import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.Item;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.fml.loading.FMLEnvironment;
-
+import java.util.function.ToDoubleFunction;
+import java.util.function.ToIntFunction;
 /**
  * Compact 1.21 replacement for the 1.12 ItemBlock/metadata addInformation
  * classes, located in item package for P0-3 physical client isolation compliance.
@@ -252,7 +253,7 @@ public final class OmtTooltips {
     }
 
     private static double[] minMaxFraction(
-            java.util.function.ToDoubleFunction<TurretDefinition> extractor) {
+            ToDoubleFunction<TurretDefinition> extractor) {
         double min = Double.MAX_VALUE;
         double max = Double.MIN_VALUE;
         for (TurretDefinition definition : TurretDefinition.values()) {
@@ -264,7 +265,7 @@ public final class OmtTooltips {
     }
 
     private static int[] minMaxInt(
-            java.util.function.ToIntFunction<TurretDefinition> extractor) {
+            ToIntFunction<TurretDefinition> extractor) {
         int min = Integer.MAX_VALUE;
         int max = Integer.MIN_VALUE;
         for (TurretDefinition definition : TurretDefinition.values()) {

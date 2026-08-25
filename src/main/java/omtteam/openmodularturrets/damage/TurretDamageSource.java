@@ -18,7 +18,7 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.item.enchantment.Enchantments;
 import net.neoforged.neoforge.common.util.FakePlayer;
 import net.neoforged.neoforge.common.util.FakePlayerFactory;
-
+import net.minecraft.world.InteractionHand;
 public final class TurretDamageSource extends DamageSource {
     private static final GameProfile FAKE_PLAYER_PROFILE = new GameProfile(
             UUID.fromString("c5c97afa-fc98-44ab-944a-e67681a66b19"),
@@ -47,7 +47,7 @@ public final class TurretDamageSource extends DamageSource {
             return null;
         }
         FakePlayer player = FakePlayerFactory.get(level, FAKE_PLAYER_PROFILE);
-        player.setItemInHand(net.minecraft.world.InteractionHand.MAIN_HAND,
+        player.setItemInHand(InteractionHand.MAIN_HAND,
                 lootingSword(level, fakeDropsLevel));
         var luck = player.getAttribute(Attributes.LUCK);
         if (luck == null) {
