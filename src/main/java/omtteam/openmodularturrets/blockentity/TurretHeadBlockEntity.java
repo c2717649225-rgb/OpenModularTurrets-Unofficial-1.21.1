@@ -100,7 +100,9 @@ public final class TurretHeadBlockEntity extends BlockEntity {
             if (consumed.isEmpty()) {
                 return;
             }
-            TurretCombatService.CombatResult combat = TurretCombatService.executeVolley(
+            // The service owns volley execution and kill accounting; the head
+            // only consumes the resource gate and drives presentation below.
+            TurretCombatService.executeVolley(
                     serverLevel, pos, target, definition, consumed.get(), base);
             if (base.damageAmpLevel() > 0 && definition.damageAmpFraction() > 0.0F) {
                 serverLevel.playSound(null, pos, ModSounds.AMPED.value(),
