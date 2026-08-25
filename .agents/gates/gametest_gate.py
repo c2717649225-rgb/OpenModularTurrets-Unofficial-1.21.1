@@ -1429,17 +1429,23 @@ def _ensure_moddev_gametest_runtime(project: Path, wrapper: str,
                                     timeout_seconds: float) -> None:
     """Bootstrap ModDevGradle runtime files on fresh environments.
 
-    The reporter precheck requires build/moddev/artifacts/*-merged.jar plus
-    gameTestServerLegacyClasspath.txt.  Both are only materialized by MDG
-    once a gameTestServer run has been prepared, which fresh CI checkouts
-    never had.  A single unreported runGameTestServer execution generates
-    them; afterwards the reported gate run proceeds normally.
+    The reporter precheck needs a main Minecraft/NeoForge artifact jar in
+    build/moddev/artifacts plus gameTestServerLegacyClasspath.txt.  Both are
+    only materialized once a gameTestServer run has been prepared, which
+    fresh CI checkouts never had.  A single unreported runGameTestServer
+    execution generates them; the reported gate run then proceeds normally.
+    Layout note: Windows setups carry ``*-merged.jar``; fresh Linux checkouts
+    produce plain ``neoforge-<v>.jar`` — both qualify as the main artifact.
     """
     artifacts = project / "build" / "moddev" / "artifacts"
-    merged = list(artifacts.glob("*-merged.jar")) if artifacts.is_dir() else []
+    main_jars = [
+        jar for jar in (artifacts.glob("*.jar") if artifacts.is_dir() else [])
+        if "minecraft-resources" not in jar.name
+        and not jar.name.endswith("-sources.jar")
+    ]
     legacy = (project / "build" / "moddev" /
               "gameTestServerLegacyClasspath.txt")
-    if merged and legacy.is_file():
+    if main_jars and legacy.is_file():
         return
     bootstrap_command = [
         wrapper, "runGameTestServer", "--no-daemon", "--console=plain",
@@ -1449,9 +1455,12 @@ def _ensure_moddev_gametest_runtime(project: Path, wrapper: str,
         cwd=project,
         timeout_seconds=min(timeout_seconds, 1800.0),
     )
-    merged_after = list(artifacts.glob("*-merged.jar")) \
-        if artifacts.is_dir() else []
-    if not merged_after or not legacy.is_file():
+    main_after = [
+        jar for jar in (artifacts.glob("*.jar") if artifacts.is_dir() else [])
+        if "minecraft-resources" not in jar.name
+        and not jar.name.endswith("-sources.jar")
+    ]
+    if not main_after or not legacy.is_file():
         listing = sorted(
             p.name for p in artifacts.glob("*.jar")
         ) if artifacts.is_dir() else []
@@ -1471,12 +1480,27 @@ def _ensure_moddev_gametest_runtime(project: Path, wrapper: str,
 
 
 def _reporter_compile_classpath(project: Path) -> tuple[Path, Path]:
-    merged = sorted(
-        (project / "build" / "moddev" / "artifacts").glob("*-merged.jar")
-    )
-    if len(merged) != 1:
+    """Resolve the Minecraft/NeoForge artifact and the FML loader jar.
+
+    Layout differs per environment: Windows setups carry a
+    ``*-merged.jar`` (recompiled), fresh Linux checkouts only produce
+    ``neoforge-<v>.jar`` plus the client-extra resources jar.  Selection is
+    therefore: drop the resources jar, prefer a -merged variant when exactly
+    one exists, otherwise accept the single remaining candidate.
+    """
+    artifacts_dir = project / "build" / "moddev" / "artifacts"
+    all_jars = sorted(artifacts_dir.glob("*.jar")) \
+        if artifacts_dir.is_dir() else []
+    candidates = [
+        jar for jar in all_jars if "minecraft-resources" not in jar.name
+        and not jar.name.endswith("-sources.jar")
+    ]
+    merged = [jar for jar in candidates if jar.name.endswith("-merged.jar")]
+    chosen_pool = merged or candidates
+    if len(chosen_pool) != 1:
         raise OSError(
-            "expected exactly one ModDevGradle merged jar after compileJava"
+            "cannot determine the ModDevGradle minecraft artifact: "
+            f"jars={[j.name for j in all_jars]}"
         )
     classpath_file = (
         project / "build" / "moddev" / "gameTestServerLegacyClasspath.txt"
@@ -1506,7 +1530,7 @@ def _reporter_compile_classpath(project: Path) -> tuple[Path, Path]:
             "expected exactly one FancyModLoader jar in the generated "
             "GameTest classpath"
         )
-    return merged[0].resolve(), loaders[0].resolve()
+    return chosen_pool[0].resolve(), loaders[0].resolve()
 
 
 def build_reporter_bundle(
