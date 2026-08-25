@@ -1452,6 +1452,14 @@ def _ensure_moddev_gametest_runtime(project: Path, wrapper: str,
     merged_after = list(artifacts.glob("*-merged.jar")) \
         if artifacts.is_dir() else []
     if not merged_after or not legacy.is_file():
+        listing = sorted(
+            p.name for p in artifacts.glob("*.jar")
+        ) if artifacts.is_dir() else []
+        diag = (
+            f"artifacts_dir_exists={artifacts.is_dir()} "
+            f"jars={listing} "
+            f"legacy_classpath={legacy.is_file()}"
+        )
         if launch_error is not None:
             reason = f"bootstrap runGameTestServer launch failed: {launch_error}"
         elif timed_out:
@@ -1459,7 +1467,7 @@ def _ensure_moddev_gametest_runtime(project: Path, wrapper: str,
         else:
             reason = (f"bootstrap runGameTestServer exited with code {code} "
                       "and did not produce the ModDevGradle runtime files")
-        raise OSError(reason)
+        raise OSError(f"{reason}; DIAG {diag}")
 
 
 def _reporter_compile_classpath(project: Path) -> tuple[Path, Path]:
