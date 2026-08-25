@@ -239,6 +239,17 @@ public final class TurretProjectileEntity extends ThrowableItemProjectile {
                 1.0D, 0.5D, 1.0D, 0.1D);
     }
 
+    /**
+     * Deliberate 1.12 parity, not an approximation: the AOE is a plain cube
+     * (no sphere falloff and no line-of-sight occlusion), every caught entity
+     * takes flat full damage, and the normal/armor-piercing shares each reset
+     * invulnerable frames so both halves always land.  Verified line-by-line
+     * against the legacy sources (reference-sources/OpenModularTurrets-1.12):
+     * RocketProjectile ±5 full, GrenadeProjectile ±3 at 0.9/0.1,
+     * PlasmaProjectile ±2 at 0.5/0.5 with ArmorBypassDamageSource,
+     * BlazingClayProjectile ±5 + setFire(5).  Changing this to vanilla's
+     * sphere-plus-occlusion model would alter original gameplay.
+     */
     private void damageArea(double radius, float normalShare, float armorPiercingShare,
             boolean ignite) {
         if (!(level() instanceof ServerLevel)) {

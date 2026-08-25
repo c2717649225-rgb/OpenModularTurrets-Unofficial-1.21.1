@@ -11,6 +11,20 @@ public final class TurretVisualRules {
     public static final int IDLE_DUST_PARTICLES = 6;
     public static final int TELEPORT_BURST_PARTICLES = 26;
 
+    /**
+     * Addon render-mask bit allocation, shared by the addon engine (server
+     * computation), the base persistence clamp and the client renderer.
+     * When adding a visually rendered addon: take the next free bit here,
+     * raise {@link #ADDON_MASK_ALL}, extend the renderer's overlay set, and
+     * keep the persisted {@code addon_render_mask} int wide enough for it.
+     */
+    public static final int ADDON_MASK_DAMAGE_AMP = 1;
+    public static final int ADDON_MASK_SOLAR_PANEL = 2;
+    public static final int ADDON_MASK_REDSTONE_REACTOR = 4;
+    /** Union of every currently allocated addon mask bit. */
+    public static final int ADDON_MASK_ALL =
+            ADDON_MASK_DAMAGE_AMP | ADDON_MASK_SOLAR_PANEL | ADDON_MASK_REDSTONE_REACTOR;
+
     private TurretVisualRules() {
     }
 
@@ -34,7 +48,9 @@ public final class TurretVisualRules {
     }
 
     public static int addonMask(boolean damageAmp, boolean solar, boolean reactor) {
-        return (damageAmp ? 1 : 0) | (solar ? 2 : 0) | (reactor ? 4 : 0);
+        return (damageAmp ? ADDON_MASK_DAMAGE_AMP : 0)
+                | (solar ? ADDON_MASK_SOLAR_PANEL : 0)
+                | (reactor ? ADDON_MASK_REDSTONE_REACTOR : 0);
     }
 
     public static int beamSegments(double length) {
@@ -46,17 +62,15 @@ public final class TurretVisualRules {
      * Legacy 1.12 ray opacity: the laser beam is a translucent orange-red
      * (alpha 0.38), the rail gun a faint orange (alpha 0.2).
      */
-    public static float beamAlpha(omtteam.openmodularturrets.data.TurretDefinition definition) {
-        return definition == omtteam.openmodularturrets.data.TurretDefinition.RAIL_GUN
-                ? 0.2F : 0.38F;
+    public static float beamAlpha(TurretDefinition definition) {
+        return definition == TurretDefinition.RAIL_GUN ? 0.2F : 0.38F;
     }
 
     /**
      * Legacy 1.12 ray lifetime in ticks (laser 5, rail gun 3).
      */
-    public static int beamDurationTicks(omtteam.openmodularturrets.data.TurretDefinition definition) {
-        return definition == omtteam.openmodularturrets.data.TurretDefinition.RAIL_GUN
-                ? 3 : 5;
+    public static int beamDurationTicks(TurretDefinition definition) {
+        return definition == TurretDefinition.RAIL_GUN ? 3 : 5;
     }
 
     /**

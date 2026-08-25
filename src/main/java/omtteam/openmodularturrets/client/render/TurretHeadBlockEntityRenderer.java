@@ -26,11 +26,10 @@ import net.minecraft.resources.ResourceLocation;
  */
 public final class TurretHeadBlockEntityRenderer
         implements BlockEntityRenderer<TurretHeadBlockEntity> {
-    private static final int DAMAGE_AMP_BIT = 1;
-    private static final int SOLAR_PANEL_BIT = 2;
-    private static final int REDSTONE_REACTOR_BIT = 4;
-    private static final int ALL_ADDONS = DAMAGE_AMP_BIT | SOLAR_PANEL_BIT
-            | REDSTONE_REACTOR_BIT;
+    private static final int DAMAGE_AMP_BIT = TurretVisualRules.ADDON_MASK_DAMAGE_AMP;
+    private static final int SOLAR_PANEL_BIT = TurretVisualRules.ADDON_MASK_SOLAR_PANEL;
+    private static final int REDSTONE_REACTOR_BIT = TurretVisualRules.ADDON_MASK_REDSTONE_REACTOR;
+    private static final int ALL_ADDONS = TurretVisualRules.ADDON_MASK_ALL;
     private static final Map<TurretDefinition, ResourceLocation> TEXTURES =
             createTextures();
     private static final ResourceLocation DAMAGE_AMP_TEXTURE =

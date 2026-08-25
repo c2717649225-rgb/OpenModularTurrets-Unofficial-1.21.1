@@ -367,6 +367,8 @@ public final class OmtTooltips {
     }
 
     private static int aoeFor(TurretDefinition definition) {
+        // Default 0 means "no AOE" by design; add an explicit case only when
+        // introducing a new explosive turret type.
         return switch (definition) {
             case GRENADE -> 3;
             case ROCKET -> 5;

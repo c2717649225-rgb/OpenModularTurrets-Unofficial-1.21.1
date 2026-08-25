@@ -33,6 +33,10 @@ public final class TurretHeadModel {
     private final ModelPart boxUnder;
     private final ModelPart crystal;
     private final ModelPart pillar;
+    @javax.annotation.Nullable
+    private final ModelPart boxLeft;
+    @javax.annotation.Nullable
+    private final ModelPart boxRight;
     private final List<ModelPart> aimParts = new ArrayList<>();
     private final List<ModelPart> mountParts = new ArrayList<>();
     private final List<ModelPart> spinners = new ArrayList<>();
@@ -44,6 +48,8 @@ public final class TurretHeadModel {
         boxUnder = child(root, "box_under");
         crystal = child(root, "crystal");
         pillar = child(root, "pillar_large");
+        boxLeft = child(root, "box_left");
+        boxRight = child(root, "box_right");
 
         mountParts.add(base);
         if (pole != null) {
@@ -82,13 +88,11 @@ public final class TurretHeadModel {
         if (boxUnder != null) {
             boxUnder.yRot = yawRadians;
         }
-        ModelPart left = child(root, "box_left");
-        ModelPart right = child(root, "box_right");
-        if (left != null) {
-            left.xRot = yawRadians;
+        if (boxLeft != null) {
+            boxLeft.xRot = yawRadians;
         }
-        if (right != null) {
-            right.xRot = yawRadians;
+        if (boxRight != null) {
+            boxRight.xRot = yawRadians;
         }
         for (ModelPart part : aimParts) {
             part.xRot = pitchRadians;

@@ -1083,7 +1083,7 @@ public final class TurretBaseBlockEntity extends BlockEntity
         trustManager.loadNbt(tag, owner);
 
         if (tag.contains("addon_render_mask", Tag.TAG_INT)) {
-            syncedAddonRenderMask = Math.clamp(tag.getInt("addon_render_mask"), 0, 7);
+            syncedAddonRenderMask = Math.clamp(tag.getInt("addon_render_mask"), 0, TurretVisualRules.ADDON_MASK_ALL);
         }
     }
 
@@ -1120,7 +1120,7 @@ public final class TurretBaseBlockEntity extends BlockEntity
         configuredRange = Math.max(0, tag.getInt("range"));
         camouflageManager.loadNbt(tag, registries);
         if (tag.contains("addon_render_mask", Tag.TAG_INT)) {
-            syncedAddonRenderMask = Math.clamp(tag.getInt("addon_render_mask"), 0, 7);
+            syncedAddonRenderMask = Math.clamp(tag.getInt("addon_render_mask"), 0, TurretVisualRules.ADDON_MASK_ALL);
         }
     }
 
