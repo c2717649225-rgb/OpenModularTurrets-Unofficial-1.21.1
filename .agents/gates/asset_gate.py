@@ -496,20 +496,42 @@ def check_mods_toml(project_root: Path) -> List[Finding]:
 # Added after the "expanders floating / turret surfaces mis-textured" incident
 # class: three failure modes that compile fine, pass L1/L2, and only surface
 # visually. See docs/porting/code-quality-remediation-plan.md Phase E notes.
-
-ATTACHMENT_FAMILY_PREFIXES = ("expander_inv_", "expander_power_",
-                              "base_addon_loot_deleter")
-PLATE_SOURCE_JAVA = ("src/main/java/omtteam/openmodularturrets/block/"
-                     "BaseAttachmentBlock.java")
+# Family constants live in _visual_integrity_config (overridable per project
+# via .agents/gates/visual-integrity.json).
 
 
-def _plate_box_from_java(project_root: Path) -> Optional[Tuple[int, int, int, int, int, int]]:
-    """Parse the NORTH plate dims from BaseAttachmentBlock.expanderShape.
+ATTACHMENT_FAMILY_DEFAULTS = {
+    "attachment_prefixes": ["expander_inv_", "expander_power_",
+                            "base_addon_loot_deleter"],
+    "plate_source": ("src/main/java/omtteam/openmodularturrets/block/"
+                     "BaseAttachmentBlock.java"),
+}
+
+
+def _visual_integrity_config(project_root: Path) -> dict:
+    """Optional host-project overrides for the visual-integrity rules.
+
+    Copy ``visual-integrity.json`` next to this script in a new project and
+    adjust: {"attachment_prefixes": [...], "plate_source": "src/main/..."}.
+    Missing file -> built-in defaults (OpenModularTurrets values).
+    """
+    p = project_root / ".agents" / "gates" / "visual-integrity.json"
+    if not p.is_file():
+        return dict(ATTACHMENT_FAMILY_DEFAULTS)
+    try:
+        cfg = json.loads(p.read_text(encoding="utf-8", errors="replace"))
+        return {**ATTACHMENT_FAMILY_DEFAULTS, **cfg}
+    except (OSError, json.JSONDecodeError):
+        return dict(ATTACHMENT_FAMILY_DEFAULTS)
+
+
+def _plate_box_from_java(project_root: Path, plate_source: str) -> Optional[Tuple[int, int, int, int, int, int]]:
+    """Parse the NORTH plate dims from expanderShape's Java source.
 
     Single source of truth stays in Java; returns None when the source cannot
     be parsed (gate then skips geometry comparison instead of guessing).
     """
-    p = project_root / PLATE_SOURCE_JAVA
+    p = project_root / plate_source
     if not p.is_file():
         return None
     text = strip_comments(p.read_text(encoding="utf-8", errors="replace"))
@@ -540,16 +562,18 @@ def check_attachment_family(
 ) -> List[Finding]:
     """Geometry-vs-collision alignment and rotation-table drift for the
     six-way attachment family (expanders + loot deleter)."""
+    cfg = _visual_integrity_config(project_root)
+    prefixes = tuple(cfg["attachment_prefixes"])
     findings: List[Finding] = []
     blocks_root = f"assets/{ns}/blockstates"
     names = sorted(
         bs.name[:-5] for bs in view.glob(f"{blocks_root}/*.json")
-        if bs.name.startswith(ATTACHMENT_FAMILY_PREFIXES)
+        if bs.name.startswith(prefixes)
     )
     if len(names) < 2:
         return findings
 
-    plate = _plate_box_from_java(project_root)
+    plate = _plate_box_from_java(project_root, cfg["plate_source"])
     reference_table: Optional[dict] = None
     reference_name = ""
 
