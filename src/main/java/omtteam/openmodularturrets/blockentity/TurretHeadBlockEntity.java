@@ -192,7 +192,7 @@ public final class TurretHeadBlockEntity extends BlockEntity {
     }
 
     @Nullable
-    private LivingEntity currentTarget() {
+    public LivingEntity currentTarget() {
         if (level == null || targetEntityId < 0) {
             return null;
         }

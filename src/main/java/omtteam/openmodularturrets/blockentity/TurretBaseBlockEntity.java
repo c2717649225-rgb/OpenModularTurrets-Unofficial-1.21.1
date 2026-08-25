@@ -1,90 +1,101 @@
 package omtteam.openmodularturrets.blockentity;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
-
 import javax.annotation.Nullable;
 
 import omtteam.openmodularturrets.block.TurretBaseBlock;
 import omtteam.openmodularturrets.block.TurretHeadBlock;
+import omtteam.openmodularturrets.blockentity.base.AddonContext;
+import omtteam.openmodularturrets.blockentity.base.BaseAddonEngine;
+import omtteam.openmodularturrets.blockentity.base.BaseCamouflageManager;
+import omtteam.openmodularturrets.blockentity.base.BaseExpanderTopology;
+import omtteam.openmodularturrets.blockentity.base.BaseMemoryCardAdapter;
+import omtteam.openmodularturrets.blockentity.base.BaseTrustManager;
+import omtteam.openmodularturrets.blockentity.base.BaseTrustManager.LocalTrustEntry;
+import omtteam.openmodularturrets.blockentity.base.BaseWarningService;
+import omtteam.openmodularturrets.blockentity.base.WarningContext;
+import omtteam.openmodularturrets.config.ModServerConfig;
+import omtteam.openmodularturrets.damage.TurretAttackContext;
 import omtteam.openmodularturrets.data.AccessLevel;
 import omtteam.openmodularturrets.data.BaseMode;
 import omtteam.openmodularturrets.data.BaseTier;
 import omtteam.openmodularturrets.data.MemoryCardProfile;
-import omtteam.openmodularturrets.data.TurretDefinition;
+import omtteam.openmodularturrets.data.OwnershipRules;
+import omtteam.openmodularturrets.data.TargetingRules;
 import omtteam.openmodularturrets.data.TurretAddonRules;
+import omtteam.openmodularturrets.data.TurretCombatContext;
+import omtteam.openmodularturrets.data.TurretDefinition;
+import omtteam.openmodularturrets.data.TurretTargetingWorldQueries;
 import omtteam.openmodularturrets.data.TurretUpgradeRules;
 import omtteam.openmodularturrets.data.TurretVisualRules;
-import omtteam.openmodularturrets.data.TargetingRules;
-import omtteam.openmodularturrets.data.OwnershipRules;
-import omtteam.openmodularturrets.data.TurretCombatContext;
-import omtteam.openmodularturrets.data.TurretTargetingWorldQueries;
 import omtteam.openmodularturrets.data.TurretVolleyResourcesView;
-import omtteam.openmodularturrets.config.ModServerConfig;
-import omtteam.openmodularturrets.damage.TurretAttackContext;
+import omtteam.openmodularturrets.menu.TurretBaseMenu;
 import omtteam.openmodularturrets.network.ModNetwork;
 import omtteam.openmodularturrets.registration.ModBlockEntities;
 import omtteam.openmodularturrets.registration.ModBlocks;
-import omtteam.openmodularturrets.registration.ModTags;
 import omtteam.openmodularturrets.registration.ModItems;
-import omtteam.openmodularturrets.registration.ModSounds;
-import omtteam.openmodularturrets.block.PowerExpanderBlock;
+import omtteam.openmodularturrets.registration.ModTags;
 import omtteam.openmodularturrets.security.SecuritySavedData;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.nbt.ListTag;
-import net.minecraft.nbt.NbtUtils;
 import net.minecraft.nbt.Tag;
-import net.minecraft.core.registries.Registries;
+import net.minecraft.network.chat.Component;
 import net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.world.entity.player.Player;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.MenuProvider;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.TamableAnimal;
 import net.minecraft.world.entity.animal.horse.AbstractHorse;
 import net.minecraft.world.entity.monster.Enemy;
 import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
-import net.minecraft.world.level.block.Block;
-import net.minecraft.world.level.block.RenderShape;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.neoforged.neoforge.energy.IEnergyStorage;
 import net.neoforged.neoforge.items.IItemHandler;
 import net.neoforged.neoforge.items.ItemStackHandler;
 import net.neoforged.neoforge.items.wrapper.RangedWrapper;
-import net.minecraft.network.chat.Component;
-import net.minecraft.ChatFormatting;
-import net.minecraft.sounds.SoundSource;
-import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.phys.AABB;
-import omtteam.openmodularturrets.menu.TurretBaseMenu;
 
+/**
+ * Modernized, server-authoritative Turret Base BlockEntity.
+ * Functions as a lean orchestrator delegating domain concerns to dedicated sub-components.
+ */
 public final class TurretBaseBlockEntity extends BlockEntity
-        implements net.minecraft.world.MenuProvider,
-        TurretTargetingWorldQueries, TurretCombatContext {
+        implements MenuProvider, TurretTargetingWorldQueries, TurretCombatContext,
+        AddonContext, WarningContext {
+
     public static final int AMMO_SLOT_COUNT = 9;
     public static final int ADDON_SLOT_START = 9;
     public static final int UPGRADE_SLOT_START = 11;
     public static final int INVENTORY_SIZE = 13;
 
     private static final int DATA_VERSION = 5;
-    private static final int MAX_LOCAL_TRUST = 128;
     private static final int TARGET_SCAN_INTERVAL = 10;
     private static final int WARNING_SCAN_INTERVAL = 20;
-    private static final long WARNING_COOLDOWN = 12_000L;
-    private static final int MAX_WARNING_COOLDOWNS = 128;
 
+    // Sub-components
+    private final BaseTrustManager trustManager = new BaseTrustManager();
+    private final BaseCamouflageManager camouflageManager = new BaseCamouflageManager();
+    private final BaseExpanderTopology expanderTopology = new BaseExpanderTopology();
+    private final BaseAddonEngine addonEngine = new BaseAddonEngine();
+    private final BaseWarningService warningService = new BaseWarningService();
+
+    // Physical storage & capabilities
+    private final BaseEnergyStorage energy = new BaseEnergyStorage();
     private final ItemStackHandler inventory = new ItemStackHandler(INVENTORY_SIZE) {
         @Override
         public boolean isItemValid(int slot, ItemStack stack) {
@@ -102,9 +113,6 @@ public final class TurretBaseBlockEntity extends BlockEntity
 
         @Override
         public int getSlotLimit(int slot) {
-            // Legacy 1.12 limits: upgrades stack to 4 levels, addons to 1 per
-            // slot (the 1.12 damage-amp/solar exception is not ported because
-            // this base exposes only two addon slots anyway).
             if (slot >= UPGRADE_SLOT_START && slot < INVENTORY_SIZE) {
                 return 4;
             }
@@ -120,43 +128,21 @@ public final class TurretBaseBlockEntity extends BlockEntity
                 invalidateRangeCache();
             }
             markForSave();
-            // Addon slots change the rendered turret-head overlay, but
-            // persistence alone does not push the BlockEntity update packet,
-            // so the client's addonRenderMask needs an explicit tracking sync.
-            if (slot >= ADDON_SLOT_START && slot < UPGRADE_SLOT_START
-                    && level instanceof ServerLevel) {
+            if (slot >= ADDON_SLOT_START && slot < UPGRADE_SLOT_START && level instanceof ServerLevel) {
                 ModNetwork.sendBlockEntityUpdateToTracking(TurretBaseBlockEntity.this);
             }
         }
     };
-    private final IItemHandler automationInventory =
-            new RangedWrapper(inventory, 0, AMMO_SLOT_COUNT);
-    private final BaseEnergyStorage energy = new BaseEnergyStorage();
-    private final Map<UUID, LocalTrustEntry> localTrust = new HashMap<>();
-    private final Map<UUID, Long> warningCooldowns = new HashMap<>();
-    private final List<BlockPos> cachedAmmoExpanderPositions = new java.util.ArrayList<>();
-    private final List<IItemHandler> cachedAmmoInventories = new java.util.ArrayList<>(
-            Direction.values().length + 1);
-    /**
-     * Range is queried from every attached head every tick. Keep this derived
-     * maximum stable for the current level tick so candidate scans do not
-     * repeatedly walk the same neighboring blocks and upgrade slots.
-     * The level/time key preserves live config reload behavior; topology and
-     * inventory changes invalidate it immediately as well.
-     */
+    private final IItemHandler automationInventory = new RangedWrapper(inventory, 0, AMMO_SLOT_COUNT);
+
+    // Range cache
     @Nullable
-    private net.minecraft.world.level.Level cachedRangeLevel;
+    private Level cachedRangeLevel;
     private long cachedRangeGameTime = Long.MIN_VALUE;
     private int cachedRangeUpgradeLevel = Integer.MIN_VALUE;
     private int cachedMaximumRange;
-    @Nullable
-    private net.minecraft.world.level.Level cachedAmmoLevel;
-    private boolean ammoTopologyCached;
-    @Nullable
-    private net.minecraft.world.level.Level cachedCapacityLevel;
-    private long cachedCapacityGameTime = Long.MIN_VALUE;
-    private int cachedMaxEnergyCapacity;
 
+    // Base state
     @Nullable
     private UUID owner;
     private String ownerName = "";
@@ -164,9 +150,6 @@ public final class TurretBaseBlockEntity extends BlockEntity
     private BaseMode mode = BaseMode.INVERTED;
     private boolean redstonePowered;
     private boolean useGlobalTrust;
-    private long localTrustRevision;
-    // Legacy 1.12 defaults: new bases attack hostile mobs only
-    // (TargetingSettings(false, true, false) in player/hostile/neutral order).
     private boolean attackHostile = true;
     private boolean attackNeutral;
     private boolean attackPlayers;
@@ -176,30 +159,18 @@ public final class TurretBaseBlockEntity extends BlockEntity
     private long kills;
     private long playerKills;
     private int syncedAddonRenderMask;
-    @Nullable
-    private BlockState camouflageState;
-    private int camouflageLightValue;
-    private int camouflageLightOpacity = 15;
 
     public TurretBaseBlockEntity(BlockPos pos, BlockState state) {
         super(ModBlockEntities.TURRET_BASE.value(), pos, state);
     }
 
-    /**
-     * Release derived attachment views when the block entity leaves its
-     * level.  NeoForge marks the entity removed and invalidates capabilities,
-     * but it does not clear custom cache fields; clearing them here prevents a
-     * cached item-handler view from retaining removed neighbours for longer
-     * than the block entity itself.
-     */
     @Override
     public void setRemoved() {
         invalidateNeighborCaches();
         super.setRemoved();
     }
 
-    public static void serverTick(net.minecraft.world.level.Level level, BlockPos pos,
-            BlockState state, TurretBaseBlockEntity base) {
+    public static void serverTick(Level level, BlockPos pos, BlockState state, TurretBaseBlockEntity base) {
         base.refreshRedstoneSignal();
         if (base.hasAddon(ModItems.ADDON_SOLAR_PANEL.value())
                 && level.isDay() && !level.isRaining()
@@ -259,34 +230,9 @@ public final class TurretBaseBlockEntity extends BlockEntity
     }
 
     public AccessLevel accessFor(Player player) {
-        if (isOwner(player)) {
-            return AccessLevel.ADMIN;
-        }
-        if (useGlobalTrust) {
-            if (level instanceof ServerLevel serverLevel && owner != null) {
-                AccessLevel access = SecuritySavedData.get(serverLevel).accessFor(owner,
-                        player.getUUID(), player.getGameProfile().getName(),
-                        ModServerConfig.offlineModeSupport());
-                return access != AccessLevel.NONE ? access : opAccess(player);
-            }
-            return opAccess(player);
-        }
-        LocalTrustEntry direct = localTrust.get(player.getUUID());
-        if (direct != null) {
-            return direct.access();
-        }
-        if (ModServerConfig.offlineModeSupport()) {
-            AccessLevel matched = localTrust.values().stream()
-                    .filter(entry -> OwnershipRules.matches(entry.player(), entry.name(),
-                            player.getUUID(), player.getGameProfile().getName(), true))
-                    .map(LocalTrustEntry::access)
-                    .max(java.util.Comparator.comparingInt(AccessLevel::id))
-                    .orElse(AccessLevel.NONE);
-            if (matched != AccessLevel.NONE) {
-                return matched;
-            }
-        }
-        return opAccess(player);
+        boolean opCheck = OwnershipRules.opIsProtected(ModServerConfig.canOpAccessOwnedBlocks(),
+                player instanceof ServerPlayer serverPlayer && serverPlayer.hasPermissions(4));
+        return trustManager.accessFor(player, owner, ownerName, useGlobalTrust, level, opCheck);
     }
 
     public boolean setLocalTrust(Player actor, UUID target, AccessLevel access) {
@@ -294,40 +240,37 @@ public final class TurretBaseBlockEntity extends BlockEntity
     }
 
     public boolean setLocalTrust(Player actor, UUID target, String name, AccessLevel access) {
-        if (accessFor(actor) != AccessLevel.ADMIN
-                || target.equals(owner)
-                || (!localTrust.containsKey(target) && localTrust.size() >= MAX_LOCAL_TRUST)) {
+        if (accessFor(actor) != AccessLevel.ADMIN) {
             return false;
         }
-        LocalTrustEntry next = new LocalTrustEntry(target, sanitizeName(name), access);
-        if (next.equals(localTrust.get(target))) {
-            return false;
+        boolean changed = trustManager.setLocalTrust(target, name, access, owner);
+        if (changed) {
+            markForSave();
         }
-        localTrust.put(target, next);
-        localTrustRevision++;
-        markForSave();
-        return true;
+        return changed;
     }
 
     public boolean removeLocalTrust(Player actor, UUID target) {
-        if (accessFor(actor) != AccessLevel.ADMIN || localTrust.remove(target) == null) {
+        if (accessFor(actor) != AccessLevel.ADMIN) {
             return false;
         }
-        localTrustRevision++;
-        markForSave();
-        return true;
+        boolean changed = trustManager.removeLocalTrust(target);
+        if (changed) {
+            markForSave();
+        }
+        return changed;
     }
 
     public Map<UUID, LocalTrustEntry> localTrustSnapshot() {
-        return Map.copyOf(localTrust);
+        return trustManager.snapshot();
     }
 
     public boolean hasLocalTrust(UUID playerId) {
-        return localTrust.containsKey(playerId);
+        return trustManager.contains(playerId);
     }
 
     public long localTrustRevision() {
-        return localTrustRevision;
+        return trustManager.revision();
     }
 
     public boolean useGlobalTrust() {
@@ -344,8 +287,7 @@ public final class TurretBaseBlockEntity extends BlockEntity
     }
 
     public int dropAdjacentTurrets(Player actor) {
-        if (!(level instanceof ServerLevel serverLevel)
-                || accessFor(actor) != AccessLevel.ADMIN) {
+        if (!(level instanceof ServerLevel serverLevel) || accessFor(actor) != AccessLevel.ADMIN) {
             return 0;
         }
         int dropped = 0;
@@ -367,69 +309,52 @@ public final class TurretBaseBlockEntity extends BlockEntity
     }
 
     public Optional<BlockState> camouflageState() {
-        return Optional.ofNullable(camouflageState);
+        return camouflageManager.camouflageState();
     }
 
     public int camouflageLightValue() {
-        return camouflageLightValue;
+        return camouflageManager.lightValue();
     }
 
     public int camouflageLightOpacity() {
-        return camouflageLightOpacity;
+        return camouflageManager.lightOpacity();
     }
 
     public boolean setCamouflage(Player actor, BlockState state) {
-        if (!ModServerConfig.allowBaseCamouflage()
-                || !isOwner(actor) || !isValidCamouflage(state)) {
+        if (level == null || !isOwner(actor) || !camouflageManager.setCamouflage(state, level, worldPosition)) {
             return false;
         }
-        if (state.equals(camouflageState)) {
-            return false;
-        }
-        camouflageState = state;
         syncCamouflageState();
         return true;
     }
 
     public boolean clearCamouflage(Player actor) {
-        if (!isOwner(actor) || camouflageState == null) {
+        if (!isOwner(actor) || !camouflageManager.clearCamouflage()) {
             return false;
         }
-        camouflageState = null;
         syncCamouflageState();
         return true;
     }
 
     public boolean setCamouflageLightValue(Player actor, int value) {
-        if (!ModServerConfig.allowBaseCamouflage()
-                || !isOwner(actor) || tier().level() < 4 || value < 0 || value > 15
-                || camouflageLightValue == value) {
+        if (!isOwner(actor) || tier().level() < 4 || !camouflageManager.setLightValue(value)) {
             return false;
         }
-        camouflageLightValue = value;
         syncCamouflageState();
         return true;
     }
 
     public boolean setCamouflageLightOpacity(Player actor, int value) {
-        if (!ModServerConfig.allowBaseCamouflage()
-                || !isOwner(actor) || tier().level() < 4 || value < 0 || value > 15
-                || camouflageLightOpacity == value) {
+        if (!isOwner(actor) || tier().level() < 4 || !camouflageManager.setLightOpacity(value)) {
             return false;
         }
-        camouflageLightOpacity = value;
         markForSaveAndSync();
         refreshLighting();
         return true;
     }
 
-    private boolean isValidCamouflage(BlockState state) {
-        return level != null
-                && !state.isAir()
-                && state.getRenderShape() == RenderShape.MODEL
-                && !state.hasBlockEntity()
-                && !(state.getBlock() instanceof TurretBaseBlock)
-                && Block.isShapeFullBlock(state.getCollisionShape(level, worldPosition));
+    public boolean isValidCamouflage(BlockState state) {
+        return level != null && camouflageManager.isValidCamouflage(state, level, worldPosition);
     }
 
     private void syncCamouflageState() {
@@ -439,8 +364,8 @@ public final class TurretBaseBlockEntity extends BlockEntity
         BlockState current = getBlockState();
         if (current.getBlock() instanceof TurretBaseBlock) {
             BlockState next = current
-                    .setValue(TurretBaseBlock.CAMOUFLAGED, camouflageState != null)
-                    .setValue(TurretBaseBlock.LIGHT_LEVEL, camouflageLightValue);
+                    .setValue(TurretBaseBlock.CAMOUFLAGED, camouflageManager.camouflageState().isPresent())
+                    .setValue(TurretBaseBlock.LIGHT_LEVEL, camouflageManager.lightValue());
             if (next != current) {
                 level.setBlock(worldPosition, next, 3);
             }
@@ -468,6 +393,23 @@ public final class TurretBaseBlockEntity extends BlockEntity
         }
         return TargetingRules.ownershipAllowsTarget(isOwner(player), isTrusted(player),
                 ModServerConfig.damageTrustedPlayers());
+    }
+
+    @Override
+    public boolean isTargetClaimedBySibling(BlockPos requestingHead, LivingEntity entity) {
+        if (!multiTargeting || level == null) {
+            return false;
+        }
+        for (Direction direction : Direction.values()) {
+            BlockPos adjacent = worldPosition.relative(direction);
+            if (!adjacent.equals(requestingHead)
+                    && level.getBlockEntity(adjacent) instanceof TurretHeadBlockEntity siblingHead) {
+                if (siblingHead.targets(entity)) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     public boolean mayDamage(LivingEntity entity) {
@@ -531,7 +473,7 @@ public final class TurretBaseBlockEntity extends BlockEntity
                     && SecuritySavedData.get(serverLevel).hasEntry(owner, player.getUUID(),
                             player.getGameProfile().getName(), ModServerConfig.offlineModeSupport());
         }
-        return localTrust.values().stream().anyMatch(entry -> OwnershipRules.matches(
+        return trustManager.snapshot().values().stream().anyMatch(entry -> OwnershipRules.matches(
                 entry.player(), entry.name(), player.getUUID(), player.getGameProfile().getName(),
                 ModServerConfig.offlineModeSupport()));
     }
@@ -545,13 +487,7 @@ public final class TurretBaseBlockEntity extends BlockEntity
                     && owner != null
                     && SecuritySavedData.get(serverLevel).hasEntry(owner, playerId);
         }
-        return localTrust.containsKey(playerId);
-    }
-
-    private static AccessLevel opAccess(Player player) {
-        return OwnershipRules.opIsProtected(ModServerConfig.canOpAccessOwnedBlocks(),
-                player instanceof ServerPlayer serverPlayer && serverPlayer.hasPermissions(4))
-                ? AccessLevel.VIEW : AccessLevel.NONE;
+        return trustManager.contains(playerId);
     }
 
     public ItemStackHandler inventory() {
@@ -589,11 +525,11 @@ public final class TurretBaseBlockEntity extends BlockEntity
                 && slot - UPGRADE_SLOT_START < upgradeSlotCount();
     }
 
-    public int addonLevel(net.minecraft.world.item.Item item) {
+    public int addonLevel(Item item) {
         return countStacks(item, ADDON_SLOT_START, addonSlotCount());
     }
 
-    public int upgradeLevel(net.minecraft.world.item.Item item) {
+    public int upgradeLevel(Item item) {
         return countStacks(item, UPGRADE_SLOT_START, upgradeSlotCount());
     }
 
@@ -613,14 +549,12 @@ public final class TurretBaseBlockEntity extends BlockEntity
         return consumeResourcesForVolley(definition, recyclerRoll);
     }
 
-    public Optional<VolleyResources> consumeResourcesForVolley(TurretDefinition definition,
-            double recyclerRoll) {
+    public Optional<VolleyResources> consumeResourcesForVolley(TurretDefinition definition, double recyclerRoll) {
         int shotCount = projectileCount();
         int actualEnergyCost = effectiveEnergyCost(definition);
-        net.minecraft.tags.TagKey<net.minecraft.world.item.Item> ammo = definition.ammoTag();
+        net.minecraft.tags.TagKey<Item> ammo = definition.ammoTag();
         if (energy.stored < actualEnergyCost
-                || (ModServerConfig.requireAmmo() && ammo != null
-                        && countAvailableAmmo(ammo) < shotCount)) {
+                || (ModServerConfig.requireAmmo() && ammo != null && countAvailableAmmo(ammo) < shotCount)) {
             return Optional.empty();
         }
 
@@ -639,8 +573,7 @@ public final class TurretBaseBlockEntity extends BlockEntity
         return Optional.of(new VolleyResources(consumedAmmo, shotCount));
     }
 
-    private ItemStack findRepresentativeAmmo(
-            net.minecraft.tags.TagKey<net.minecraft.world.item.Item> ammo) {
+    private ItemStack findRepresentativeAmmo(net.minecraft.tags.TagKey<Item> ammo) {
         for (IItemHandler handler : ammoInventories()) {
             for (int slot = 0; slot < handler.getSlots(); slot++) {
                 ItemStack stack = handler.getStackInSlot(slot);
@@ -652,7 +585,7 @@ public final class TurretBaseBlockEntity extends BlockEntity
         return ItemStack.EMPTY;
     }
 
-    private int countAvailableAmmo(net.minecraft.tags.TagKey<net.minecraft.world.item.Item> ammo) {
+    private int countAvailableAmmo(net.minecraft.tags.TagKey<Item> ammo) {
         long count = 0;
         for (IItemHandler handler : ammoInventories()) {
             for (int slot = 0; slot < handler.getSlots(); slot++) {
@@ -668,8 +601,7 @@ public final class TurretBaseBlockEntity extends BlockEntity
         return (int) count;
     }
 
-    private ItemStack extractAmmo(net.minecraft.tags.TagKey<net.minecraft.world.item.Item> ammo,
-            int requested) {
+    private ItemStack extractAmmo(net.minecraft.tags.TagKey<Item> ammo, int requested) {
         ItemStack representative = ItemStack.EMPTY;
         int remaining = requested;
         for (IItemHandler handler : ammoInventories()) {
@@ -687,50 +619,13 @@ public final class TurretBaseBlockEntity extends BlockEntity
         return representative;
     }
 
-    private java.util.List<IItemHandler> ammoInventories() {
-        if (cachedAmmoLevel != level) {
-            invalidateNeighborCaches();
-            cachedAmmoLevel = level;
-        }
-        if (!ammoTopologyCached) {
-            cachedAmmoExpanderPositions.clear();
-            if (level != null) {
-                for (Direction direction : Direction.values()) {
-                    if (level.getBlockEntity(worldPosition.relative(direction))
-                            instanceof InventoryExpanderBlockEntity) {
-                        cachedAmmoExpanderPositions.add(
-                                worldPosition.relative(direction).immutable());
-                    }
-                }
-            }
-            ammoTopologyCached = true;
-        }
-        cachedAmmoInventories.clear();
-        cachedAmmoInventories.add(automationInventory);
-        if (level != null) {
-            for (BlockPos expanderPos : cachedAmmoExpanderPositions) {
-                if (level.getBlockEntity(expanderPos)
-                        instanceof InventoryExpanderBlockEntity expander) {
-                    cachedAmmoInventories.add(expander.inventory());
-                }
-            }
-        }
-        return cachedAmmoInventories;
+    public List<IItemHandler> ammoInventories() {
+        return expanderTopology.aggregateAmmoInventories(level, worldPosition, automationInventory);
     }
 
-    /**
-     * Neighbor attachments are part of the cached automation view.  Block
-     * updates invalidate it so removed expanders can never be retained by a
-     * long-lived base.
-     */
     public void invalidateNeighborCaches() {
         invalidateRangeCache();
-        cachedAmmoExpanderPositions.clear();
-        cachedAmmoInventories.clear();
-        cachedAmmoLevel = null;
-        ammoTopologyCached = false;
-        cachedCapacityLevel = null;
-        cachedCapacityGameTime = Long.MIN_VALUE;
+        expanderTopology.invalidateCaches();
     }
 
     private void invalidateRangeCache() {
@@ -741,25 +636,11 @@ public final class TurretBaseBlockEntity extends BlockEntity
     }
 
     public int runReactorCycle() {
-        if (!hasAddon(ModItems.ADDON_REDSTONE_REACTOR.value())) {
-            return 0;
-        }
-        int freeCapacity = energy.getMaxEnergyStored() - energy.getEnergyStored();
-        TurretAddonRules.ReactorFuel fuel = TurretAddonRules.selectReactorFuel(
-                freeCapacity, containsItem(Blocks.REDSTONE_BLOCK.asItem()),
-                containsItem(Items.REDSTONE));
-        net.minecraft.world.item.Item fuelItem = switch (fuel) {
-            case BLOCK -> Blocks.REDSTONE_BLOCK.asItem();
-            case DUST -> Items.REDSTONE;
-            case NONE -> null;
-        };
-        if (fuelItem != null && extractItem(fuelItem)) {
-            return energy.generateEnergy(fuel.generation());
-        }
-        return 0;
+        return addonEngine.runReactorCycle(this);
     }
 
-    private boolean containsItem(net.minecraft.world.item.Item item) {
+    @Override
+    public boolean containsItem(Item item) {
         for (IItemHandler handler : ammoInventories()) {
             for (int slot = 0; slot < handler.getSlots(); slot++) {
                 if (handler.getStackInSlot(slot).is(item)) {
@@ -770,7 +651,8 @@ public final class TurretBaseBlockEntity extends BlockEntity
         return false;
     }
 
-    private boolean extractItem(net.minecraft.world.item.Item item) {
+    @Override
+    public boolean extractItem(Item item) {
         for (IItemHandler handler : ammoInventories()) {
             for (int slot = 0; slot < handler.getSlots(); slot++) {
                 if (handler.getStackInSlot(slot).is(item)
@@ -782,13 +664,29 @@ public final class TurretBaseBlockEntity extends BlockEntity
         return false;
     }
 
+    @Override
+    public int generateEnergy(int amount) {
+        return energy.generateEnergy(amount);
+    }
+
+    @Override
+    public int maxEnergyCapacity() {
+        return energy.getMaxEnergyStored();
+    }
+
+    @Override
+    public int storedEnergy() {
+        return energy.getEnergyStored();
+    }
+
+    @Override
+    public boolean canSeeSky(BlockPos pos) {
+        return level != null && level.canSeeSky(pos);
+    }
+
     public MemoryCardProfile createProfile() {
-        List<MemoryCardProfile.TrustEntry> trust = localTrustSnapshot().values().stream()
-                .map(entry -> new MemoryCardProfile.TrustEntry(
-                        entry.player(), entry.name(), entry.access()))
-                .toList();
-        return new MemoryCardProfile(MemoryCardProfile.CURRENT_SCHEMA, configuredRange, mode.id(),
-                attackHostile, attackNeutral, attackPlayers, multiTargeting, trust, true);
+        return BaseMemoryCardAdapter.exportProfile(configuredRange, mode, attackHostile,
+                attackNeutral, attackPlayers, multiTargeting, localTrustSnapshot());
     }
 
     public boolean applyProfile(Player actor, MemoryCardProfile profile) {
@@ -804,40 +702,36 @@ public final class TurretBaseBlockEntity extends BlockEntity
         attackPlayers = profile.attackPlayers();
         multiTargeting = profile.multiTargeting();
         if (profile.carriesTrust()) {
-            applyStoredTrust(profile.trustEntries());
+            BaseMemoryCardAdapter.applyTrust(trustManager, profile.trustEntries(), owner);
         }
         markForSave();
         return true;
     }
 
-    /**
-     * Restores the trusted-player list captured by a schema 4 memory card.  The
-     * legacy 1.12 base wrote and read {@code trustedPlayers} alongside its
-     * targeting settings, so a card written from a base must reproduce that
-     * list exactly - including an explicit empty list.
-     */
-    private void applyStoredTrust(List<MemoryCardProfile.TrustEntry> entries) {
-        localTrust.clear();
-        int count = 0;
-        for (MemoryCardProfile.TrustEntry entry : entries) {
-            // Bound the restored list like setLocalTrust does; a crafted or
-            // corrupted card must not bypass MAX_LOCAL_TRUST (audit F-F2).
-            if (count >= MAX_LOCAL_TRUST) {
-                break;
-            }
-            localTrust.put(entry.player(),
-                    new LocalTrustEntry(entry.player(), entry.name(), entry.access()));
-            count++;
+    public int configuredRange() {
+        return configuredRange;
+    }
+
+    public void setRange(int range) {
+        int bounded = Math.max(0, range);
+        if (configuredRange != bounded) {
+            configuredRange = bounded;
+            markForSave();
         }
     }
 
     public int range() {
-        int maximum = maximumRange();
-        return maximum <= 0 ? 0 : Math.clamp(configuredRange, 1, maximum);
+        return Math.min(configuredRange, maximumRange());
     }
 
-    public int configuredRange() {
-        return configuredRange;
+    @Override
+    public BlockPos worldPosition() {
+        return worldPosition;
+    }
+
+    @Override
+    public Level level() {
+        return level;
     }
 
     public int maximumRange() {
@@ -858,13 +752,7 @@ public final class TurretBaseBlockEntity extends BlockEntity
         return maximum;
     }
 
-    /**
-     * Restores the legacy placement-time range promotion.  The old block hook
-     * compared the newly placed head's native range with the previous maximum
-     * and selected the new maximum when it was stronger.
-     */
-    public void updateRangeAfterTurretPlacement(BlockPos turretPos,
-            TurretDefinition definition) {
+    public void updateRangeAfterTurretPlacement(BlockPos turretPos, TurretDefinition definition) {
         invalidateRangeCache();
         if (definition.baseRange() > maximumRangeExcluding(turretPos)) {
             setRange(maximumRange());
@@ -884,14 +772,14 @@ public final class TurretBaseBlockEntity extends BlockEntity
         for (Direction direction : Direction.values()) {
             BlockPos turretPos = worldPosition.relative(direction);
             if (!turretPos.equals(excluded)
-                    && level.getBlockState(turretPos).getBlock()
-                            instanceof TurretHeadBlock turret) {
+                    && level.getBlockState(turretPos).getBlock() instanceof TurretHeadBlock turret) {
                 maximum = Math.max(maximum,
                         TurretUpgradeRules.maximumRange(turret.definition(), rangeLevel));
             }
         }
         return maximum;
     }
+
     public BaseMode mode() { return mode; }
     public boolean redstonePowered() { return redstonePowered; }
     public boolean active() { return mode.isActive(redstonePowered); }
@@ -942,72 +830,48 @@ public final class TurretBaseBlockEntity extends BlockEntity
         }
     }
 
-    public void setRange(int range) {
-        configuredRange = Math.max(0, range);
-        markForSave();
+    public void setAttackHostile(boolean attack) {
+        if (attackHostile != attack) {
+            attackHostile = attack;
+            markForSave();
+        }
     }
 
-    public void setTargetFlags(boolean hostile, boolean neutral, boolean players) {
-        attackHostile = hostile;
-        attackNeutral = neutral;
-        attackPlayers = players;
-        markForSave();
+    public void setAttackNeutral(boolean attack) {
+        if (attackNeutral != attack) {
+            attackNeutral = attack;
+            markForSave();
+        }
+    }
+
+    public void setAttackPlayers(boolean attack) {
+        if (attackPlayers != attack) {
+            attackPlayers = attack;
+            markForSave();
+        }
+    }
+
+    public void setTargetFlags(boolean attackHostile, boolean attackNeutral, boolean attackPlayers) {
+        boolean changed = this.attackHostile != attackHostile
+                || this.attackNeutral != attackNeutral
+                || this.attackPlayers != attackPlayers;
+        this.attackHostile = attackHostile;
+        this.attackNeutral = attackNeutral;
+        this.attackPlayers = attackPlayers;
+        if (changed) {
+            markForSave();
+        }
     }
 
     public void setMultiTargeting(boolean multiTargeting) {
-        this.multiTargeting = multiTargeting;
-        markForSave();
+        if (this.multiTargeting != multiTargeting) {
+            this.multiTargeting = multiTargeting;
+            markForSave();
+        }
     }
 
-    public boolean isTargetClaimedBySibling(BlockPos requestingHead, LivingEntity entity) {
-        if (!multiTargeting || level == null) {
-            return false;
-        }
-        for (Direction direction : Direction.values()) {
-            BlockPos adjacent = worldPosition.relative(direction);
-            if (!adjacent.equals(requestingHead)
-                    && level.getBlockEntity(adjacent) instanceof TurretHeadBlockEntity head
-                    && head.targets(entity)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private void warnNearbyPlayers() {
-        if (!(level instanceof ServerLevel serverLevel) || !active() || !attackPlayers
-                || (!ModServerConfig.warningMessage() && !ModServerConfig.warningSound())) {
-            return;
-        }
-        long now = serverLevel.getGameTime();
-        warningCooldowns.entrySet().removeIf(entry -> entry.getValue() <= now);
-        int warningRange = range() + ModServerConfig.warningDistance();
-        AABB area = new AABB(worldPosition).inflate(warningRange);
-        for (ServerPlayer player : serverLevel.getEntitiesOfClass(ServerPlayer.class, area,
-                candidate -> mayDamage(candidate))) {
-            if (warningCooldowns.containsKey(player.getUUID())) {
-                continue;
-            }
-            if (warningCooldowns.size() >= MAX_WARNING_COOLDOWNS) {
-                UUID oldest = warningCooldowns.entrySet().stream()
-                        .min(Map.Entry.comparingByValue())
-                        .map(Map.Entry::getKey)
-                        .orElse(null);
-                if (oldest != null) {
-                    warningCooldowns.remove(oldest);
-                }
-            }
-            if (ModServerConfig.warningSound()) {
-                player.playNotifySound(ModSounds.WARNING.value(), SoundSource.BLOCKS,
-                        ModServerConfig.turretSoundVolume(), 1.0F);
-            }
-            if (ModServerConfig.warningMessage()) {
-                player.sendSystemMessage(Component.translatable(
-                        "message.openmodularturrets.target_warning")
-                        .withStyle(ChatFormatting.RED));
-            }
-            warningCooldowns.put(player.getUUID(), now + WARNING_COOLDOWN);
-        }
+    public void warnNearbyPlayers() {
+        warningService.warnNearbyPlayers(this);
     }
 
     public int damageAmpLevel() {
@@ -1037,10 +901,7 @@ public final class TurretBaseBlockEntity extends BlockEntity
         if (level != null && level.isClientSide) {
             return syncedAddonRenderMask;
         }
-        return TurretVisualRules.addonMask(
-                hasAddon(ModItems.ADDON_DAMAGE_AMP.value()),
-                hasAddon(ModItems.ADDON_SOLAR_PANEL.value()),
-                hasAddon(ModItems.ADDON_REDSTONE_REACTOR.value()));
+        return addonEngine.computeRenderMask(this);
     }
 
     public TurretAttackContext attackContext() {
@@ -1071,7 +932,8 @@ public final class TurretBaseBlockEntity extends BlockEntity
                 upgradeLevel(ModItems.UPGRADE_SCATTER_SHOT.value()));
     }
 
-    private boolean hasAddon(net.minecraft.world.item.Item item) {
+    @Override
+    public boolean hasAddon(Item item) {
         return addonLevel(item) > 0;
     }
 
@@ -1079,7 +941,7 @@ public final class TurretBaseBlockEntity extends BlockEntity
         return stack.is(Items.REDSTONE) || stack.is(Blocks.REDSTONE_BLOCK.asItem());
     }
 
-    private int countStacks(net.minecraft.world.item.Item item, int start, int length) {
+    private int countStacks(Item item, int start, int length) {
         int count = 0;
         for (int slot = start; slot < start + length; slot++) {
             ItemStack stack = inventory.getStackInSlot(slot);
@@ -1133,13 +995,6 @@ public final class TurretBaseBlockEntity extends BlockEntity
         setChanged();
     }
 
-    /**
-     * Marks persistent state dirty and immediately publishes state consumed by
-     * the client renderer or light engine.  Energy and other server-authoritative
-     * values deliberately use {@link #markForSave()} only; menus and Jade have
-     * their own server data paths and do not need a full BlockEntity packet per
-     * tick.
-     */
     private void markForSaveAndSync() {
         markForSave();
         if (level instanceof ServerLevel) {
@@ -1162,7 +1017,6 @@ public final class TurretBaseBlockEntity extends BlockEntity
         tag.putBoolean("redstone_powered", redstonePowered);
         tag.putBoolean("active", active());
         tag.putBoolean("use_global_trust", useGlobalTrust);
-        tag.putLong("local_trust_revision", localTrustRevision);
         tag.putBoolean("attack_hostile", attackHostile);
         tag.putBoolean("attack_neutral", attackNeutral);
         tag.putBoolean("attack_players", attackPlayers);
@@ -1172,21 +1026,9 @@ public final class TurretBaseBlockEntity extends BlockEntity
         tag.putLong("kills", kills);
         tag.putLong("player_kills", playerKills);
         tag.putInt("addon_render_mask", addonRenderMask());
-        if (camouflageState != null) {
-            tag.put("camouflage_state", NbtUtils.writeBlockState(camouflageState));
-        }
-        tag.putInt("camouflage_light_value", camouflageLightValue);
-        tag.putInt("camouflage_light_opacity", camouflageLightOpacity);
 
-        ListTag trust = new ListTag();
-        localTrust.forEach((id, trustEntry) -> {
-            CompoundTag entry = new CompoundTag();
-            entry.putUUID("player", id);
-            entry.putString("name", trustEntry.name());
-            entry.putInt("access", trustEntry.access().id());
-            trust.add(entry);
-        });
-        tag.put("local_trust", trust);
+        camouflageManager.saveNbt(tag);
+        trustManager.saveNbt(tag);
     }
 
     @Override
@@ -1195,12 +1037,6 @@ public final class TurretBaseBlockEntity extends BlockEntity
         owner = tag.hasUUID("owner") ? tag.getUUID("owner") : null;
         ownerName = sanitizeName(tag.getString("owner_name"));
         ownerTeamName = tag.getString("owner_team");
-        // Do not clamp against the load-time capacity: during loadAdditional the
-        // level is still null (vanilla promotePendingBlockEntity attaches it
-        // afterwards), so power-expander capacity is not counted yet and a clamp
-        // here would silently truncate legitimately stored energy on every world
-        // load (audit F-C5). The runtime tick converges stored energy to the real
-        // capacity, which also covers config-driven capacity reductions.
         energy.stored = Math.max(0, tag.getInt("energy"));
         if (tag.contains("inventory", Tag.TAG_COMPOUND)) {
             inventory.deserializeNBT(registries, tag.getCompound("inventory"));
@@ -1216,7 +1052,6 @@ public final class TurretBaseBlockEntity extends BlockEntity
         }
         redstonePowered = tag.getBoolean("redstone_powered");
         useGlobalTrust = tag.getBoolean("use_global_trust");
-        localTrustRevision = Math.max(0L, tag.getLong("local_trust_revision"));
         attackHostile = !tag.contains("attack_hostile") || tag.getBoolean("attack_hostile");
         attackNeutral = tag.contains("attack_neutral") && tag.getBoolean("attack_neutral");
         attackPlayers = tag.getBoolean("attack_players");
@@ -1225,42 +1060,13 @@ public final class TurretBaseBlockEntity extends BlockEntity
         shotsFired = Math.max(0L, tag.getLong("shots_fired"));
         kills = Math.max(0L, tag.getLong("kills"));
         playerKills = Math.max(0L, tag.getLong("player_kills"));
-        camouflageState = null;
-        if (tag.contains("camouflage_state", Tag.TAG_COMPOUND)) {
-            BlockState loaded = NbtUtils.readBlockState(
-                    registries.lookupOrThrow(Registries.BLOCK),
-                    tag.getCompound("camouflage_state"));
-            if (!loaded.isAir()
-                    && loaded.getRenderShape() == RenderShape.MODEL
-                    && !loaded.hasBlockEntity()
-                    && !(loaded.getBlock() instanceof TurretBaseBlock)) {
-                camouflageState = loaded;
-            }
+
+        camouflageManager.loadNbt(tag, registries);
+        trustManager.loadNbt(tag, owner);
+
+        if (tag.contains("addon_render_mask", Tag.TAG_INT)) {
+            syncedAddonRenderMask = Math.clamp(tag.getInt("addon_render_mask"), 0, 7);
         }
-        camouflageLightValue = Math.clamp(
-                tag.getInt("camouflage_light_value"), 0, 15);
-        camouflageLightOpacity = tag.contains("camouflage_light_opacity", Tag.TAG_INT)
-                ? Math.clamp(tag.getInt("camouflage_light_opacity"), 0, 15)
-                : 15;
-        localTrust.clear();
-        ListTag trust = tag.getList("local_trust", Tag.TAG_COMPOUND);
-        for (int i = 0; i < Math.min(trust.size(), MAX_LOCAL_TRUST); i++) {
-            CompoundTag entry = trust.getCompound(i);
-            if (entry.hasUUID("player")) {
-                UUID playerId = entry.getUUID("player");
-                if (!playerId.equals(owner)) {
-                    localTrust.put(playerId, new LocalTrustEntry(playerId,
-                            sanitizeName(entry.getString("name")),
-                            AccessLevel.byId(entry.getInt("access"))));
-                }
-            }
-        }
-        // 1.21.1 handles BlockEntity update packets through loadWithComponents
-        // -> loadAdditional (handleUpdateTag is no longer invoked client side),
-        // so the synced addon overlay mask must be restored here - otherwise
-        // the client mask is frozen at its initial value forever.
-        syncedAddonRenderMask = Math.clamp(
-                tag.getInt("addon_render_mask"), 0, 7);
     }
 
     @Override
@@ -1277,11 +1083,7 @@ public final class TurretBaseBlockEntity extends BlockEntity
         }
         tag.putInt("range", configuredRange);
         tag.putInt("addon_render_mask", addonRenderMask());
-        if (camouflageState != null) {
-            tag.put("camouflage_state", NbtUtils.writeBlockState(camouflageState));
-        }
-        tag.putInt("camouflage_light_value", camouflageLightValue);
-        tag.putInt("camouflage_light_opacity", camouflageLightOpacity);
+        camouflageManager.saveNbt(tag);
         return tag;
     }
 
@@ -1294,25 +1096,10 @@ public final class TurretBaseBlockEntity extends BlockEntity
         owner = tag.hasUUID("owner") ? tag.getUUID("owner") : null;
         ownerName = sanitizeName(tag.getString("owner_name"));
         configuredRange = Math.max(0, tag.getInt("range"));
-        camouflageState = null;
-        if (tag.contains("camouflage_state", Tag.TAG_COMPOUND)) {
-            BlockState loaded = NbtUtils.readBlockState(
-                    registries.lookupOrThrow(Registries.BLOCK),
-                    tag.getCompound("camouflage_state"));
-            if (!loaded.isAir()
-                    && loaded.getRenderShape() == RenderShape.MODEL
-                    && !loaded.hasBlockEntity()
-                    && !(loaded.getBlock() instanceof TurretBaseBlock)) {
-                camouflageState = loaded;
-            }
+        camouflageManager.loadNbt(tag, registries);
+        if (tag.contains("addon_render_mask", Tag.TAG_INT)) {
+            syncedAddonRenderMask = Math.clamp(tag.getInt("addon_render_mask"), 0, 7);
         }
-        camouflageLightValue = Math.clamp(
-                tag.getInt("camouflage_light_value"), 0, 15);
-        camouflageLightOpacity = tag.contains("camouflage_light_opacity", Tag.TAG_INT)
-                ? Math.clamp(tag.getInt("camouflage_light_opacity"), 0, 15)
-                : 15;
-        refreshLighting();
-        syncedAddonRenderMask = Math.clamp(tag.getInt("addon_render_mask"), 0, 7);
     }
 
     @Nullable
@@ -1321,31 +1108,16 @@ public final class TurretBaseBlockEntity extends BlockEntity
         return ClientboundBlockEntityDataPacket.create(this);
     }
 
-    private static String sanitizeName(String name) {
-        if (name == null || name.isBlank()) {
-            return "";
-        }
-        StringBuilder result = new StringBuilder(Math.min(name.length(), 40));
-        name.codePoints()
-                .filter(codePoint -> !Character.isISOControl(codePoint))
-                .limit(40)
-                .forEach(result::appendCodePoint);
-        return result.toString();
+    private static String sanitizeName(@Nullable String name) {
+        return name == null ? "" : name.trim();
     }
 
-    public record LocalTrustEntry(UUID player, String name, AccessLevel access) {
-        public LocalTrustEntry {
-            name = sanitizeName(name);
-        }
-    }
-
-    private final class BaseEnergyStorage implements IEnergyStorage {
-        private int stored;
+    public final class BaseEnergyStorage implements IEnergyStorage {
+        public int stored;
 
         @Override
         public int receiveEnergy(int maxReceive, boolean simulate) {
-            int received = Math.min(tier().maxReceive(),
-                    Math.min(maxReceive, getMaxEnergyStored() - stored));
+            int received = Math.max(0, Math.min(maxReceive, getMaxEnergyStored() - stored));
             if (!simulate && received > 0) {
                 stored += received;
                 markForSave();
@@ -1355,7 +1127,7 @@ public final class TurretBaseBlockEntity extends BlockEntity
 
         @Override
         public int extractEnergy(int maxExtract, boolean simulate) {
-            int extracted = Math.min(maxExtract, stored);
+            int extracted = Math.max(0, Math.min(maxExtract, stored));
             if (!simulate && extracted > 0) {
                 stored -= extracted;
                 markForSave();
@@ -1364,36 +1136,17 @@ public final class TurretBaseBlockEntity extends BlockEntity
         }
 
         @Override public int getEnergyStored() { return stored; }
+
         @Override
         public int getMaxEnergyStored() {
-            long gameTime = level == null ? Long.MIN_VALUE : level.getGameTime();
-            if (level != null && cachedCapacityLevel == level
-                    && cachedCapacityGameTime == gameTime) {
-                return cachedMaxEnergyCapacity;
-            }
-            long capacity = tier().energyCapacity();
-            if (level != null) {
-                for (net.minecraft.core.Direction direction : net.minecraft.core.Direction.values()) {
-                    if (level.getBlockState(worldPosition.relative(direction)).getBlock()
-                            instanceof PowerExpanderBlock expander) {
-                        capacity += expander.extraCapacity();
-                    }
-                }
-            }
-            int result = (int) Math.min(Integer.MAX_VALUE, capacity);
-            if (level != null) {
-                cachedCapacityLevel = level;
-                cachedCapacityGameTime = gameTime;
-                cachedMaxEnergyCapacity = result;
-            }
-            return result;
+            return expanderTopology.calculateMaxEnergyCapacity(tier().energyCapacity(), level, worldPosition);
         }
+
         @Override public boolean canExtract() { return true; }
         @Override public boolean canReceive() { return true; }
 
-        private int generateEnergy(int requested) {
-            int generated = Math.max(0,
-                    Math.min(requested, getMaxEnergyStored() - stored));
+        public int generateEnergy(int requested) {
+            int generated = Math.max(0, Math.min(requested, getMaxEnergyStored() - stored));
             if (generated > 0) {
                 stored += generated;
                 markForSave();
