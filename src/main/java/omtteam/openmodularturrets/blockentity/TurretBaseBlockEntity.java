@@ -183,7 +183,10 @@ public final class TurretBaseBlockEntity extends BlockEntity
                 && level.getBlockState(pos.above(3)).isAir()) {
             base.energy.generateEnergy(TurretAddonRules.solarGeneration());
         }
-        if (level.getGameTime() % TurretAddonRules.REACTOR_INTERVAL == 0) {
+        // Position-staggered like the warning scan so large fleets do not run
+        // every reactor cycle on the same global tick.
+        if (Math.floorMod(level.getGameTime() + pos.asLong(),
+                TurretAddonRules.REACTOR_INTERVAL) == 0) {
             base.runReactorCycle();
         }
         if (level.getGameTime() % ENERGY_CLAMP_INTERVAL == 0
