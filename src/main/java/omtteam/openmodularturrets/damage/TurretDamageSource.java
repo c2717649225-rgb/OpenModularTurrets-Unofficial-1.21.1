@@ -23,6 +23,9 @@ public final class TurretDamageSource extends DamageSource {
     private static final GameProfile FAKE_PLAYER_PROFILE = new GameProfile(
             UUID.fromString("c5c97afa-fc98-44ab-944a-e67681a66b19"),
             "openmodularturrets:fakeplayer");
+    /** Looting prototypes indexed by fake-drops level; built lazily on the
+     *  server thread once registries are live, then copied per hit. */
+    private static final ItemStack[] LOOTING_SWORD_PROTOTYPES = new ItemStack[4];
 
     private final TurretAttackContext context;
 
@@ -44,19 +47,29 @@ public final class TurretDamageSource extends DamageSource {
             return null;
         }
         FakePlayer player = FakePlayerFactory.get(level, FAKE_PLAYER_PROFILE);
-        ItemStack sword = new ItemStack(Items.DIAMOND_SWORD);
-        if (fakeDropsLevel > 0) {
-            var looting = level.registryAccess().registryOrThrow(Registries.ENCHANTMENT)
-                    .getHolderOrThrow(Enchantments.LOOTING);
-            sword.enchant(looting, fakeDropsLevel);
-        }
-        player.setItemInHand(net.minecraft.world.InteractionHand.MAIN_HAND, sword);
+        player.setItemInHand(net.minecraft.world.InteractionHand.MAIN_HAND,
+                lootingSword(level, fakeDropsLevel));
         var luck = player.getAttribute(Attributes.LUCK);
         if (luck == null) {
             throw new IllegalStateException("OMT FakePlayer is missing the luck attribute");
         }
         luck.setBaseValue(fakeDropsLevel);
         return player;
+    }
+
+    private static ItemStack lootingSword(ServerLevel level, int lootLevel) {
+        int boundedLevel = Math.min(lootLevel, LOOTING_SWORD_PROTOTYPES.length - 1);
+        ItemStack prototype = LOOTING_SWORD_PROTOTYPES[boundedLevel];
+        if (prototype == null) {
+            prototype = new ItemStack(Items.DIAMOND_SWORD);
+            if (boundedLevel > 0) {
+                var looting = level.registryAccess().registryOrThrow(Registries.ENCHANTMENT)
+                        .getHolderOrThrow(Enchantments.LOOTING);
+                prototype.enchant(looting, boundedLevel);
+            }
+            LOOTING_SWORD_PROTOTYPES[boundedLevel] = prototype;
+        }
+        return prototype.copy();
     }
 
     public TurretAttackContext context() {

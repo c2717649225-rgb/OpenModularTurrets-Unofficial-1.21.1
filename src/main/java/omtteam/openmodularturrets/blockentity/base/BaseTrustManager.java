@@ -92,6 +92,24 @@ public final class BaseTrustManager {
         return localTrust.containsKey(playerId);
     }
 
+    /**
+     * Offline-mode name fallback probed directly against the live map so the
+     * targeting hot path never pays for a {@link #snapshot()} copy.
+     */
+    public boolean matchesByName(UUID candidateId, @Nullable String candidateName) {
+        if (candidateName == null || candidateName.isBlank()) {
+            return false;
+        }
+        for (LocalTrustEntry entry : localTrust.values()) {
+            if (!entry.player().equals(candidateId)
+                    && !entry.name().isEmpty()
+                    && entry.name().equalsIgnoreCase(candidateName)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     public long revision() {
         return localTrustRevision;
     }

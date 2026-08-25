@@ -84,8 +84,11 @@ public final class TurretBaseBlockEntity extends BlockEntity
     public static final int INVENTORY_SIZE = 13;
 
     private static final int DATA_VERSION = 5;
-    private static final int TARGET_SCAN_INTERVAL = 10;
     private static final int WARNING_SCAN_INTERVAL = 20;
+    /** Reclaims energy stored above a shrunken capacity after expander loss. */
+    private static final int ENERGY_CLAMP_INTERVAL = 10;
+    /** Owner team-name cache refresh cadence, staggered by position. */
+    private static final int OWNER_TEAM_REFRESH_INTERVAL = 20;
 
     // Sub-components
     private final BaseTrustManager trustManager = new BaseTrustManager();
@@ -183,12 +186,16 @@ public final class TurretBaseBlockEntity extends BlockEntity
         if (level.getGameTime() % TurretAddonRules.REACTOR_INTERVAL == 0) {
             base.runReactorCycle();
         }
-        if (level.getGameTime() % TARGET_SCAN_INTERVAL == 0 && base.energy.stored > base.energy.getMaxEnergyStored()) {
+        if (level.getGameTime() % ENERGY_CLAMP_INTERVAL == 0
+                && base.energy.stored > base.energy.getMaxEnergyStored()) {
             base.energy.stored = base.energy.getMaxEnergyStored();
             base.markForSave();
         }
         if (Math.floorMod(level.getGameTime() + pos.asLong(), WARNING_SCAN_INTERVAL) == 0) {
             base.warnNearbyPlayers();
+        }
+        if (Math.floorMod(level.getGameTime() + pos.asLong(), OWNER_TEAM_REFRESH_INTERVAL) == 0) {
+            base.refreshOwnerTeamName();
         }
     }
 
@@ -447,22 +454,30 @@ public final class TurretBaseBlockEntity extends BlockEntity
     }
 
     private boolean isOwnerTeamMember(Player player) {
-        if (owner == null || player.getTeam() == null) {
-            return false;
+        return owner != null
+                && player.getTeam() != null
+                && !ownerTeamName.isEmpty()
+                && ownerTeamName.equals(player.getTeam().getName());
+    }
+
+    /**
+     * Slow-cadence maintenance for the cached owner team name.  Kept out of
+     * the targeting predicates so {@link #mayDamage} stays side-effect free.
+     */
+    private void refreshOwnerTeamName() {
+        if (!(level instanceof ServerLevel serverLevel) || owner == null) {
+            return;
         }
-        String currentOwnerTeam = ownerTeamName;
-        if (level instanceof ServerLevel serverLevel) {
-            Player ownerPlayer = serverLevel.getPlayerByUUID(owner);
-            String onlineTeam = ownerPlayer == null || ownerPlayer.getTeam() == null
-                    ? "" : ownerPlayer.getTeam().getName();
-            if (ownerPlayer != null && !onlineTeam.equals(ownerTeamName)) {
-                ownerTeamName = onlineTeam;
-                currentOwnerTeam = onlineTeam;
-                markForSave();
-            }
+        Player ownerPlayer = serverLevel.getPlayerByUUID(owner);
+        if (ownerPlayer == null) {
+            return;
         }
-        return !currentOwnerTeam.isEmpty()
-                && currentOwnerTeam.equals(player.getTeam().getName());
+        String onlineTeam = ownerPlayer.getTeam() == null
+                ? "" : ownerPlayer.getTeam().getName();
+        if (!onlineTeam.equals(ownerTeamName)) {
+            ownerTeamName = onlineTeam;
+            markForSave();
+        }
     }
 
     private boolean isTrusted(Player player) {
@@ -475,9 +490,14 @@ public final class TurretBaseBlockEntity extends BlockEntity
                     && SecuritySavedData.get(serverLevel).hasEntry(owner, player.getUUID(),
                             player.getGameProfile().getName(), ModServerConfig.offlineModeSupport());
         }
-        return trustManager.snapshot().values().stream().anyMatch(entry -> OwnershipRules.matches(
-                entry.player(), entry.name(), player.getUUID(), player.getGameProfile().getName(),
-                ModServerConfig.offlineModeSupport()));
+        // Hot path: probe by UUID first, then fall back to offline-mode name
+        // matching over the live map; snapshot() copies are reserved for exports.
+        if (trustManager.contains(player.getUUID())) {
+            return true;
+        }
+        return ModServerConfig.offlineModeSupport()
+                && trustManager.matchesByName(player.getUUID(),
+                        player.getGameProfile().getName());
     }
 
     private boolean isTrusted(UUID playerId) {
