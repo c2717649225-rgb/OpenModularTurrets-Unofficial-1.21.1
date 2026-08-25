@@ -3,6 +3,8 @@ package omtteam.openmodularturrets.client.render;
 import java.util.ArrayList;
 import java.util.List;
 
+import javax.annotation.Nullable;
+
 import omtteam.openmodularturrets.data.TurretDefinition;
 import omtteam.openmodularturrets.data.TurretVisualRules;
 
@@ -33,9 +35,9 @@ public final class TurretHeadModel {
     private final ModelPart boxUnder;
     private final ModelPart crystal;
     private final ModelPart pillar;
-    @javax.annotation.Nullable
+    @Nullable
     private final ModelPart boxLeft;
-    @javax.annotation.Nullable
+    @Nullable
     private final ModelPart boxRight;
     private final List<ModelPart> aimParts = new ArrayList<>();
     private final List<ModelPart> mountParts = new ArrayList<>();

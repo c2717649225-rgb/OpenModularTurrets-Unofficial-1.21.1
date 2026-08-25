@@ -93,7 +93,7 @@ DISPOSABLE(def("disposable_item_turret")
 - 所有 getter（含 config 委托与 `default*()` 系列）、序列化行为完全不变。
 
 **风险与对策（数值漂移是本任务唯一实质风险）**
-- 金标网：扩展现有 `legacyConfigDefaults` GameTest（OpenModularTurretsGameTests.java:276），为全部 11 个定义 × 14 个数值字段建立显式期望值断言表（从改造前字节码/源码抄录）。改造前后各跑一遍，值不变才允许合入。
+- 金标网：扩展现有 `legacyConfigDefaults` GameTest（原 OpenModularTurretsGameTests.java:276，现位于 ConfigDefinitionGameTests），为全部 11 个定义 × 13 个数值字段建立显式期望值断言表（从改造前源码抄录）。改造前后各跑一遍，值不变才允许合入。
 
 ### A3. 死代码、双轨制与特判清理
 

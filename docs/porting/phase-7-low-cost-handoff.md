@@ -48,7 +48,7 @@
 
 ## 机械任务 A：GameTest
 
-在现有 `OpenModularTurretsGameTests.java` 中补测试，不另建测试框架。
+在 gametest 包对应域的 `*GameTests` 持有者类中补测试，不另建测试框架。
 
 ### `baseCamouflagePersistenceAndValidation`
 

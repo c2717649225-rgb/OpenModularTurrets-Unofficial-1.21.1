@@ -3,8 +3,8 @@
   "schema_version": 2,
   "design_source": {
     "path": "docs/porting/code-quality-remediation-plan.md",
-    "revision": "executed-complete-2026-08-25",
-    "sha256": "596c91d671fa7e0cdaf1b03fe10f8b8793f4ffb7225268cd9c9bb98a53f6d695"
+    "revision": "executed-final-2026-08-25",
+    "sha256": "fff8f3e002901a7cd4dc39576ea24b844975199b39a581245404cf809aab410c"
   },
   "review_required": [],
   "id": "openmodularturrets.combat-accounting-convergence",
