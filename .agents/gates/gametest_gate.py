@@ -1425,6 +1425,43 @@ def reporter_control_attestation(
     return hashlib.sha256(canonical_manifest).hexdigest(), files
 
 
+def _ensure_moddev_gametest_runtime(project: Path, wrapper: str,
+                                    timeout_seconds: float) -> None:
+    """Bootstrap ModDevGradle runtime files on fresh environments.
+
+    The reporter precheck requires build/moddev/artifacts/*-merged.jar plus
+    gameTestServerLegacyClasspath.txt.  Both are only materialized by MDG
+    once a gameTestServer run has been prepared, which fresh CI checkouts
+    never had.  A single unreported runGameTestServer execution generates
+    them; afterwards the reported gate run proceeds normally.
+    """
+    artifacts = project / "build" / "moddev" / "artifacts"
+    merged = list(artifacts.glob("*-merged.jar")) if artifacts.is_dir() else []
+    legacy = (project / "build" / "moddev" /
+              "gameTestServerLegacyClasspath.txt")
+    if merged and legacy.is_file():
+        return
+    bootstrap_command = [
+        wrapper, "runGameTestServer", "--no-daemon", "--console=plain",
+    ]
+    code, _output, timed_out, launch_error = _run_bounded_command(
+        bootstrap_command,
+        cwd=project,
+        timeout_seconds=min(timeout_seconds, 1800.0),
+    )
+    merged_after = list(artifacts.glob("*-merged.jar")) \
+        if artifacts.is_dir() else []
+    if not merged_after or not legacy.is_file():
+        if launch_error is not None:
+            reason = f"bootstrap runGameTestServer launch failed: {launch_error}"
+        elif timed_out:
+            reason = "bootstrap runGameTestServer timed out"
+        else:
+            reason = (f"bootstrap runGameTestServer exited with code {code} "
+                      "and did not produce the ModDevGradle runtime files")
+        raise OSError(reason)
+
+
 def _reporter_compile_classpath(project: Path) -> tuple[Path, Path]:
     merged = sorted(
         (project / "build" / "moddev" / "artifacts").glob("*-merged.jar")
@@ -1986,6 +2023,9 @@ def run_trusted_game_tests(
         prefix="codex-gametest-control-"
     ) as raw_control_root:
         control_root = Path(raw_control_root).resolve()
+        _ensure_moddev_gametest_runtime(
+            project, str(wrapper), timeout_seconds
+        )
         try:
             reporter = build_reporter_bundle(project, control_root)
         except OSError as error:
