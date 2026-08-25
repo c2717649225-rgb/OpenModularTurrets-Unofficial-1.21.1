@@ -42,5 +42,8 @@ jobs:
       - name: L2.5 asset gate (visual integrity)
         run: python .agents/run.py .agents/gates/asset_gate.py
 
+      - name: Prepare ModDevGradle artifacts (for L4 reporter classpath)
+        run: ./gradlew createMinecraftArtifacts --no-daemon --console=plain
+
       - name: L4 GameTests
         run: python .agents/run.py .agents/gates/gametest_gate.py --require-tests --run
