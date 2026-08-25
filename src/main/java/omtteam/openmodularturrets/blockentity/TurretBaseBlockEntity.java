@@ -187,8 +187,8 @@ public final class TurretBaseBlockEntity extends BlockEntity
             base.runReactorCycle();
         }
         if (level.getGameTime() % ENERGY_CLAMP_INTERVAL == 0
-                && base.energy.stored > base.energy.getMaxEnergyStored()) {
-            base.energy.stored = base.energy.getMaxEnergyStored();
+                && base.energy.getEnergyStored() > base.energy.getMaxEnergyStored()) {
+            base.energy.setStoredForLoad(base.energy.getMaxEnergyStored());
             base.markForSave();
         }
         if (Math.floorMod(level.getGameTime() + pos.asLong(), WARNING_SCAN_INTERVAL) == 0) {
@@ -204,24 +204,25 @@ public final class TurretBaseBlockEntity extends BlockEntity
     }
 
     public void claim(UUID playerId) {
-        claim(playerId, "");
+        doClaim(playerId, "", "");
     }
 
     public void claim(UUID playerId, String name) {
-        if (owner == null) {
-            owner = playerId;
-            ownerName = sanitizeName(name);
-            markForSave();
-        }
+        doClaim(playerId, name, "");
     }
 
     public void claim(Player player) {
+        doClaim(player.getUUID(), sanitizeName(player.getGameProfile().getName()),
+                player.getTeam() == null ? "" : player.getTeam().getName());
+    }
+
+    private void doClaim(UUID playerId, String name, String teamName) {
         if (owner != null) {
             return;
         }
-        owner = player.getUUID();
-        ownerName = sanitizeName(player.getGameProfile().getName());
-        ownerTeamName = player.getTeam() == null ? "" : player.getTeam().getName();
+        owner = playerId;
+        ownerName = sanitizeName(name);
+        ownerTeamName = teamName;
         markForSave();
     }
 
@@ -575,7 +576,7 @@ public final class TurretBaseBlockEntity extends BlockEntity
         int shotCount = projectileCount();
         int actualEnergyCost = effectiveEnergyCost(definition);
         TagKey<Item> ammo = definition.ammoTag();
-        if (energy.stored < actualEnergyCost
+        if (energy.getEnergyStored() < actualEnergyCost
                 || (ModServerConfig.requireAmmo() && ammo != null && countAvailableAmmo(ammo) < shotCount)) {
             return Optional.empty();
         }
@@ -1028,7 +1029,7 @@ public final class TurretBaseBlockEntity extends BlockEntity
         }
         tag.putString("owner_name", ownerName);
         tag.putString("owner_team", ownerTeamName);
-        tag.putInt("energy", energy.stored);
+        tag.putInt("energy", energy.getEnergyStored());
         tag.put("inventory", inventory.serializeNBT(registries));
         tag.putInt("mode_id", mode.id());
         tag.putBoolean("redstone_powered", redstonePowered);
@@ -1054,7 +1055,7 @@ public final class TurretBaseBlockEntity extends BlockEntity
         owner = tag.hasUUID("owner") ? tag.getUUID("owner") : null;
         ownerName = sanitizeName(tag.getString("owner_name"));
         ownerTeamName = tag.getString("owner_team");
-        energy.stored = Math.max(0, tag.getInt("energy"));
+        energy.setStoredForLoad(tag.getInt("energy"));
         if (tag.contains("inventory", Tag.TAG_COMPOUND)) {
             inventory.deserializeNBT(registries, tag.getCompound("inventory"));
         }
@@ -1089,12 +1090,16 @@ public final class TurretBaseBlockEntity extends BlockEntity
     @Override
     public CompoundTag getUpdateTag(HolderLookup.Provider registries) {
         CompoundTag tag = new CompoundTag();
-        tag.putInt("energy", energy.stored);
+        tag.putInt("energy", energy.getEnergyStored());
         tag.putInt("mode_id", mode.id());
         tag.putBoolean("redstone_powered", redstonePowered);
         tag.putBoolean("active", active());
         tag.putBoolean("use_global_trust", useGlobalTrust);
         tag.putString("owner_name", ownerName);
+        // The owner UUID is mirrored to tracking clients on purpose: the menu
+        // trust view and the Jade integration read it client-side.  It is
+        // world-local gameplay data, not a secret; revisit only if a privacy
+        // requirement explicitly lands.
         if (owner != null) {
             tag.putUUID("owner", owner);
         }
@@ -1106,7 +1111,7 @@ public final class TurretBaseBlockEntity extends BlockEntity
 
     @Override
     public void handleUpdateTag(CompoundTag tag, HolderLookup.Provider registries) {
-        energy.stored = Math.max(0, tag.getInt("energy"));
+        energy.setStoredForLoad(tag.getInt("energy"));
         mode = BaseMode.byIdOrDefault(tag.getInt("mode_id"));
         redstonePowered = tag.getBoolean("redstone_powered");
         useGlobalTrust = tag.getBoolean("use_global_trust");
@@ -1130,7 +1135,16 @@ public final class TurretBaseBlockEntity extends BlockEntity
     }
 
     public final class BaseEnergyStorage implements IEnergyStorage {
-        public int stored;
+        private int stored;
+
+        /**
+         * Persistence and capacity-clamp write path.  Mirrors the historical
+         * load semantics: clamp to non-negative, but allow values above the
+         * current capacity until the periodic clamp cycle reclaims them.
+         */
+        public void setStoredForLoad(int value) {
+            stored = Math.max(0, value);
+        }
 
         @Override
         public int receiveEnergy(int maxReceive, boolean simulate) {

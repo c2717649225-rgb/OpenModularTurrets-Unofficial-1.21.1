@@ -285,6 +285,11 @@ public final class TurretProjectileEntity extends ThrowableItemProjectile {
                 .getHolderOrThrow(damageType);
         TurretDamageSource source = TurretDamageSource.create((ServerLevel) level(), holder, null,
                 new TurretAttackContext(sourceBasePos, fakeDropsLevel, suppressLoot));
+        // The ender dragon ignores most non-player DamageSources during its
+        // fight phases, so the config-gated rocket hit subtracts health
+        // directly instead of routing through hurt().  Death still resolves
+        // through vanilla phase logic; this path only keeps rocket DPS
+        // meaningful against the dragon (off by default).
         if (projectileKind == ProjectileKind.ROCKET && target instanceof EnderDragon
                 && ModServerConfig.rocketsHurtDragon()) {
             target.setHealth(target.getHealth() - amount);
