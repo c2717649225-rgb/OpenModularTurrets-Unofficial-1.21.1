@@ -739,12 +739,15 @@ public final class CombatTargetingGameTests {
         TurretBaseBlockEntity base = helper.getBlockEntity(basePos);
         base.setActive(true);
         base.setRange(TurretDefinition.LASER.baseRange());
-        base.setTargetFlags(true, false, false);
+        // Neutral-only targeting: the saturated pressure fixture's stray
+        // machine-gun bullets are ineligible against a villager, so this
+        // contract cannot be pre-empted by cross-plot friendly fire.
+        base.setTargetFlags(false, true, false);
         while (base.energy().getEnergyStored() < TurretDefinition.LASER.energyCost()) {
             base.energy().receiveEnergy(1_000, false);
         }
 
-        var target = helper.spawn(EntityType.ZOMBIE, new Vec3(8.5D, 1.0D, 5.5D));
+        var target = helper.spawn(EntityType.VILLAGER, new Vec3(8.5D, 1.0D, 5.5D));
         target.setNoAi(true);
         target.setNoGravity(true);
         target.setHealth(1.0F);

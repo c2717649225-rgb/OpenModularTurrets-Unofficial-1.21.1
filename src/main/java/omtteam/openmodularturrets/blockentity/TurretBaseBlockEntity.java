@@ -716,6 +716,13 @@ public final class TurretBaseBlockEntity extends BlockEntity
                 || profile.schemaVersion() > MemoryCardProfile.CURRENT_SCHEMA) {
             return false;
         }
+        // Trust entries are privilege-bearing and a carrying card replaces the
+        // whole local list, so applying one needs admin on THIS base.  Without
+        // this gate a USE-level player could escalate via a card saved on any
+        // other base where they held admin (and wipe this base's trust).
+        if (profile.carriesTrust() && accessFor(actor) != AccessLevel.ADMIN) {
+            return false;
+        }
         configuredRange = Math.max(0, profile.range());
         mode = profile.mode();
         attackHostile = profile.attackHostile();

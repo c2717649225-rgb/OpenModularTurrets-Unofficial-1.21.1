@@ -477,4 +477,56 @@ public final class SecurityTrustGameTests {
                 "Global trust did not apply offline-mode name matching only when enabled");
         helper.succeed();
     }
+
+    @GameTest(template = "smoke", timeoutTicks = 20)
+    public static void memoryCardTrustApplicationRequiresAdmin(GameTestHelper helper) {
+        BlockPos pos = new BlockPos(3, 1, 3);
+        helper.setBlock(pos, ModBlocks.TURRET_BASE_TIER_ONE.value());
+        TurretBaseBlockEntity base = helper.getBlockEntity(pos);
+        var owner = helper.makeMockPlayer(GameType.CREATIVE);
+        var attacker = helper.makeMockPlayer(GameType.CREATIVE);
+        var marker = helper.makeMockPlayer(GameType.CREATIVE);
+        base.claim(owner.getUUID());
+        var attackerId = attacker.getUUID();
+
+        // The attacker only holds USE on this base; a bystander marks the
+        // existing trust content so a wipe is detectable.
+        base.setLocalTrust(owner, attackerId, "Attacker", AccessLevel.USE);
+        base.setLocalTrust(owner, marker.getUUID(), "Marker", AccessLevel.VIEW);
+        base.setRange(3);
+
+        var trustCard = new MemoryCardProfile(
+                MemoryCardProfile.CURRENT_SCHEMA, 12, BaseMode.ALWAYS_ON.id(),
+                true, false, false, false,
+                List.of(new MemoryCardProfile.TrustEntry(
+                        attackerId, "Attacker", AccessLevel.ADMIN)),
+                true);
+
+        helper.assertTrue(!base.applyProfile(attacker, trustCard),
+                "A USE-level player applied a trust-carrying memory card");
+        helper.assertTrue(base.localTrustSnapshot().get(attackerId).access()
+                        == AccessLevel.USE,
+                "Denied card application elevated the attacker");
+        helper.assertTrue(base.localTrustSnapshot().containsKey(marker.getUUID()),
+                "Denied card application wiped existing trust entries");
+        helper.assertTrue(base.configuredRange() == 3,
+                "Denied card application still mutated base settings");
+
+        helper.assertTrue(base.applyProfile(owner, trustCard),
+                "The owner could not apply a trust-carrying memory card");
+        helper.assertTrue(base.localTrustSnapshot().get(attackerId).access()
+                        == AccessLevel.ADMIN,
+                "Admin-applied card did not write its trust entry");
+        helper.assertTrue(!base.localTrustSnapshot().containsKey(marker.getUUID()),
+                "Admin-applied card did not replace the whole local trust list");
+
+        var plainCard = new MemoryCardProfile(
+                MemoryCardProfile.CURRENT_SCHEMA, 14, BaseMode.ALWAYS_ON.id(),
+                true, false, false, false, List.of(), false);
+        helper.assertTrue(base.applyProfile(attacker, plainCard),
+                "Non-trust profiles must stay available to USE-level players");
+        helper.assertTrue(base.configuredRange() == 14,
+                "Non-trust card settings were not applied");
+        helper.succeed();
+    }
 }
